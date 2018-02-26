@@ -441,14 +441,14 @@ module elm_varctl
   logical, public :: pf_hmode      = .false.                 ! switch for 'H' mode coupling (will be updated in interface)
   logical, public :: pf_tmode      = .false.                 ! switch for 'T' mode coupling (will be updated in interface)
   logical, public :: pf_frzmode    = .false.                 ! switch for 'freezing' mode availablity in PF-thmode (will be updated in interface)
-  logical, public :: initth_pf2clm = .false.                 ! switch for initializing CLM TH states from pflotran
+  logical, public :: initth_pf2elm = .false.                 ! switch for initializing CLM TH states from pflotran
   integer, public :: pf_elmnstep0  = 0                       ! the ELM timestep of start/restart
   !$acc declare copyin(pf_cmode     )
   !$acc declare copyin(pf_hmode     )
   !$acc declare copyin(pf_tmode     )
   !$acc declare copyin(pf_frzmode   )
-  !$acc declare copyin(initth_pf2clm)
-  !$acc declare copyin(pf_clmnstep0 )
+  !$acc declare copyin(initth_pf2elm)
+  !$acc declare copyin(pf_elmnstep0 )
 
   ! cpl_bypass
    character(len=fname_len), public :: metdata_type   = ' '    ! metdata type for CPL_BYPASS mode
