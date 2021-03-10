@@ -1103,7 +1103,7 @@ contains
            call CH4 (bounds_clump,                                                                  &
                filter(nc)%num_soilc, filter(nc)%soilc,                                             &
                filter(nc)%num_soilp, filter(nc)%soilp,                                             &
-               atm2lnd_vars, lakestate_vars, canopystate_vars, soilstate_vars, soilhydrology_vars, &
+               atm2lnd_vars, canopystate_vars, soilstate_vars, soilhydrology_vars,                 &
                temperature_vars, energyflux_vars, waterstate_vars, waterflux_vars,                 &
                carbonstate_vars, carbonflux_vars, nitrogenflux_vars, ch4_vars, lnd2atm_vars)
            call t_stopf('ch4')
@@ -1354,7 +1354,8 @@ contains
          atm2lnd_vars, surfalb_vars, frictionvel_vars, &
          waterstate_vars, waterflux_vars, energyflux_vars,               &
          solarabs_vars, carbonflux_vars, drydepvel_vars,                 &
-         vocemis_vars, dust_vars, ch4_vars, soilhydrology_vars, lnd2atm_vars) 
+         vocemis_vars, dust_vars, ch4_vars, lakebgc_vars,                &
+         soilhydrology_vars, lnd2atm_vars) 
     call t_stopf('lnd2atm')
 
     ! ============================================================================
