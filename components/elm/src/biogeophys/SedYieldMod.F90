@@ -54,6 +54,9 @@ contains
     !
     ! !DESCRIPTION:
     ! Calculate rainfall and runoff driven erosion 
+    ! It should be noted that because glacier runoff is now inactive for
+    ! inland grid cells, the glacier factor is implemented on surface
+    ! runoff.
     !
     ! !USES:
     use clm_time_manager, only : get_step_size
@@ -162,7 +165,10 @@ contains
             end if
 
             ! check the glacier landunit in the gridcell
+            ! Qg = max(8.64e4_r8*qflx_qrgwl(cg), 0._r8)  ! glacier runoff (mm/d)
+            ! wglc = lun_pp%wtgcell(lg) / lun_pp%wtgcell(l) ! weight of glacier landunit 
             lg = grc_pp%landunit_indices(istice, g) 
+            fglacier = 1._r8
             if (lg /= ispval) then
                found = .false.
                cg = lun_pp%coli(lg)
@@ -175,17 +181,7 @@ contains
                end do
                if (found .and. qflx_qrgwl(cg)<1e10_r8) then
                   fglacier = 1._r8 + 9._r8 * lun_pp%wtgcell(lg)
-                  Qg = max(8.64e4_r8*qflx_qrgwl(cg), 0._r8)  ! mm/d
-                  wglc = lun_pp%wtgcell(lg) / lun_pp%wtgcell(l)
-               else
-                  fglacier = 1._r8
-                  Qg = 0._r8
-                  wglc = 0._r8
                end if
-            else
-               fglacier = 1._r8
-               Qg = 0._r8 
-               wglc = 0._r8
             end if
 
             ! tillage, lithology factors
@@ -261,7 +257,12 @@ contains
             Es_Q = 0._r8
             Es_Qcrp = 0._r8
             Tc = 0._r8
-            if (Qs>0._r8 .or. Qg>0._r8) then
+            ! if (Qs>0._r8 .and. Qg>0._r8)
+            ! Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
+            !    (fgndcov*Qss**1.5_r8 + wglc*fglacier*Qg**1.5_r8) * veg_pp%wtcol(p)
+            ! Tc = 19.1_r8 * tfactor(c) * fslp_tc * (fsr*Qs**2._r8 + &
+            !    wglc * fglacier * Qg**2._r8) * veg_pp%wtcol(p)
+            if (Qs>0._r8) then
                frac_slp = 1.0_r8 / DBLE(nlevslp-1)
                fslp = 0._r8
                fslp_tc = 0._r8
@@ -279,20 +280,17 @@ contains
                   
                   if ( veg_pp%itype(p) > nc4_grass ) then
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
-                        (ftillage*fgndcov*Qss**1.5_r8 + wglc*fglacier*Qg**1.5_r8) * &
-                        veg_pp%wtcol(p)
+                        ftillage * fgndcov * Qss**1.5_r8 * veg_pp%wtcol(p)
 
                      Es_Qcrp = Es_Qcrp + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
-                        (ftillage*fgndcov*Qss**1.5_r8 + wglc*fglacier*Qg**1.5_r8) * &
-                        veg_pp%wtcol(p)
+                        ftillage * fgndcov * Qss**1.5_r8 * veg_pp%wtcol(p)
                   else
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
-                        (fgndcov*Qss**1.5_r8 + wglc*fglacier*Qg**1.5_r8) * &
-                        veg_pp%wtcol(p)
+                        fgndcov * fglacier * Qss**1.5_r8 * veg_pp%wtcol(p)
                   end if
 
-                  Tc = Tc + 19.1_r8 * tfactor(c) * fslp_tc * (fsr*Qs**2._r8 + &
-                     wglc * fglacier * Qg**2._r8) * veg_pp%wtcol(p) 
+                  Tc = Tc + 19.1_r8 * tfactor(c) * fslp_tc * fsr * fglacier * &
+                     Qs**2._r8 * veg_pp%wtcol(p) 
                end do
                
             end if
