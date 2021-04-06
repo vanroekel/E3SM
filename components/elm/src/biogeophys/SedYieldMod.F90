@@ -325,9 +325,9 @@ contains
     !------------------------------------------------------------------------------
 
     tsum = sum(stxt(1:3))
-    clay = stxt(1) / tsum 
-    silt = stxt(2) / tsum
-    sand = stxt(3) / tsum
+    clay = 1.e2_r8 * stxt(1) / tsum 
+    silt = 1.e2_r8 * stxt(2) / tsum
+    sand = 1.e2_r8 * stxt(3) / tsum
     if ( silt + 1.5_r8*clay < 15._r8 ) then
        SoilTextureType = 'sand'
     else if ( silt + 2.0_r8*clay < 30._r8 ) then
