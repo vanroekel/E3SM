@@ -1146,8 +1146,8 @@
       <executable>srun</executable>
       <arguments>
         <arg name="num_tasks">--mpi=pmi2 -l -n {{ total_tasks }} -N {{ num_nodes }} --kill-on-bad-exit </arg>
-        <arg name="binding">--cpu_bind=cores</arg>
-        <arg name="thread_count">-c $ENV{OMP_NUM_THREADS}</arg>
+        <arg name="binding"> $SHELL{if [ 64 -ge `./xmlquery --value MAX_MPITASKS_PER_NODE` ]; then echo "--cpu_bind=cores"; else echo "--cpu_bind=threads";fi;} </arg>	
+        <arg name="thread_count">-c $SHELL{echo 128/`./xmlquery --value MAX_MPITASKS_PER_NODE`|bc}</arg>
         <arg name="placement">-m plane={{ tasks_per_node }}</arg>
       </arguments>
     </mpirun>
