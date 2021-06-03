@@ -106,11 +106,9 @@ module AllocationMod
   !$acc declare create(col_plant_pdemand(:))
 
   logical :: crop_supln  = .false.    !Prognostic crop receives supplemental Nitrogen
-
-  real(r8), allocatable :: decompmicc(:,:) ! column-level soil microbial decomposer biomass gC/m3
-
-  real(r8), parameter   :: E_plant_scalar  = 0.0000125_r8 ! scaling factor for plant fine root biomass to calculate nutrient carrier enzyme abundance
-  real(r8), parameter   :: E_decomp_scalar = 0.05_r8      ! scaling factor for plant fine root biomass to calculate nutrient carrier enzyme abundance
+  real(r8), allocatable :: decompmicc(:,:)                ! column-level soil microbial decomposer biomass gC/m3
+  real(r8), parameter   :: e_plant_scalar  = 0.0000125_r8 ! scaling factor for plant fine root biomass to calculate nutrient carrier enzyme abundance
+  real(r8), parameter   :: e_decomp_scalar = 0.05_r8      ! scaling factor for plant soil microbial biomass to calculate nutrient carrier enzyme abundance
   !$acc declare copyin(E_plant_scalar, E_decomp_scalar)
   real(r8)              :: e_km_nh4 ! temp variable of sum(E/KM) for NH4 competition BGC mode
   real(r8)              :: e_km_no3 ! temp variable of sum(E/KM) for NO3 competition BGC mode
@@ -981,6 +979,9 @@ contains
          col_plant_pdemand_vr         => col_pf%col_plant_pdemand_vr                , &
          cn_scalar                    => cnstate_vars%cn_scalar                                , &
          cp_scalar                    => cnstate_vars%cp_scalar                                , &
+         np_scalar                    => cnstate_vars%np_scalar                                , & 
+         cn_scalar_runmean            => cnstate_vars%cn_scalar_runmean                        , &
+         cp_scalar_runmean            => cnstate_vars%cp_scalar_runmean                        , &
          t_scalar                     => col_cf%t_scalar                          , &
          plant_nh4demand_vr_patch     => veg_nf%plant_nh4demand_vr            , &
          plant_no3demand_vr_patch     => veg_nf%plant_no3demand_vr            , &
@@ -1191,7 +1192,7 @@ contains
                   ! calculate competition coefficients for NH4/NO3
                   ! first need to convert concentration to per soil water based
                   ! 2.76 consider soil adsorption effect on [NH4+] availability, based on Zhu et al., 2016 DOI: 10.1002/2016JG003554
-                  solution_nh4conc(c,j) = smin_nh4_vr(c,j) / (bd(c,j)*2.76 + h2osoi_vol(c,j)) ! convert to per soil water based
+                  solution_nh4conc(c,j) = smin_nh4_vr(c,j) / (bd(c,j)*2.76*1.0e-3_r8 + h2osoi_vol(c,j)) ! convert to per soil water based
                   solution_no3conc(c,j) = smin_no3_vr(c,j) /  h2osoi_vol(c,j) ! convert to per soil water based
                   e_km_nh4 = 0._r8
                   e_km_no3 = 0._r8
@@ -1200,6 +1201,7 @@ contains
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         e_km_nh4 = e_km_nh4 + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_nh4(ivt(p))
                         e_km_no3 = e_km_no3 + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_no3(ivt(p))
+                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
                   e_km_nh4 = e_km_nh4 + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_nh4 + 1._r8/km_nit)
@@ -1237,9 +1239,9 @@ contains
                         endif
 
                         plant_nh4demand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * froot_prof(p,j) * &
-                             cn_scalar(p) * t_scalar(c,j) * compet_plant_nh4(p)
+                             cn_scalar_runmean(p) * t_scalar(c,j) * compet_plant_nh4(p) 
                         plant_no3demand_vr_patch(p,j) = vmax_plant_no3(ivt(p)) * frootc(p) * froot_prof(p,j) * &
-                             cn_scalar(p) * t_scalar(c,j) * compet_plant_no3(p)
+                             cn_scalar_runmean(p) * t_scalar(c,j) * compet_plant_no3(p)
                         plant_nh4demand_vr_patch(p,j) = max(plant_nh4demand_vr_patch(p,j),0.0_r8)
                         plant_no3demand_vr_patch(p,j) = max(plant_no3demand_vr_patch(p,j),0.0_r8)
                         col_plant_nh4demand_vr(c,j) = col_plant_nh4demand_vr(c,j) + plant_nh4demand_vr_patch(p,j)*veg_pp%wtcol(p)
@@ -1478,23 +1480,6 @@ contains
                   ! plant P uptake, microbial P uptake/release
                   ! secondary P desorption is assumed to go into solution P pool
 
-                  ! potential adsorption rate without plant and microbial interaction
-                  ! including weathering, deposition, phosphatase, mineralization, immobilization, plant uptake
-                  dsolutionp_dt(c,j) = gross_pmin_vr(c,j) -potential_immob_p_vr(c,j) - &
-                       col_plant_pdemand_vr(c,j) + biochem_pmin_vr_col(c,j) + &
-                       primp_to_labilep_vr_col(c,j) + pdep_to_sminp(c) *ndep_prof(c,j)
-                  adsorb_to_labilep_vr(c,j) = (vmax_minsurf_p_vr(isoilorder(c),j)* km_minsurf_p_vr(isoilorder(c),j)) / &
-                       ((km_minsurf_p_vr(isoilorder(c),j)+max(solutionp_vr(c,j),0._r8))**2._r8 ) * dsolutionp_dt(c,j)
-                  ! sign convention: if adsorb_to_labilep_vr(c,j) < 0, then it's desorption
-                  if (adsorb_to_labilep_vr(c,j) >= 0) then
-                     adsorb_to_labilep_vr(c,j) = max(min(adsorb_to_labilep_vr(c,j), &
-                          (vmax_minsurf_p_vr(isoilorder(c),j) - labilep_vr(c,j))/dt),0.0_r8)
-                     desorb_to_solutionp_vr(c,j) = 0.0_r8
-                  else
-                     desorb_to_solutionp_vr(c,j) = min(-1.0*adsorb_to_labilep_vr(c,j), labilep_vr(c,j)/dt)
-                     adsorb_to_labilep_vr(c,j) = 0.0_r8
-                  end if
-
                   ! (1) plant, microbial decomposer, mineral surface (and P leaching?)  compete for P
                   ! loop over each pft within the same column
                   ! calculate competition coefficients for P
@@ -1538,7 +1523,7 @@ contains
                         endif
 
                         plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
-                             cp_scalar(p) * t_scalar(c,j) * compet_plant_p(p)
+                             cp_scalar_runmean(p) * t_scalar(c,j) * compet_plant_p(p)
                         plant_pdemand_vr_patch(p,j) = max(plant_pdemand_vr_patch(p,j),0.0_r8)
                         col_plant_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + plant_pdemand_vr_patch(p,j)*veg_pp%wtcol(p)
                      else
@@ -1546,6 +1531,23 @@ contains
                         plant_pdemand_vr_patch(p,j) = 0.0_r8
                      end if
                   end do
+
+                  ! potential adsorption rate without plant and microbial interaction
+                  ! including weathering, deposition, phosphatase, mineralization, immobilization, plant uptake
+                  dsolutionp_dt(c,j) = gross_pmin_vr(c,j) -potential_immob_p_vr(c,j) - &
+                       col_plant_pdemand_vr(c,j) + biochem_pmin_vr_col(c,j) + &
+                       primp_to_labilep_vr_col(c,j) + pdep_to_sminp(c) *ndep_prof(c,j)
+                  adsorb_to_labilep_vr(c,j) = (vmax_minsurf_p_vr(isoilorder(c),j)* km_minsurf_p_vr(isoilorder(c),j)) / &
+                       ((km_minsurf_p_vr(isoilorder(c),j)+max(solutionp_vr(c,j),0._r8))**2._r8 ) * dsolutionp_dt(c,j)
+                  ! sign convention: if adsorb_to_labilep_vr(c,j) < 0, then it's desorption
+                  if (adsorb_to_labilep_vr(c,j) >= 0.0_r8) then
+                     adsorb_to_labilep_vr(c,j) = max(min(adsorb_to_labilep_vr(c,j), &
+                          (vmax_minsurf_p_vr(isoilorder(c),j) - labilep_vr(c,j))/dt),0.0_r8)
+                     desorb_to_solutionp_vr(c,j) = 0.0_r8
+                  else
+                     desorb_to_solutionp_vr(c,j) = min(-1.0*adsorb_to_labilep_vr(c,j), labilep_vr(c,j)/dt)
+                     adsorb_to_labilep_vr(c,j) = 0.0_r8
+                  end if
 
                   sum_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + potential_immob_p_vr(c,j) + adsorb_to_labilep_vr(c,j)
                   if (nu_com .eq. 'ECA') then
@@ -1876,10 +1878,10 @@ contains
                   if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
                            pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_nh4demand_vr_patch(p,j) / max(frootc(p) * froot_prof(p,j)&
-                                ,1e-20_r8) * fpg_nh4_vr(c,j) / max(cn_scalar(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) &
+                                ,1e-20_r8) * fpg_nh4_vr(c,j) / max(cn_scalar_runmean(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) &
                                 * dzsoi_decomp(j)
                            pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_no3demand_vr_patch(p,j) / max(frootc(p) * froot_prof(p,j)&
-                                ,1e-20_r8) * fpg_no3_vr(c,j) / max(cn_scalar(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) &
+                                ,1e-20_r8) * fpg_no3_vr(c,j) / max(cn_scalar_runmean(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) &
                                 * dzsoi_decomp(j)
                         end do
                   end if
@@ -2081,8 +2083,12 @@ contains
          annsum_potential_gpp         => cnstate_vars%annsum_potential_gpp_patch               , &
          annmax_retransn              => cnstate_vars%annmax_retransn_patch                    , &
          grain_flag                   => cnstate_vars%grain_flag_patch                         , &
+         cn_scalar                    => cnstate_vars%cn_scalar                                , &
+         cp_scalar                    => cnstate_vars%cp_scalar                                , &
+         water_scalar                 => cnstate_vars%water_scalar                             , &
          cn_scalar_runmean            => cnstate_vars%cn_scalar_runmean                        , &
          cp_scalar_runmean            => cnstate_vars%cp_scalar_runmean                        , &
+         water_scalar_runmean         => cnstate_vars%water_scalar_runmean                     , &
          annmax_retransp              => cnstate_vars%annmax_retransp_patch                    , &
          cpool_to_xsmrpool            => veg_cf%cpool_to_xsmrpool               , &
          w_scalar                     => col_cf%w_scalar                          , &
@@ -2108,8 +2114,9 @@ contains
          allocation_stem              => veg_cf%allocation_stem                 , &
          allocation_froot             => veg_cf%allocation_froot                , &
          xsmrpool_turnover            => veg_cf%xsmrpool_turnover               , &
+         nsc_rtime                    => veg_vp%nsc_rtime                       , &
          supplement_to_plantn         => veg_nf%supplement_to_plantn            , &
-         supplement_to_plantp         => veg_pf%supplement_to_plantp          &
+         supplement_to_plantp         => veg_pf%supplement_to_plantp             &
          )
 
      !-------------------------------------------------------------------
@@ -2326,6 +2333,7 @@ contains
              ! set allocation coefficients
              N_lim_factor(p) = cn_scalar_runmean(p) ! N stress factor
              P_lim_factor(p) = cp_scalar_runmean(p) ! P stress factor
+             W_lim_factor(p) = water_scalar_runmean(p) ! W stress factor
 
              if (carbon_only) then
                  N_lim_factor(p) = 0.0_r8
@@ -2335,9 +2343,9 @@ contains
              else if ( carbonphosphorus_only ) then
                  N_lim_factor(p) = 0.0_r8
              end if
-             W_lim_factor(p) = 0.0_r8
+             water_scalar(p) = 0.0_r8
              do j = 1 , nlevdecomp
-                 W_lim_factor(p) = W_lim_factor(p) + w_scalar(c,j) * froot_prof(p,j)
+                 water_scalar(p) = water_scalar(p) + w_scalar(c,j) * froot_prof(p,j) * dzsoi_decomp(j)
              end do
              ! N_lim_factor/P_lim_factor ones: highly limited
              ! N_lim_factor/P_lim_factor zeros: not limited
@@ -2510,7 +2518,7 @@ contains
                 cpool_to_xsmrpool(p) = 0.0_r8
 
                 ! storage pool turnover
-                xsmrpool_turnover(p) = max(xsmrpool(p) - mr*xsmr_ratio*dt , 0.0_r8) / (10.0_r8*365.0_r8*secspday)
+                xsmrpool_turnover(p) = max(xsmrpool(p) - mr*xsmr_ratio*dt , 0.0_r8) / (nsc_rtime(ivt(p))*365.0_r8*secspday)
              end if
 
              plant_calloc(p) = availc(p)
