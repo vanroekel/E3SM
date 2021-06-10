@@ -120,6 +120,7 @@ contains
 
          tillage          =>    soilstate_vars%tillage_col          , & ! Input: [integer  (:)   ] tillage index
          litho            =>    soilstate_vars%litho_col            , & ! Input: [integer  (:)   ] lithology index
+         nh               =>    soilstate_vars%nh_col               , & ! Input: [integer  (:)   ] Manning's coefficient
 
          decomp_cpools_vr =>    col_cs%decomp_cpools_vr             , & ! Input: [real(r8) (:,:,:) ] soil carbon pools [gC/m3]
 
@@ -165,8 +166,6 @@ contains
             end if
 
             ! check the glacier landunit in the gridcell
-            ! Qg = max(8.64e4_r8*qflx_qrgwl(cg), 0._r8)  ! glacier runoff (mm/d)
-            ! wglc = lun_pp%wtgcell(lg) / lun_pp%wtgcell(l) ! weight of glacier landunit 
             lg = grc_pp%landunit_indices(istice, g) 
             fglacier = 1._r8
             if (lg /= ispval) then
@@ -246,22 +245,13 @@ contains
             Es_P = 1e-3_r8 / dtime * (1._r8 - frac_sno(c)) * Es_P        ! kg/m2/s 
             Es_Pcrp = 1e-3_r8 / dtime * (1._r8 - frac_sno(c)) * Es_Pcrp  ! kg/m2/s
 
-            Qs = 8.64e4_r8 * qflx_surf(c)  ! mm/d
             ! snow scaling factor from T factor of BQART
-            if (frac_sno(c)>1e-2) then
-               Qss = 0.2154_r8 * Qs
-            else
-               Qss = Qs
-            end if
+            Qs = 8.64e4_r8 * qflx_surf(c)                ! mm/d
+            Qss = (1._r8 - 0.7846_r8*frac_sno(c)) * Qs   ! mm/d
 
             Es_Q = 0._r8
             Es_Qcrp = 0._r8
             Tc = 0._r8
-            ! if (Qs>0._r8 .and. Qg>0._r8)
-            ! Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
-            !    (fgndcov*Qss**1.5_r8 + wglc*fglacier*Qg**1.5_r8) * veg_pp%wtcol(p)
-            ! Tc = 19.1_r8 * tfactor(c) * fslp_tc * (fsr*Qs**2._r8 + &
-            !    wglc * fglacier * Qg**2._r8) * veg_pp%wtcol(p)
             if (Qs>0._r8) then
                frac_slp = 1.0_r8 / DBLE(nlevslp-1)
                fslp = 0._r8
@@ -276,7 +266,6 @@ contains
                   Clai = 1._r8 - exp(-tlai(p))
                   fgndcov = exp( -1e2_r8*gcbc_q(veg_pp%itype(p))*max(Crsd,Clai) - &
                      -gcbr_q(veg_pp%itype(p))*Broot )
-                  fsr = (0.03_r8/(0.03_r8+0.05_r8*max(Crsd,Clai)))**0.6_r8
                   
                   if ( veg_pp%itype(p) > nc4_grass ) then
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
@@ -288,11 +277,10 @@ contains
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
                         fgndcov * fglacier * Qss**1.5_r8 * veg_pp%wtcol(p)
                   end if
-
-                  Tc = Tc + 19.1_r8 * tfactor(c) * fslp_tc * fsr * fglacier * &
-                     Qs**2._r8 * veg_pp%wtcol(p) 
                end do
-               
+
+               fsr = (0.03_r8/nh(c))**0.6_r8
+               Tc = 19.1_r8 * tfactor(c) * fslp_tc * fsr * fglacier * Qs**2._r8
             end if
             Es_Q = 1e-7_r8 / 8.64_r8 * Es_Q        ! kg/m2/s
             Es_Qcrp = 1e-7_r8 / 8.64_r8 * Es_Qcrp  ! kg/m2/s
