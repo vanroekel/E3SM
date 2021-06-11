@@ -88,7 +88,6 @@ module SoilStateType
      ! soil erosion
      real(r8), pointer :: tillage_col          (:)    ! col soil tillage fraction 
      real(r8), pointer :: litho_col            (:)    ! col soil lithology erodiblity index
-     real(r8), pointer :: nh_col               (:)    ! col soil Manning's coefficient for overland flow
 
    contains
 
@@ -190,7 +189,6 @@ contains
 
     allocate(this%tillage_col          (begc:endc))                     ; this%tillage_col          (:)   = nan
     allocate(this%litho_col            (begc:endc))                     ; this%litho_col            (:)   = nan
-    allocate(this%nh_col               (begc:endc))                     ; this%nh_col               (:)   = nan
 
   end subroutine InitAllocate
 
@@ -375,7 +373,6 @@ contains
     real(r8) ,pointer  :: organic3d (:,:)               ! read in - organic matter: kg/m3 (needs to be a pointer for use in ncdio)
     real(r8) ,pointer  :: tillage_in (:)                ! read in - conserved tillage fraction
     real(r8) ,pointer  :: litho_in (:)                  ! read in - lithology erodibility index
-    real(r8) ,pointer  :: nh_in (:)                     ! read in - Manning's coefficient
     character(len=256) :: locfn                         ! local filename
     integer            :: nlevbed                       ! # of layers above bedrock
     integer            :: ipedof  
@@ -519,7 +516,6 @@ contains
     if (use_erosion) then
        allocate(tillage_in(bounds%begg:bounds%endg))
        allocate(litho_in(bounds%begg:bounds%endg))
-       allocate(nh_in(bounds%begg:bounds%endg))
 
        call ncd_io(ncid=ncid, varname='Tillage', flag='read', data=tillage_in, dim1name=grlnd, readvar=readvar)
        if (.not. readvar) then
@@ -531,19 +527,13 @@ contains
           call endrun(msg=' ERROR: Litho NOT on surfdata file'//errMsg(__FILE__, __LINE__))
        end if
 
-       call ncd_io(ncid=ncid, varname='nh', flag='read', data=nh_in, dim1name=grlnd, readvar=readvar)
-       if (.not. readvar) then
-          call endrun(msg=' ERROR: nh NOT on surfdata file'//errMsg(__FILE__, __LINE__))
-       end if
-
        do c = bounds%begc, bounds%endc
           g = col_pp%gridcell(c)
           this%tillage_col(c) = tillage_in(g)
           this%litho_col(c) = litho_in(g)
-          this%nh_col(c) = nh_in(g)
        end do
 
-       deallocate(tillage_in, litho_in, nh_in)
+       deallocate(tillage_in, litho_in)
     end if
 
     ! Close file

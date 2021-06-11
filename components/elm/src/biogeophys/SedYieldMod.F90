@@ -92,6 +92,7 @@ contains
     real(r8) :: wglc                                       ! weight of glacier land unit
     real(r8) :: Brsd, Broot                                ! biomass of residue and roots
     real(r8) :: Crsd, Clai                                 ! ground cover calculated from residue and LAI
+    real(r8) :: nh                                         ! Manning's coefficient 
     real(r8) :: K, COH                                     ! soil erodibility
     real(r8) :: Qs, Qss, Qg, Ptot, Ie, Dl                  ! water fluxes
     real(r8) :: Tc, Es_Q, Es_P, KE_DT, KE_LD               ! temporaries 
@@ -120,7 +121,6 @@ contains
 
          tillage          =>    soilstate_vars%tillage_col          , & ! Input: [integer  (:)   ] tillage index
          litho            =>    soilstate_vars%litho_col            , & ! Input: [integer  (:)   ] lithology index
-         nh               =>    soilstate_vars%nh_col               , & ! Input: [integer  (:)   ] Manning's coefficient
 
          decomp_cpools_vr =>    col_cs%decomp_cpools_vr             , & ! Input: [real(r8) (:,:,:) ] soil carbon pools [gC/m3]
 
@@ -262,10 +262,14 @@ contains
                   fslp_tc = fslp_tc + frac_slp * sinslp**1.25_r8
                end do
                
+               fsr = 0._r8
                do p = col_pp%pfti(c), col_pp%pftf(c)
                   Clai = 1._r8 - exp(-tlai(p))
                   fgndcov = exp( -1e2_r8*gcbc_q(veg_pp%itype(p))*max(Crsd,Clai) - &
                      -gcbr_q(veg_pp%itype(p))*Broot )
+
+                  nh = 0.03_r8 + 0.05_r8*max(Crsd,Clai)
+                  fsr = fsr + veg_pp%wtcol(p) * (0.03_r8/nh)**0.6_r8
                   
                   if ( veg_pp%itype(p) > nc4_grass ) then
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
@@ -279,7 +283,6 @@ contains
                   end if
                end do
 
-               fsr = (0.03_r8/nh(c))**0.6_r8
                Tc = 19.1_r8 * tfactor(c) * fslp_tc * fsr * fglacier * Qs**2._r8
             end if
             Es_Q = 1e-7_r8 / 8.64_r8 * Es_Q        ! kg/m2/s
