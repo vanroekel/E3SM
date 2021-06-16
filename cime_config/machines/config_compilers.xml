@@ -406,6 +406,118 @@ flags should be captured within MPAS CMake files.
   <MPIFC> mpif90 </MPIFC>
 </compiler>
 
+<!-- nvidia compilers (module name nvhpc or hpcsdk) -->
+<compiler COMPILER="nvidia">
+  <MPICC> mpicc </MPICC>
+  <MPICXX> mpicxx </MPICXX>
+  <MPIFC> mpif90 </MPIFC>
+  <!--SCC> nvcc </SCC-->
+  <!--SCXX> nvc++ </SCXX-->
+  <!--SFC> nvfortran </SFC-->
+  <SCC> mpicc </SCC>
+  <SCXX> mpicxx </SCXX>
+  <SFC> mpif90 </SFC>
+  <CPPDEFS>
+    <append> -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DCPRNVIDIA </append>
+  </CPPDEFS>
+  <CFLAGS>
+    <append compile_threaded="TRUE"> -mp </append>
+  </CFLAGS>
+  <CXX_LINKER>CXX</CXX_LINKER>
+  <CXX_LIBS>
+    <base>-lstdc++</base>
+  </CXX_LIBS>
+  <FC_AUTO_R8>
+    <base> -r8 </base>
+  </FC_AUTO_R8>
+  <FFLAGS>
+    <base> -i4 -Mstack_arrays  -Mextend -byteswapio -Mflushz -Kieee -Mallocatable=03 </base>
+    <append compile_threaded="TRUE"> -mp </append>
+    <append DEBUG="TRUE"> -O0 -g -Ktrap=fp -Mbounds -Kieee </append>
+    <append COMP_NAME="datm"> -Mnovect </append>
+    <append COMP_NAME="dlnd"> -Mnovect </append>
+    <append COMP_NAME="drof"> -Mnovect </append>
+    <append COMP_NAME="dwav"> -Mnovect </append>
+    <append COMP_NAME="dice"> -Mnovect </append>
+    <append COMP_NAME="docn"> -Mnovect </append>
+  </FFLAGS>
+  <FFLAGS_NOOPT>
+    <base> -O0 </base>
+  </FFLAGS_NOOPT>
+  <FIXEDFLAGS>
+    <base> -Mfixed </base>
+  </FIXEDFLAGS>
+  <FREEFLAGS>
+    <base> -Mfree </base>
+  </FREEFLAGS>
+  <CFLAGS>
+    <append DEBUG="FALSE"> -O2 -Mvect=nosimd </append>
+  </CFLAGS>
+  <FFLAGS>
+    <append DEBUG="FALSE"> -O2 -Mvect=nosimd -DHAVE_IEEE_ARITHMETIC -DNO_R16 </append>
+  </FFLAGS>
+  <FFLAGS>
+    <append DEBUG="TRUE"> -DHAVE_IEEE_ARITHMETIC -DNO_R16 </append>
+  </FFLAGS>
+  <HAS_F2008_CONTIGUOUS>FALSE</HAS_F2008_CONTIGUOUS>
+  <LDFLAGS>
+    <base> -Wl,--allow-multiple-definition </base>
+    <append compile_threaded="TRUE"> -mp </append>
+  </LDFLAGS>
+  <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
+</compiler>
+
+<compiler COMPILER="nvidiagpu">
+  <MPICC> mpicc </MPICC>
+  <MPICXX> mpicxx </MPICXX>
+  <MPIFC> mpif90 </MPIFC>
+  <SCC> nvcc </SCC>
+  <SCXX> nvc++ </SCXX>
+  <SFC> nvfortran </SFC>
+  <CFLAGS>
+    <append compile_threaded="TRUE"> -mp </append>
+    <append DEBUG="FALSE"> -O2 -Mvect=nosimd </append>
+  </CFLAGS>
+  <CPPDEFS>
+    <append> -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DUSE_CUDA_FORTRAN -DCPRNVIDIA </append>
+  </CPPDEFS>
+  <CXX_LINKER>CXX</CXX_LINKER>
+  <CXX_LIBS>
+    <base>-lstdc++</base>
+  </CXX_LIBS>
+  <FC_AUTO_R8>
+    <base> -r8 </base>
+  </FC_AUTO_R8>
+  <FFLAGS>
+    <base> -i4 -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee  </base>
+    <append compile_threaded="TRUE"> -mp </append>
+    <append COMP_NAME="eam"> </append>
+    <append DEBUG="TRUE"> -O0 -g -Ktrap=fp -Mbounds -Kieee </append>
+    <append DEBUG="FALSE"> -O2 -Mvect=nosimd -DHAVE_IEEE_ARITHMETIC -DNO_R16 </append>
+    <append COMP_NAME="datm"> -Mnovect </append>
+    <append COMP_NAME="dlnd"> -Mnovect </append>
+    <append COMP_NAME="drof"> -Mnovect </append>
+    <append COMP_NAME="dwav"> -Mnovect </append>
+    <append COMP_NAME="dice"> -Mnovect </append>
+    <append COMP_NAME="docn"> -Mnovect </append>
+  </FFLAGS>
+  <FFLAGS_NOOPT>
+    <base> -O0 </base>
+  </FFLAGS_NOOPT>
+  <FIXEDFLAGS>
+    <base> -Mfixed </base>
+  </FIXEDFLAGS>
+  <FREEFLAGS>
+    <base> -Mfree </base>
+  </FREEFLAGS>
+  <HAS_F2008_CONTIGUOUS>FALSE</HAS_F2008_CONTIGUOUS>
+  <LDFLAGS>
+    <base> -Wl,--allow-multiple-definition -acc</base>
+    <append compile_threaded="TRUE"> -mp </append>
+  </LDFLAGS>
+  <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
+</compiler>
+
 <compiler COMPILER="pgi">
   <CFLAGS>
     <base> -time </base>
@@ -1268,6 +1380,46 @@ flags should be captured within MPAS CMake files.
   <CXX_LIBS>
     <base>-lstdc++</base>
   </CXX_LIBS>
+</compiler>
+
+<compiler MACH="cori-gpu" COMPILER="nvidia">
+  <CONFIG_ARGS>
+    <base> --host=Linux </base>
+  </CONFIG_ARGS>
+  <CPPDEFS>
+    <append COMP_NAME="gptl"> -DHAVE_SLASHPROC </append>
+  </CPPDEFS>
+  <SLIBS>
+    <append> $ENV{HDF5} -L$ENV{HDF5_DIR}/lib -lhdf5_hl -lhdf5 -L$ENV{NCDIR}/lib -lnetcdf -L$ENV{NFDIR}/lib -lnetcdff -lblas -llapack </append>
+  </SLIBS>
+  <CXX_LINKER>FORTRAN</CXX_LINKER>
+  <NETCDF_PATH>$ENV{NCDIR}</NETCDF_PATH>
+  <NETCDF_C_PATH>$ENV{NCDIR}</NETCDF_C_PATH>
+  <NETCDF_FORTRAN_PATH>$ENV{NFDIR}</NETCDF_FORTRAN_PATH>
+  <HDF5_PATH>$ENV{HDF5_DIR}</HDF5_PATH>
+</compiler>
+
+<compiler MACH="cori-gpu" COMPILER="nvidiagpu">
+  <CONFIG_ARGS>
+    <base> --host=Linux </base>
+  </CONFIG_ARGS>
+  <CPPDEFS>
+    <append> -DGPU </append>
+    <append COMP_NAME="gptl"> -DHAVE_SLASHPROC </append>
+  </CPPDEFS>
+  <LDFLAGS>
+    <append> -Minline -ta=nvidia,cc70,fastmath,loadcache:L1,unroll,fma,managed,ptxinfo -Mcuda -Minfo=accel </append>
+  </LDFLAGS>
+  <SLIBS>
+    <append> $ENV{HDF5} -L$ENV{HDF5_DIR}/lib -lhdf5_hl -lhdf5 -L$ENV{NCDIR}/lib -lnetcdf -L$ENV{NFDIR}/lib -lnetcdff -lblas -llapack </append>
+  </SLIBS>
+  <CXX_LINKER>FORTRAN</CXX_LINKER>
+  <!--KOKKOS_OPTIONS> -d-arch=skylake,Volta70 -d-with-cuda=$ENV{CUDA_DIR} -d-with-cuda-options=enable_lambda</KOKKOS_OPTIONS-->
+  <KOKKOS_OPTIONS> --with-cuda=$ENV{CUDA_DIR} --with-cuda-options=enable_lambda</KOKKOS_OPTIONS>
+  <NETCDF_PATH>$ENV{NCDIR}</NETCDF_PATH>
+  <NETCDF_C_PATH> $ENV{NCDIR}</NETCDF_C_PATH>
+  <NETCDF_FORTRAN_PATH> $ENV{NFDIR}</NETCDF_FORTRAN_PATH>
+  <HDF5_PATH>$ENV{HDF5_DIR}</HDF5_PATH>
 </compiler>
 
 <compiler MACH="ghost" COMPILER="intel">
