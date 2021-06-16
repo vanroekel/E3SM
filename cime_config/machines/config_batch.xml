@@ -331,6 +331,27 @@
     </queues>
   </batch_system>
 
+  <batch_system MACH="cori-gpu" type="nersc_slurm">
+    <directives>
+      <directive> --constraint=gpu</directive>
+      <!--directive> -d-account=m1759</directive--> <!-- cori-gpu use requires m1759, but better to setenv PROJECT=m1759 -->
+    </directives>
+    <!-- Currently, the -c flag doesnt seem to be overridden by srun command, so for now assume GPU use will
+	 use all GPUs on the node (8) with -c 10 (ie 8 MPI's).  Non-GPU use must have -G0 and assuming -c 2 -->
+    <directives compiler="nvidiagpu">
+      <directive> -G 8</directive>
+      <directive> -c 10</directive>
+    </directives>
+    <directives compiler="nvidia">
+      <directive> -G 0</directive>
+      <directive> -c 2</directive>
+    </directives>
+
+    <queues>
+      <queue walltimemax="00:45:00" nodemax="20" default="true">regular</queue>
+    </queues>
+  </batch_system>
+
   <batch_system MACH="stampede2" type="slurm">
     <directives>
       <directive>-n {{ total_tasks }}</directive>
