@@ -86,7 +86,7 @@ contains
     logical  :: found                                      ! flags
     real(r8) :: sinslp, frac_slp                           ! topo gradient
     real(r8) :: fslp, fslp_tc                              ! slope factor
-    real(r8) :: fgndcov, fsr                               ! factors of ground cover and roughness
+    real(r8) :: fgndcov, fsr, ftillage_tc                  ! factors of ground cover and roughness
     real(r8) :: fungrvl                                    ! ground uncovered by gravel
     real(r8) :: ftillage, flitho, fglacier                 ! factors of tillage, lithology and glacier
     real(r8) :: wglc                                       ! weight of glacier land unit
@@ -263,6 +263,7 @@ contains
                end do
                
                fsr = 0._r8
+               ftillage_tc = 0._r8 
                do p = col_pp%pfti(c), col_pp%pftf(c)
                   Clai = 1._r8 - exp(-tlai(p))
                   fgndcov = exp( -1e2_r8*gcbc_q(veg_pp%itype(p))*max(Crsd,Clai) - &
@@ -272,18 +273,23 @@ contains
                   fsr = fsr + veg_pp%wtcol(p) * (0.03_r8/nh)**0.6_r8
                   
                   if ( veg_pp%itype(p) > nc4_grass ) then
+                     ftillage_tc = ftillage_tc + ftillage * veg_pp%wtcol(p)
+
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
                         ftillage * fgndcov * Qss**1.5_r8 * veg_pp%wtcol(p)
 
                      Es_Qcrp = Es_Qcrp + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
                         ftillage * fgndcov * Qss**1.5_r8 * veg_pp%wtcol(p)
                   else
+                     ftillage_tc = ftillage_tc + veg_pp%wtcol(p)
+
                      Es_Q = Es_Q + 19.1_r8 * qfactor(c) * 2./COH * flitho * fslp * &
                         fgndcov * fglacier * Qss**1.5_r8 * veg_pp%wtcol(p)
                   end if
                end do
 
-               Tc = 19.1_r8 * tfactor(c) * fslp_tc * fsr * fglacier * Qs**2._r8
+               Tc = 19.1_r8 * tfactor(c) * fslp_tc * fsr * ftillage_tc * &
+                  flitho * fglacier * Qs**2._r8
             end if
             Es_Q = 1e-7_r8 / 8.64_r8 * Es_Q        ! kg/m2/s
             Es_Qcrp = 1e-7_r8 / 8.64_r8 * Es_Qcrp  ! kg/m2/s
