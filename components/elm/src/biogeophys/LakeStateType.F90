@@ -153,6 +153,11 @@ contains
          avgflag='A', long_name='friction velocity (lakes only)', &
          ptr_col=this%ust_lake_col, set_nolake=spval, default='inactive')
 
+    this%lake_fsds_vis_col(begc:endc,:) = spval
+    call hist_addfld2d (fname='FSDS_VIS_LAKE',  units='W/m^2', type2d='levlak', &
+         avgflag='A', long_name='incident vis radiation', &
+         ptr_col=this%lake_fsds_vis_col, default='inactive')
+
   end subroutine InitHistory
 
   !-----------------------------------------------------------------------
