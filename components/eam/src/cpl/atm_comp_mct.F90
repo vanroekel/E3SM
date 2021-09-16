@@ -54,7 +54,7 @@ module atm_comp_mct
   use co2_cycle        , only: co2_readFlux_ocn, co2_readFlux_fuel
   use runtime_opts     , only: read_namelist
   use scamMod          , only: single_column,scmlat,scmlon
-
+  use cpp_interface_mod, only: scream_session_init, scream_session_finalize
 !
 ! !PUBLIC TYPES:
   implicit none
@@ -176,6 +176,10 @@ CONTAINS
     if (first_time) then
        
        call cam_instance_init(ATMID)
+
+#if defined(MMF_SAMXX)
+       call scream_session_init()
+#endif
 
        ! Set filename specifier for restart surface file
        ! (%c=caseid, $y=year, $m=month, $d=day, $s=seconds in day)
@@ -647,6 +651,9 @@ CONTAINS
     type(mct_aVect)             ,intent(inout) :: a2x_a
 
     call t_startf("cam_final")
+#if defined(MMF_SAMXX)
+    call scream_session_finalize()
+#endif
     call cam_final( cam_out, cam_in )
     call t_stopf("cam_final")
 
