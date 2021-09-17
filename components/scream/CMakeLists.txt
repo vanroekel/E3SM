@@ -73,9 +73,9 @@ set(SCREAM_DOUBLE_PRECISION TRUE CACHE BOOL "Set to double precision (default Tr
 option (SCREAM_ENABLE_EXPERIMENTAL "Whether to enable experimental code in scream." OFF)
 
 # Set the scream base and src directory, to be used across subfolders
-set(SCREAM_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(SCREAM_SRC_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/src)
-set(SCREAM_DATA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set(SCREAM_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Scream Base Dir")
+set(SCREAM_SRC_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE STRING "Scream Source Dir")
+set(SCREAM_DATA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/data CACHE STRING "Scream Data Dir")
 
 # Shortcut function, to print a variable
 function (print_var var)

@@ -1,13 +1,17 @@
 # Add CUDA flags for YAKL
 if (CUDA_BUILD)
     set(ARCH "CUDA")
+    enable_language(CUDA)
     set(YAKL_CXX_FLAGS "-D__USE_CUDA__ --expt-extended-lambda --expt-relaxed-constexpr ${CUDA_FLAGS} ${YAKL_CXX_FLAGS}")
 endif()
 
-# RRTMGP++ requires YAKL
-add_subdirectory(${SCREAM_BASE_DIR}/../../externals/YAKL ${CMAKE_CURRENT_BINARY_DIR}/YAKL_build)
-target_compile_options(yakl PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-fno-default-real-8 -fno-default-double-8>)
-EkatDisableAllWarning(yakl)
+# RRTMGP++ requires YAKL, if E3SM didn't build YAKL
+if (NOT USE_YAKL)
+  message("SCREAM FOUND YAKL: ${USE_YAKL}")
+  add_subdirectory(${SCREAM_BASE_DIR}/../../externals/YAKL ${CMAKE_CURRENT_BINARY_DIR}/YAKL_build)
+  target_compile_options(yakl PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-fno-default-real-8 -fno-default-double-8>)
+  EkatDisableAllWarning(yakl)
+endif()
 
 # Build RRTMGP library; this builds the core RRTMGP external source as a library named "rrtmgp"
 # NOTE: The external RRTMGP build needs some fixes to work with CUDA in a library build, so for now we will build these ourselves
@@ -25,6 +29,8 @@ add_library(rrtmgp ${EXTERNAL_SRC})
 EkatDisableAllWarning(rrtmgp)
 target_link_libraries(rrtmgp yakl)
 set_target_properties(rrtmgp PROPERTIES COMPILE_FLAGS "${YAKL_CXX_FLAGS} ${CXX_FLAGS}")
+set_target_properties(rrtmgp PROPERTIES LINKER_LANGUAGE CUDA CUDA_SEPARABLE_COMPILATION OFF CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+
 target_include_directories(rrtmgp PUBLIC 
     ${SCREAM_BASE_DIR}/../../externals/YAKL
     ${SCREAM_BASE_DIR}/../eam/src/physics/rrtmgp/external/cpp

@@ -377,6 +377,7 @@ Int Functions<S,D>::shoc_main(
 
     shoc_output.pblh(i) = pblh_s;
   });
+
   Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();

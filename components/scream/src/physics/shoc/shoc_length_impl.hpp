@@ -43,8 +43,8 @@ void Functions<S,D>
 
   // Release temporary variable from the workspace
   workspace.release(thv_zi);
-}
 
+}
 } // namespace shoc
 } // namespace scream
 

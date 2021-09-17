@@ -71,7 +71,7 @@ void Functions<S,D>::shoc_tke(
 
   // Release temporary variables from the workspace
   workspace.template release_many_contiguous<3>(
-    {&sterm_zt, &a_diss, &sterm});
+      {&sterm_zt, &a_diss, &sterm});
 }
 
 } // namespace shoc

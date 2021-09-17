@@ -113,6 +113,9 @@ void Functions<S,D>
       // Finally, compute the third moment of w
       w3(k).set(active_range,
                 (aa1-sp(1.2)*x1-sp(1.5)*f5)/(Spack(c_diag_3rd_mom)-sp(1.2)*x0+aa0));
+
+//printf("%d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",k,w3(k)[0],wthl_sec_k[0],thl_sec_diff[0],thedz2[0],bet2[0],thetal_zi[0],iso[0],f0[0],f1[0],f5[0],x0[0],aa0[0]);
+
     }
   });
 
