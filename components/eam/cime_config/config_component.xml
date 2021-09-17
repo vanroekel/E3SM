@@ -64,6 +64,7 @@
       <value compset="_EAM%SP[12]V1"        >-rad rrtmg </value>
       <value compset="_EAM%SP1V1"           >-MMF_microphysics_scheme sam1mom -chem none </value>
       <value compset="_EAM%SP2V1"           >-MMF_microphysics_scheme m2005 -chem linoz_mam4_resus_mom_soag -rain_evap_to_coarse_aero </value>
+      <value compset="_EAM%SP2V1"           >-MMF_microphysics_scheme p3 -chem linoz_mam4_resus_mom_soag -rain_evap_to_coarse_aero </value>
       <value compset="_EAM%SP2V1-ECPP"      >-use_ECPP </value>
       <value compset="_EAM%SP[12]V1_"       >-crm_nx 64 -crm_ny 1 -crm_nx_rad 16 -crm_ny_rad 1 </value>
       <!-- New MMF / super-parameterization compsets -->
@@ -76,6 +77,7 @@
       <value compset="_EAM%MMF"               >-rad rrtmgp </value>
       <value compset="_EAM%MMF[1XO]"          >-MMF_microphysics_scheme sam1mom -chem none</value>
       <value compset="_EAM%MMF2"              >-MMF_microphysics_scheme m2005 </value>
+      <value compset="_EAM%MMF2"              >-MMF_microphysics_scheme p3 </value>
       <value compset="_EAM%MMF2"              >-chem linoz_mam4_resus_mom_soag -rain_evap_to_coarse_aero </value>
       <value compset="_EAM%MMF2-ECPP"         >-use_ECPP </value>
       <value compset="_EAM%MMF[12XO]"         >-crm_nx 64 -crm_nx_rad 16 -crm_ny 1 -crm_ny_rad 1 </value>
