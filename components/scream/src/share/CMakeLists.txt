@@ -40,4 +40,6 @@ if (NOT SCREAM_LIB_ONLY)
   add_subdirectory(tests)
 endif()
 
-#add_subdirectory(io)
+if (NOT USE_SAMXX)
+  add_subdirectory(io)
+endif()
