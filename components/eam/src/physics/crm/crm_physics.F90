@@ -127,8 +127,6 @@ subroutine crm_physics_register()
    call phys_getopts( MMF_microphysics_scheme_out = MMF_microphysics_scheme )
    call phys_getopts( prog_modal_aero_out = prog_modal_aero )
 
-   MMF_microphysics_scheme = "p3"
-
    if(masterproc) then
       print*,'_____________________________________________________________'
       print*,'____ Multi-Scale Modelling Framework (MMF) Configuration ____'
@@ -158,10 +156,10 @@ subroutine crm_physics_register()
                     longname='VT_Q', readiv=.false., mixtype='dry',cam_outfld=.false.)
    end if
 
-!#if defined(shoc)
+#if defined(shoc)
    ! TKE is prognostic in SHOC and should be advected by dynamics
    call cnst_add('SHOC_TKE',0._r8,0._r8,0._r8,ixtke,longname='turbulent kinetic energy',cam_outfld=.false.)
-!#endif
+#endif
 
    !----------------------------------------------------------------------------
    ! constituents
@@ -174,10 +172,10 @@ subroutine crm_physics_register()
    call cnst_add(cnst_names(6),  mwh2o, cpair, 0._r8, ixsnow,   longname='Grid box averaged snow amount',      is_convtran1=.true.)
    call cnst_add(cnst_names(7),  mwh2o, cpair, 0._r8, ixnumrain,longname='Grid box averaged rain number',      is_convtran1=.true.)
    call cnst_add(cnst_names(8),  mwh2o, cpair, 0._r8, ixnumsnow,longname='Grid box averaged snow number',      is_convtran1=.true.)
-!#if defined(p3)
+#if defined(micro_p3)
    call cnst_add(cnst_names(9), mwh2o, cpair, 0._r8, ixcldrim, longname='Grid box averaged riming amount',  is_convtran1=.true.)
    call cnst_add(cnst_names(10), mwh2o, cpair, 0._r8, ixrimvol, longname='Grid box averaged riming volume',  is_convtran1=.true.)
-!#endif
+#endif
    !----------------------------------------------------------------------------
    ! Register MMF history variables
    !----------------------------------------------------------------------------
@@ -219,7 +217,7 @@ subroutine crm_physics_register()
    call pbuf_add_field('QV_PREV',     'global',dtype_r8, dims_gcm_2d, idx)
    call pbuf_add_field('T_PREV',      'global',dtype_r8, dims_gcm_2d, idx)
 
-   if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'p3') then
+   if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'micro_p3') then
       call pbuf_add_field('CRM_NC_RAD','physpkg',dtype_r8,dims_crm_rad,crm_nc_rad_idx)
       call pbuf_add_field('CRM_NI_RAD','physpkg',dtype_r8,dims_crm_rad,crm_ni_rad_idx)
       call pbuf_add_field('CRM_QS_RAD','physpkg',dtype_r8,dims_crm_rad,crm_qs_rad_idx)
@@ -370,8 +368,6 @@ subroutine crm_physics_init(state, pbuf2d, species_class)
    call phys_getopts(use_MMF_VT_out = use_MMF_VT)
    call phys_getopts(MMF_microphysics_scheme_out = MMF_microphysics_scheme)
    
-   MMF_microphysics_scheme = "p3"
-
 #ifdef ECPP
    if (use_ECPP) then
       ! Initialize ECPP driver
@@ -397,14 +393,14 @@ subroutine crm_physics_init(state, pbuf2d, species_class)
       else if ( any(mm == (/ ixnumliq, ixnumice, ixnumrain, ixnumsnow /)) ) then
          ! number concentrations
          call addfld(cnst_name(mm), (/ 'lev' /), 'A', '1/kg', cnst_longname(mm))
-!#if defined(p3)
+#if defined(micro_p3)
        else if ( mm == ixcldrim ) then
           ! mass mixing ratios
           call addfld(cnst_name(mm), (/ 'lev' /), 'A', 'kg/kg', cnst_longname(mm) )
        else if ( mm == ixrimvol ) then
           ! number concentrations
           call addfld(cnst_name(mm), (/ 'lev' /), 'A', 'm3/kg', cnst_longname(mm) )
-!#endif
+#endif
       else
          call endrun( "crm_physics_init: Could not call addfld for constituent with unknown units.")
       endif
@@ -418,10 +414,10 @@ subroutine crm_physics_init(state, pbuf2d, species_class)
    call addfld(apcnst(ixsnow),   (/'lev'/), 'A', 'kg/kg', trim(cnst_name(ixsnow))//' after physics'  )
    call addfld(bpcnst(ixrain),   (/'lev'/), 'A', 'kg/kg', trim(cnst_name(ixrain))//' before physics' )
    call addfld(bpcnst(ixsnow),   (/'lev'/), 'A', 'kg/kg', trim(cnst_name(ixsnow))//' before physics' )
-!#if defined(p3)
+#if defined(micro_p3)
     call addfld(apcnst(ixcldrim), (/ 'lev' /), 'A', 'kg/kg', trim(cnst_name(ixcldrim))//' after physics'  )
     call addfld(bpcnst(ixcldrim), (/ 'lev' /), 'A', 'kg/kg', trim(cnst_name(ixcldrim))//' before physics' )
-!#endif
+#endif
 
    if (use_MMF_VT) then
       ! initialize variance transport tracers
@@ -491,7 +487,7 @@ subroutine crm_physics_init(state, pbuf2d, species_class)
          call pbuf_set_field(pbuf2d, crm_ni_rad_idx,0._r8)
          call pbuf_set_field(pbuf2d, crm_qs_rad_idx,0._r8)
          call pbuf_set_field(pbuf2d, crm_ns_rad_idx,0._r8)
-      else if (MMF_microphysics_scheme .eq. 'p3') then
+      else if (MMF_microphysics_scheme .eq. 'micro_p3') then
          call pbuf_set_field(pbuf2d, crm_nc_rad_idx,0._r8)
          call pbuf_set_field(pbuf2d, crm_ni_rad_idx,0._r8)
          call pbuf_set_field(pbuf2d, crm_qs_rad_idx,0._r8)
@@ -842,8 +838,6 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
    call phys_getopts(use_ECPP_out = use_ECPP)
    call phys_getopts(MMF_microphysics_scheme_out = MMF_microphysics_scheme)
 
-   MMF_microphysics_scheme = "p3"
-
    use_MMF_VT = .false.
    call phys_getopts(use_MMF_VT_out = use_MMF_VT_tmp)
    call phys_getopts(MMF_VT_wn_max_out = MMF_VT_wn_max)
@@ -970,7 +964,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
      end if
    enddo
 
-   if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'p3') then
+   if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'micro_p3') then
       call cnst_get_ind('NUMLIQ', ixnumliq)
       call cnst_get_ind('NUMICE', ixnumice)
       call cnst_get_ind('RAINQM', ixrain)
@@ -1017,7 +1011,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
       if (MMF_microphysics_scheme .eq. 'sam1mom') then
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_QP'), crm_qp)
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_QN'), crm_qn)
-      else if (MMF_microphysics_scheme .eq. 'p3') then
+      else if (MMF_microphysics_scheme .eq. 'micro_p3') then
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_NC'), crm_nc)
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_QR'), crm_qr)
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_NR'), crm_nr)
@@ -1097,7 +1091,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
                crm_ns(i,:,:,k) = 0.0_r8
                crm_qg(i,:,:,k) = 0.0_r8
                crm_ng(i,:,:,k) = 0.0_r8
-            else if (MMF_microphysics_scheme .eq. 'p3') then
+            else if (MMF_microphysics_scheme .eq. 'micro_p3') then
                crm_qt(i,:,:,k) = state%q(i,m,1)+state%q(i,m,ixcldliq)
                crm_qc(i,:,:,k) = state%q(i,m,ixcldliq)
                crm_qi(i,:,:,k) = state%q(i,m,ixcldice)
@@ -1220,7 +1214,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
          crm_state%qg = crm_qg
          crm_state%ng = crm_ng
          crm_state%qc = crm_qc
-      else if (MMF_microphysics_scheme .eq. 'p3') then
+      else if (MMF_microphysics_scheme .eq. 'micro_p3') then
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_NC'), crm_nc)
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_QR'), crm_qr)
          call pbuf_get_field(pbuf, pbuf_get_index('CRM_NR'), crm_nr)
@@ -1317,7 +1311,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
             dp_g = state%pdel(i,k)/gravit
             do jj = 1,crm_ny
                do ii = 1,crm_nx
-                  if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'p3') then
+                  if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'micro_p3') then
                      qli_hydro_before(i) = qli_hydro_before(i)+(crm_state%qr(i,ii,jj,m)+ &
                                                                 crm_state%qs(i,ii,jj,m)+ &
                                                                 crm_state%qg(i,ii,jj,m)) * dp_g
@@ -1369,7 +1363,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
       crm_input%vl_esmt(1:ncol,1:pver) = state%v(1:ncol,1:pver)
 #endif /* MMF_ESMT */
 
-      if (MMF_microphysics_scheme .eq. 'p3') then
+      if (MMF_microphysics_scheme .eq. 'micro_p3') then
          crm_input%relvar(1:ncol, 1:pver) = relvar(1:ncol, 1:pver)
          crm_input%nccn_prescribed(1:ncol, 1:pver) = nccn_prescribed(1:ncol, 1:pver)
       endif
@@ -1790,7 +1784,7 @@ subroutine crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in, cam_out, &
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
 
-      if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'p3') then
+      if (MMF_microphysics_scheme .eq. 'm2005' .or. MMF_microphysics_scheme .eq. 'micro_p3') then
 !         call cnst_get_ind('NUMLIQ', ixnumliq)
 !         call cnst_get_ind('NUMICE', ixnumice)
 !         call cnst_get_ind('RAINQM', ixrain)   
