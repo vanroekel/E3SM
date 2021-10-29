@@ -275,7 +275,7 @@ OPTIONS
      -crm_dt <n>        CRM's timestep.
      -crm_nx_rad <n>    number of averaged columns for CRM radiation calculation in x direction
      -crm_ny_rad <n>    number of averaged columns for CRM radiation calculation in y direction
-     -MMF_microphysics_scheme <string>   CRM microphysics package name [sam1mom | m2005 ].
+     -MMF_microphysics_scheme <string>   CRM microphysics package name [sam1mom | m2005 | p3].
      -use_ECPP          use CRM clouds for vertical transport, aqueous chemistry and wet removable of aerosols
      -crm_adv           CRM advection scheme [MPDATA | UM5]
      -crm <model>       CRM model [sam | samomp | samxx]
@@ -1438,16 +1438,11 @@ else {
         if ($print>=2) { print "Advected constituents added by chemistry $chem_pkg: $chem_nadv$eol"; }
 
         # Advected tracers for MMF - same for 1-mom and 2-mom (1-mom ignores number concentration)
-        # - cloud liquid amount
-        # - cloud ice amount
-        # - cloud liquid number
-        # - cloud ice number
-        # - precipitating rain amount
-        # - precipitating snow amount
-        # - precipitating rain number
-        # - precipitating snow number
         if (defined $opts{'use_MMF'}) {
-            $nadv += 8;
+            my $MMF_microphysics_scheme = $cfg_ref->get('MMF_microphysics_scheme');
+            if ($MMF_microphysics_scheme eq 'sam1mom') { $nadv += 8; }
+            if ($MMF_microphysics_scheme eq 'm2005')   { $nadv += 8; }
+            if ($MMF_microphysics_scheme eq 'p3')      { $nadv += 8; }
             if ($print>=2) { print "Advected constituents added for MMF physics package: 8$eol"; }
         }
 
@@ -2637,7 +2632,7 @@ sub write_filepath
       elsif($opts{'dyn_target'} eq 'theta-l') {
         print $fh "$camsrcdir/homme/src/theta-l\n";
         print $fh "$camsrcdir/homme/src/theta-l/share\n";
-        print $fh "$camsrcdir/homme/src/share/compose\n";
+##        print $fh "$camsrcdir/homme/src/share/compose\n";
       }
       elsif ($opts{'dyn_target'} eq 'preqx_kokkos') {
         print $fh "$camsrcdir/homme/src/share/cxx\n";
@@ -2756,7 +2751,8 @@ sub write_cppdefs
     print $fh "$make_cppdefs";
 
     if ($dyn eq "se" and $opts{"dyn_target"} eq "theta-l") {
-        print $fh " -DMODEL_THETA_L -DHOMME_ENABLE_COMPOSE "
+##        print $fh " -DMODEL_THETA_L -DHOMME_ENABLE_COMPOSE "
+       print $fh " -DMODEL_THETA_L  "
     }
 
     if ($dyn eq "se" and $opts{"dyn_target"} eq "preqx_kokkos") {

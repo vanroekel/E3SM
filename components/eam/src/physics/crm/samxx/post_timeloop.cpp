@@ -68,6 +68,19 @@ void post_timeloop() {
   auto &crm_state_qt            = :: crm_state_qt;
   auto &crm_state_qp            = :: crm_state_qp;
   auto &crm_state_qn            = :: crm_state_qn;
+  auto &crm_state_qc            = :: crm_state_qc;
+  auto &crm_state_nc            = :: crm_state_nc;
+  auto &crm_state_qr            = :: crm_state_qr;
+  auto &crm_state_nr            = :: crm_state_nr;
+  auto &crm_state_qi            = :: crm_state_qi;  
+  auto &crm_state_ni            = :: crm_state_ni; 
+  auto &crm_state_qs            = :: crm_state_qs; 
+  auto &crm_state_ns            = :: crm_state_ns;
+  auto &crm_state_qg            = :: crm_state_qg;
+  auto &crm_state_ng            = :: crm_state_ng;
+  auto &crm_state_qv            = :: crm_state_qv;
+  auto &crm_state_qm            = :: crm_state_qm;
+  auto &crm_state_bm            = :: crm_state_bm;
   auto &micro_field             = :: micro_field;
   auto &sgs_field_diag          = :: sgs_field_diag;
   auto &qn                      = :: qn;
@@ -77,12 +90,7 @@ void post_timeloop() {
   auto &crm_output_qpi          = :: crm_output_qpi;
   auto &crm_output_tk           = :: crm_output_tk;
   auto &crm_output_tkh          = :: crm_output_tkh;
-  auto &crm_output_z0m          = :: crm_output_z0m;
-  auto &crm_output_taux         = :: crm_output_taux;
-  auto &crm_output_tauy         = :: crm_output_tauy;
   auto &z0                      = :: z0;
-  auto &taux0                   = :: taux0;
-  auto &tauy0                   = :: tauy0;
   auto &crm_output_qc_mean      = :: crm_output_qc_mean;
   auto &crm_output_qi_mean      = :: crm_output_qi_mean;
   auto &crm_output_qr_mean      = :: crm_output_qr_mean;
@@ -357,28 +365,50 @@ void post_timeloop() {
   //   for (int j=0; j<ny; j++) {
   //     for (int i=0; i<nx; i++) {
   //       for (int icrm=0; icrm<ncrms; icrm++) {
-  parallel_for( SimpleBounds<4>(nzm,ny,nx,ncrms) , YAKL_LAMBDA (int k, int j, int i, int icrm) {
-    crm_state_u_wind(k,j,i,icrm) = u(k,j+offy_u,i+offx_u,icrm);
-    crm_state_v_wind(k,j,i,icrm) = v(k,j+offy_v,i+offx_v,icrm);
-    crm_state_w_wind(k,j,i,icrm) = w(k,j+offy_w,i+offx_w,icrm);
-    crm_state_temperature(k,j,i,icrm) = tabs(k,j,i,icrm);
-    crm_state_qt(k,j,i,icrm) = micro_field(0,k,j+offy_s,i+offx_s,icrm);
-    crm_state_qp(k,j,i,icrm) = micro_field(1,k,j+offy_s,i+offx_s,icrm);
-    crm_state_qn(k,j,i,icrm) = qn(k,j,i,icrm);
-    crm_output_tk(k,j,i,icrm) = sgs_field_diag(0,k,j+offy_d,i+offx_d,icrm);
-    crm_output_tkh(k,j,i,icrm) = sgs_field_diag(1,k,j+offy_d,i+offx_d,icrm);
-    crm_output_qcl(k,j,i,icrm) = qcl(k,j,i,icrm);
-    crm_output_qci(k,j,i,icrm) = qci(k,j,i,icrm);
-    crm_output_qpl(k,j,i,icrm) = qpl(k,j,i,icrm);
-    crm_output_qpi(k,j,i,icrm) = qpi(k,j,i,icrm);
+  if (microphysics_scheme == "sam1mom") {
+    parallel_for( SimpleBounds<4>(nzm,ny,nx,ncrms) , YAKL_LAMBDA (int k, int j, int i, int icrm) {
+      crm_state_u_wind(k,j,i,icrm) = u(k,j+offy_u,i+offx_u,icrm);
+      crm_state_v_wind(k,j,i,icrm) = v(k,j+offy_v,i+offx_v,icrm);
+      crm_state_w_wind(k,j,i,icrm) = w(k,j+offy_w,i+offx_w,icrm);
+      crm_state_temperature(k,j,i,icrm) = tabs(k,j,i,icrm);
+      crm_state_qt(k,j,i,icrm) = micro_field(0,k,j+offy_s,i+offx_s,icrm);
+      crm_state_qp(k,j,i,icrm) = micro_field(1,k,j+offy_s,i+offx_s,icrm);
+      crm_state_qn(k,j,i,icrm) = qn(k,j,i,icrm);
+
+      crm_output_tk(k,j,i,icrm) = sgs_field_diag(0,k,j+offy_d,i+offx_d,icrm);
+      crm_output_tkh(k,j,i,icrm) = sgs_field_diag(1,k,j+offy_d,i+offx_d,icrm);
+      crm_output_qcl(k,j,i,icrm) = qcl(k,j,i,icrm);
+      crm_output_qci(k,j,i,icrm) = qci(k,j,i,icrm);
+      crm_output_qpl(k,j,i,icrm) = qpl(k,j,i,icrm);
+      crm_output_qpi(k,j,i,icrm) = qpi(k,j,i,icrm);
   });
 
-  // for (int icrm=0; icrm<ncrms; icrm++) {
-  parallel_for( ncrms , YAKL_LAMBDA (int icrm) {
-    crm_output_z0m (icrm) = z0(icrm);
-    crm_output_taux(icrm) = taux0(icrm) / nstop;
-    crm_output_tauy(icrm) = tauy0(icrm) / nstop;
-  });
+  } else if (microphysics_scheme == "p3") {
+    parallel_for( SimpleBounds<4>(nzm,ny,nx,ncrms) , YAKL_LAMBDA (int k, int j, int i, int icrm) {
+      crm_state_qv(k,j,i,icrm) = micro_field(ixqv,     k,j+offy_s,i+offx_s,icrm);
+      crm_state_qi(k,j,i,icrm) = micro_field(ixcldliq, k,j+offy_s,i+offx_s,icrm);
+      crm_state_qi(k,j,i,icrm) = micro_field(ixcldice, k,j+offy_s,i+offx_s,icrm);
+      crm_state_nc(k,j,i,icrm) = micro_field(ixnumliq, k,j+offy_s,i+offx_s,icrm);
+      crm_state_ni(k,j,i,icrm) = micro_field(ixnumice, k,j+offy_s,i+offx_s,icrm);
+      crm_state_qr(k,j,i,icrm) = micro_field(ixrain,   k,j+offy_s,i+offx_s,icrm);
+      crm_state_nr(k,j,i,icrm) = micro_field(ixnumrain,k,j+offy_s,i+offx_s,icrm);
+      crm_state_qm(k,j,i,icrm) = micro_field(ixcldrim, k,j+offy_s,i+offx_s,icrm);
+      crm_state_bm(k,j,i,icrm) = micro_field(ixrimvol, k,j+offy_s,i+offx_s,icrm);
+
+      crm_state_u_wind(k,j,i,icrm) = u(k,j+offy_u,i+offx_u,icrm);
+      crm_state_v_wind(k,j,i,icrm) = v(k,j+offy_v,i+offx_v,icrm);
+      crm_state_w_wind(k,j,i,icrm) = w(k,j+offy_w,i+offx_w,icrm);
+      crm_state_temperature(k,j,i,icrm) = tabs(k,j,i,icrm);
+      crm_state_qn(k,j,i,icrm) = qn(k,j,i,icrm);
+
+      crm_output_tk(k,j,i,icrm) = sgs_field_diag(0,k,j+offy_d,i+offx_d,icrm);
+      crm_output_tkh(k,j,i,icrm) = sgs_field_diag(1,k,j+offy_d,i+offx_d,icrm);
+      crm_output_qcl(k,j,i,icrm) = qcl(k,j,i,icrm);
+      crm_output_qci(k,j,i,icrm) = qci(k,j,i,icrm);
+      crm_output_qpl(k,j,i,icrm) = qpl(k,j,i,icrm);
+      crm_output_qpi(k,j,i,icrm) = qpi(k,j,i,icrm);
+   });
+  }
 
   // for (int k=0; k<nzm; k++) {
   //   for (int j=0; j<ny; j++) {

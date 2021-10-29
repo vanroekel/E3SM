@@ -32,11 +32,11 @@ endif()
 string(FIND "${CAM_CONFIG_OPTS}" "-crm samxx" HAS_SAMXX)
 if (NOT HAS_SAMXX EQUAL -1)
   # The following is for the SAMXX code:
-  set(USE_SAMXX TRUE)
+  set(USE_SAMXX TRUE CACHE INTERNAL "use samxx")
 endif()
 
 # If samxx is being used, then YAKL must be used as well
-set(USE_YAKL ${USE_SAMXX})
+set(USE_YAKL ${USE_SAMXX} CACHE INTERNAL "use yakl")
 
 # If YAKL is being used, then we need to enable USE_CXX
 if (${USE_YAKL})

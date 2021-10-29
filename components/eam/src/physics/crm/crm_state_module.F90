@@ -27,17 +27,23 @@ module crm_state_module
       real(crm_rknd), allocatable :: temperature(:,:,:,:)  ! CRM temperuture
       real(crm_rknd), allocatable :: qt(:,:,:,:)           ! CRM total water
 
-      ! 2-moment microphsics variables
+      ! 2-moment microphsics variables (both p3 and m2005)
       real(crm_rknd), allocatable :: qc(:,:,:,:)   ! mass mixing ratio of cloud water
       real(crm_rknd), allocatable :: nc(:,:,:,:)   ! number concentration of cloud water
       real(crm_rknd), allocatable :: qr(:,:,:,:)   ! mass mixing ratio of rain
       real(crm_rknd), allocatable :: nr(:,:,:,:)   ! number concentration of rain
       real(crm_rknd), allocatable :: qi(:,:,:,:)   ! mass mixing ratio of cloud ice
       real(crm_rknd), allocatable :: ni(:,:,:,:)   ! number concentration of cloud ice
+
+      ! for m2005 only
       real(crm_rknd), allocatable :: qs(:,:,:,:)   ! mass mixing ratio of snow
       real(crm_rknd), allocatable :: ns(:,:,:,:)   ! number concentration of snow
       real(crm_rknd), allocatable :: qg(:,:,:,:)   ! mass mixing ratio of graupel
       real(crm_rknd), allocatable :: ng(:,:,:,:)   ! number concentration of graupel
+
+      ! p3 microphysics variables not included above
+      real(crm_rknd), allocatable :: qm(:,:,:,:) ! averaged riming density
+      real(crm_rknd), allocatable :: bm(:,:,:,:) ! averaged riming volume
       
       ! 1-moment microphsics variables
       real(crm_rknd), allocatable :: qp(:,:,:,:)   ! mass mixing ratio of precipitating condensate
@@ -89,6 +95,24 @@ contains
          call prefetch(state%ns)
          call prefetch(state%ng)
       end if
+      if (trim(MMF_microphysics_scheme) .eq. 'p3') then
+         if (.not. allocated(state%qc))          allocate(state%qc(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%qi))          allocate(state%qi(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%qr))          allocate(state%qr(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%nc))          allocate(state%nc(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%ni))          allocate(state%ni(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%nr))          allocate(state%nr(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%qm))          allocate(state%qm(ncrms,crm_nx,crm_ny,crm_nz))
+         if (.not. allocated(state%bm))          allocate(state%bm(ncrms,crm_nx,crm_ny,crm_nz))
+         call prefetch(state%qc)
+         call prefetch(state%qi)
+         call prefetch(state%qr)
+         call prefetch(state%nc)
+         call prefetch(state%ni)
+         call prefetch(state%nr)
+         call prefetch(state%qm)
+         call prefetch(state%bm)
+      end if
       if (trim(MMF_microphysics_scheme) .eq. 'sam1mom') then
          if (.not. allocated(state%qp))          allocate(state%qp(ncrms,crm_nx,crm_ny,crm_nz))
          if (.not. allocated(state%qn))          allocate(state%qn(ncrms,crm_nx,crm_ny,crm_nz))
@@ -120,6 +144,16 @@ contains
          if (allocated(state%nr)) deallocate(state%nr)
          if (allocated(state%ns)) deallocate(state%ns)
          if (allocated(state%ng)) deallocate(state%ng)
+      end if
+      if (trim(MMF_microphysics_scheme) .eq. 'p3') then
+         if (allocated(state%qc)) deallocate(state%qc)
+         if (allocated(state%qi)) deallocate(state%qi)
+         if (allocated(state%qr)) deallocate(state%qr)
+         if (allocated(state%nc)) deallocate(state%nc)
+         if (allocated(state%ni)) deallocate(state%ni)
+         if (allocated(state%nr)) deallocate(state%nr)
+         if (allocated(state%qm)) deallocate(state%qm)
+         if (allocated(state%bm)) deallocate(state%bm)
       end if
       if (trim(MMF_microphysics_scheme) .eq. 'sam1mom') then
          if (allocated(state%qp)) deallocate(state%qp)
