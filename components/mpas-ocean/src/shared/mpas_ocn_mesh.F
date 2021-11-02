@@ -30,7 +30,7 @@ module ocn_mesh
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_constants
-   use mpas_log
+   use mpas_log 
 
    use ocn_config
 
@@ -459,6 +459,10 @@ contains
       call mpas_pool_get_array(meshPool, 'distanceToCoast', &
                                distanceToCoast)
 
+      call mpas_pool_get_array(meshPool, 'weightsOnEdge', &
+                               weightsOnEdge)
+      call mpas_pool_get_array(meshPool, 'weightsOnEdge_lsqr', &
+                               weightsOnEdge_lsqr)
       call mpas_pool_get_array(meshPool, 'kiteAreasOnVertex', &
                                kiteAreasOnVertex)
       call mpas_pool_get_array(meshPool, 'edgeTangentVectors', &
@@ -1041,6 +1045,8 @@ contains
       !                                    areaTriangle)
       !call mpas_pool_get_array(meshPool, 'weightsOnEdge',     &
       !                                    weightsOnEdge)
+      !call mpas_pool_get_array(meshPool, 'weightsOnEdge_lsqr',     &
+      !                                    weightsOnEdge_lsqr)
       !call mpas_pool_get_array(meshPool, 'bottomDepth',       &
       !                                    bottomDepth)
       !call mpas_pool_get_array(meshPool, 'refBottomDepth',    &
@@ -1062,6 +1068,8 @@ contains
       !
       !call mpas_pool_get_array(meshPool, 'weightsOnEdge',             &
       !                                    weightsOnEdge)
+      !call mpas_pool_get_array(meshPool, 'weightsOnEdge_lsqr',             &
+      !                                    weightsOnEdge_lsqr)
       !call mpas_pool_get_array(meshPool, 'kiteAreasOnVertex',         &
       !                                    kiteAreasOnVertex)
       !call mpas_pool_get_array(meshPool, 'edgeTangentVectors',        &
