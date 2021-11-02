@@ -242,7 +242,7 @@ mpas_ocn_manufactured_solution.o:  mpas_ocn_constants.o mpas_ocn_config.o mpas_o
 
 mpas_ocn_subgrid.o: mpas_ocn_diagnostics_variables.o mpas_ocn_config.o mpas_ocn_constants.o
 
-mpas_ocn_ke_triskCV.o:
+mpas_ocn_ke_triskCV.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o mpas_ocn_thick_ale.o
 
 clean:
 	$(RM) *.o *.i *.mod *.f90
