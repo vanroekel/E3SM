@@ -28,6 +28,7 @@ module ocn_diagnostics
    use mpas_vector_reconstruction
    use mpas_stream_manager
    use mpas_io_units
+   use mpas_dmpar
 
    use ocn_constants
    use ocn_config
@@ -231,13 +232,13 @@ contains
       ! inputs: relativeVorticity, layerThickEdgeFlux, normalVelocity, normalTransportVelocity, 
       !         normalGMBolusVelocity
       ! outputs: vertTransportVelocityTop, vertGMBolusVelocityTop, relativeVorticityCell, 
-      !          divergence, kineticEnergyCell, tangentialVelocity
+      !          divergence, kineticEnergyCell, kineticEnergyEdge, u_perp, tangentialVelocity
       ! in and out: vertVelocityTop
       call ocn_diagnostic_solve_vortVel(relativeVorticity, &
              layerThickEdgeFlux, normalVelocity, normalTransportVelocity, &
              normalGMBolusVelocity, vertVelocityTop, vertTransportVelocityTop, &
              vertGMBolusVelocityTop, relativeVorticityCell, divergence, &
-             kineticEnergyCell, tangentialVelocity)
+             kineticEnergyCell, kineticEnergyEdge, u_perp, tangentialVelocity)
 
       !
       ! Compute kinetic energy
@@ -1480,7 +1481,7 @@ contains
                 layerThicknessEdgeFlux, normalVelocity, normalTransportVelocity, &
                 normalGMBolusVelocity, vertVelocityTop, vertTransportVelocityTop, &
                 vertGMBolusVelocityTop, relativeVorticityCell, divergence, &
-                kineticEnergyCell, tangentialVelocity)!{{{
+                kineticEnergyCell, kineticEnergyEdge, u_perp, tangentialVelocity)!{{{
 
       implicit none
 
@@ -1520,6 +1521,10 @@ contains
       real (kind=RKIND), dimension(:,:), intent(out) :: &
          kineticEnergyCell
       real (kind=RKIND), dimension(:,:), intent(out) :: &
+         kineticEnergyEdge
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         u_perp
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
          tangentialVelocity
 
       !-----------------------------------------------------------------
@@ -1536,16 +1541,10 @@ contains
       real(kind=RKIND) :: dcEdge_temp, dvEdge_temp, r_tmp, weightsOnEdge_temp, &
                           weightsOnEdge_lsqr_temp
 
-      type (domain_type) :: domain
-      type (mpas_pool_type), pointer :: meshPool
-      real(kind=RKIND), dimension(:, :), pointer :: weightsOnEdge_lsqr
-
       real (kind=RKIND), dimension(:), allocatable:: div_hu,div_huTransport,div_huGMBolus
-      real (kind=RKIND), dimension(:,:), allocatable:: kineticEnergyEdge, u_perp
+      !real (kind=RKIND), dimension(:,:), allocatable:: u_perp, kineticEnergyEdge
 
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
-
-      call mpas_pool_get_array(meshPool, 'weightsOnEdge_lsqr', weightsOnEdge_lsqr)
+      !call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCell, timeLevel)
 
 #ifdef MPAS_OPENACC
       !$acc declare device_resident(div_hu, div_huTransport, div_huGMBolus)
@@ -1585,12 +1584,13 @@ contains
 
       ! Need 0,1,2 halo cells
       nCells = nCellsHalo( 2 )
+      nEdges = nEdgesHalo( 2 ) !nEdgesAll
 
       !
       ! Compute divergence, kinetic energy, and vertical velocity
       !
       allocate(div_hu(nVertLevels),div_huTransport(nVertLevels),div_huGMBolus(nVertLevels))
-      allocate(u_perp(nVertLevels,nEdges), kineticEnergyEdge(nVertLevels,nEdges))
+      !allocate(u_perp(nVertLevels,nEdges), kineticEnergyEdge(nVertLevels,nEdges))
 
 #ifdef MPAS_OPENACC
       !$acc parallel loop gang vector &
@@ -1646,33 +1646,37 @@ contains
             vertGMBolusVelocityTop(k,iCell) = vertGMBolusVelocityTop(k+1,iCell) - div_huGMBolus(k)
          end do
       end do
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
       if (config_triskCV) then
+         !nCells = nCellsAll 
          kineticEnergyEdge(:,:) = 0.0_RKIND
          do iEdge = 1, nEdges 
             u_perp(:,iEdge) = 0.0_RKIND
             do j = 1, nEdgesOnEdge(iEdge)
                jEdge = edgesOnEdge(j,iEdge)
                weightsOnEdge_lsqr_temp = weightsOnEdge_lsqr(j,iEdge)
-               do k = minLevelCell(iCell), maxLevelCell(iCell)
+               do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)  
                   u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge)
-               end do
+                  !if(k==5 .and. indexToEdgeID(iEdge)==1000) then
+                  !   print*, indexToEdgeID(iEdge), k, j, weightsOnEdge_lsqr_temp, normalVelocity(k,jEdge), u_perp(k,iEdge)
+                  !end if
+               end do   
             end do
-            do k = minLevelCell(iCell), maxLevelCell(iCell)
+          end do
+          do iEdge = 1, nEdges
+            do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
                kineticEnergyEdge(k,iEdge) = 0.5_RKIND*(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + u_perp(k,iEdge)*u_perp(k,iEdge))
             end do
          end do
-         kineticEnergyCell(:, iCell) = 0.0_RKIND
-         do iCell = 1, nCells 
+         do iCell = 1, nCells
+            kineticEnergyCell(:, iCell) = 0.0_RKIND 
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
-               do k = minLevelCell(iCell), maxLevelCell(iCell)
-                  !ke_baricentric(k,iCell) = ke_baricentric(k,iCell) + weightsEdgeToCell(i,iCell)*ke_edge(k,edgesOnCell(i,iCell))
+               do k = minLevelCell(iCell), maxLevelCell(iCell) 
                   kineticEnergyCell(k,iCell) = kineticEnergyCell(k,iCell) + 0.25_RKIND * dcEdge(iEdge) * dvEdge(iEdge) * kineticEnergyEdge(k,iEdge)
                end do 
             end do
-            do k = 1, nVertLevels
-               !ke_baricentric(k,iCell) = ke_baricentric(k,iCell) / !areaCell(iCell)
+            do k = minLevelCell(iCell), maxLevelCell(iCell) 
                kineticEnergyCell(k,iCell) = kineticEnergyCell(k,iCell) / areaCell(iCell)
             end do
          end do
@@ -1683,8 +1687,9 @@ contains
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
                dcEdge_temp = dcEdge(iEdge)
+               dvEdge_temp = dvEdge(iEdge)
                do k = minLevelCell(iCell), maxLevelCell(iCell)
-                  r_tmp = dvEdge_temp * normalVelocity(k, iEdge) * invAreaCell1
+                   r_tmp = dvEdge_temp * normalVelocity(k, iEdge) * invAreaCell1
                    kineticEnergyCell(k, iCell) = kineticEnergyCell(k, iCell) &
                                                   + 0.25 * r_tmp * dcEdge_temp * normalVelocity(k,iEdge)
                end do
@@ -1698,7 +1703,7 @@ contains
 #endif
 
       deallocate(div_hu,div_huTransport,div_huGMBolus)
-      deallocate(u_perp,kineticEnergyEdge)
+      !deallocate(u_perp, kineticEnergyEdge)
 
       nEdges = nEdgesHalo( 2 )
 #ifdef MPAS_OPENACC
@@ -2435,6 +2440,19 @@ contains
                normalVelocity(k,iEdge) = normalVelocity(k,iEdge) + weightsOnEdge(j,iEdge) * normalBaroclinicVelocity(k,eoe) &
                                        * fEdge(eoe)
             end do
+
+            !if(k==5 .and. indexToEdgeID(iEdge)==1000) then
+            !print*, '---inside---'
+            !   do j = 1, nEdgesOnEdge(iEdge)
+            !      print*, indexToEdgeID(iEdge), k, j, normalVelocity(k,edgesOnEdge(j,iEdge)) 
+            !      print*, "----associated normalBaroclinicVelocity"
+            !      do eoe = 1, nEdgesOnEdge(edgesOnEdge(j,iEdge))
+            !         print*, eoe, normalBaroclinicVelocity(k,edgesOnEdge(eoe,edgesOnEdge(j,iEdge)))
+            !      end do
+            !   end do
+            !print*, '---end inside---'
+            !end if
+
          end do
       end do
 #ifdef MPAS_OPENACC

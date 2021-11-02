@@ -89,6 +89,8 @@ module ocn_forward_mode
    use ocn_constants
    use ocn_config
 
+   use ocn_ke_triskcv
+
    implicit none
    private
 
@@ -170,6 +172,8 @@ module ocn_forward_mode
       ! Initialize variables needed for all
       !-----------------------------------------------------------------
       ierr = 0
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
 
       ! Setup ocean config pool
       call ocn_config_init(domain % configs)
@@ -298,6 +302,18 @@ module ocn_forward_mode
 
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
       call mpas_get_timeInterval(timeStep, dt=dt)
+
+      if (config_triskCV) then
+         ! Compute the areas of the diamond-shaped control volumes needed in
+         ! TRiSK-CV
+         call controlVolumeEdge(domain, meshPool)
+         ! Compute a matrix needed in TRiSK-CV for the computation of the
+         ! kinetic energy
+         call buildInvMatrixBtB(domain, meshPool)
+         ! Compute the weightsOnEdge needed in TRiSK-CV for the computation of
+         ! the kinetic energy in TRiSK-CV
+         call Wlsqr(domain, meshPool)
+      end if
 
       call ocn_init_routines_block(block, dt, ierr)
 

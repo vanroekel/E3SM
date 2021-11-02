@@ -172,19 +172,6 @@ contains
       endif
 #endif
 
-      if (config_triskCV) then      
-         ! Compute the areas of the diamond-shaped control volumes needed in
-         ! TRiSK-CV
-         call controlVolumeEdge(domain, meshPool)
-         ! Compute a matrix needed in TRiSK-CV for the computation of the
-         ! kinetic energy
-         call buildInvMatrixBtB(domain, meshPool)
-         ! Compute the weightsOnEdge needed in TRiSK-CV for the computation of
-         ! the kinetic energy in TRiSK-CV
-         call Wlsqr(domain, meshPool)   
-      end if
-
-      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, scratchPool, tracersPool)
 #ifdef MPAS_OPENACC
       !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)
       !$acc update host(relativeVorticity, circulation)
@@ -224,6 +211,20 @@ contains
       endif
       !$acc exit data delete(layerThickness, normalVelocity)
 #endif
+      
+      !if (config_triskCV) then      
+      !   ! Compute the areas of the diamond-shaped control volumes needed in
+      !   ! TRiSK-CV
+      !   call controlVolumeEdge(domain, meshPool)
+      !   ! Compute a matrix needed in TRiSK-CV for the computation of the
+      !   ! kinetic energy
+      !   call buildInvMatrixBtB(domain, meshPool)
+      !   ! Compute the weightsOnEdge needed in TRiSK-CV for the computation of
+      !   ! the kinetic energy in TRiSK-CV
+      !   call Wlsqr(domain, meshPool)   
+      !end if
+
+      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, scratchPool, tracersPool)
 
       layerThickness(:, nCells+1) = 0.0_RKIND
 

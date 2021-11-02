@@ -1812,6 +1812,9 @@
                         <var name="invBtB"/>
                         <var name="weightsOnEdge_lsqr"/>
 			<var name="kineticEnergyCell"/>
+                        <var name="kineticEnergyEdge"/>
+                        <var name="u_perp"/>
+                        <var name="divergence"/>
 			<var name="relativeVorticityCell"/>
 			<var name="areaCellGlobal"/>
 			<var name="areaEdgeGlobal"/>
@@ -2676,6 +2679,14 @@
 			 description="kinetic energy of horizontal velocity on cells"
 			 packages="forwardMode;analysisMode"
 		/>
+                <var name="kineticEnergyEdge" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-2}"
+                         description="kinetic energy of horizontal velocity on edges"
+                         packages="forwardMode;analysisMode"
+                />
+                <var name="u_perp" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-2}"
+                         description="tangential velocity on edges needed for the computation of kineticEnergyEdge in TRSK++"
+                         packages="forwardMode;analysisMode"
+                />
 		<var name="viscosity" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-1}"
 			 description="horizontal viscosity"
 			 packages="forwardMode;analysisMode"
