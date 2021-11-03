@@ -727,17 +727,7 @@ module ocn_time_integration_split
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! BEGIN baroclinic iterations on linear Coriolis term
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-         !do iEdge = 1, nEdgesAll
-         !do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-         !   if(k==5 .and. indexToEdgeID(iEdge)==1000) then
-         !      do j = 1, nEdgesOnEdge(iEdge)
-         !         print*, indexToEdgeID(iEdge), k, j, normalVelocityNew(k,edgesOnEdge(j,iEdge))
-         !      end do
-         !   end if
-         !end do
-         !end do
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
          do j=1,numClinicIterations(splitExplicitStep)
 
@@ -746,16 +736,6 @@ module ocn_time_integration_split
             ! Put f*normalBaroclinicVelocity^{perp} in
             ! normalVelocityNew as a work variable
             call ocn_fuperp(statePool, meshPool, 2)
-
-            !do iEdge = 1, nEdgesAll
-            !do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-            !   if(k==5 .and. indexToEdgeID(iEdge)==1000) then
-            !      do i = 1, nEdgesOnEdge(iEdge)
-            !         print*, indexToEdgeID(iEdge), k, i, normalVelocityNew(k,edgesOnEdge(i,iEdge))
-            !      end do
-            !   end if
-            !end do
-            !end do
 
             !TODO: look at loop optimizations here
             ! Only need to loop over owned cells, since there is a halo
@@ -847,16 +827,6 @@ module ocn_time_integration_split
             call mpas_timer_stop("se halo normalBaroclinicVelocity")
 
             call mpas_timer_stop('bcl iters on linear Coriolis') 
-
-            !do iEdge = 1, nEdgesAll
-            !do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-            !   if(k==5 .and. indexToEdgeID(iEdge)==1000) then
-            !      do i = 1, nEdgesOnEdge(iEdge)
-            !         print*, indexToEdgeID(iEdge), k, i, normalVelocityNew(k,edgesOnEdge(i,iEdge))
-            !      end do
-            !   end if
-            !end do
-            !end do
 
          end do  ! do j=1,config_n_bcl_iter
 
@@ -2710,10 +2680,8 @@ module ocn_time_integration_split
         end do
       end if
 
-      call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, verticalMeshPool, &
-                                scratchPool, tracersPool, 2)
-
-      !print*, '3' 
+      call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, &
+                                scratchPool, tracersPool, 2) 
 
       ! Update the effective desnity in land ice if we're coupling to
       ! land ice
