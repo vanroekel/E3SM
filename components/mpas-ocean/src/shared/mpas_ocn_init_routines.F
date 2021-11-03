@@ -172,6 +172,8 @@ contains
       endif
 #endif
 
+      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, scratchPool, tracersPool)
+
 #ifdef MPAS_OPENACC
       !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)
       !$acc update host(relativeVorticity, circulation)
@@ -223,8 +225,6 @@ contains
       !   ! the kinetic energy in TRiSK-CV
       !   call Wlsqr(domain, meshPool)   
       !end if
-
-      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, scratchPool, tracersPool)
 
       layerThickness(:, nCells+1) = 0.0_RKIND
 

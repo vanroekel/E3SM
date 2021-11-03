@@ -303,15 +303,9 @@ module ocn_forward_mode
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
       call mpas_get_timeInterval(timeStep, dt=dt)
 
-      if (config_triskCV) then
-         ! Compute the areas of the diamond-shaped control volumes needed in
-         ! TRiSK-CV
-         call controlVolumeEdge(domain, meshPool)
-         ! Compute a matrix needed in TRiSK-CV for the computation of the
-         ! kinetic energy
-         call buildInvMatrixBtB(domain, meshPool)
-         ! Compute the weightsOnEdge needed in TRiSK-CV for the computation of
-         ! the kinetic energy in TRiSK-CV
+      if (config_triskCV) then 
+         ! Compute weightsOnEdge_lsqr needed in TRiSK-CV for the computation of
+         ! the tangential velocity used in the new kinetic energy
          call Wlsqr(domain, meshPool)
       end if
 

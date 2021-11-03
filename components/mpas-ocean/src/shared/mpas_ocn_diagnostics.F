@@ -1647,8 +1647,7 @@ contains
          end do
       end do
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-      if (config_triskCV) then
-         !nCells = nCellsAll 
+      if (config_triskCV) then 
          kineticEnergyEdge(:,:) = 0.0_RKIND
          do iEdge = 1, nEdges 
             u_perp(:,iEdge) = 0.0_RKIND
@@ -1656,10 +1655,7 @@ contains
                jEdge = edgesOnEdge(j,iEdge)
                weightsOnEdge_lsqr_temp = weightsOnEdge_lsqr(j,iEdge)
                do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)  
-                  u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge)
-                  !if(k==5 .and. indexToEdgeID(iEdge)==1000) then
-                  !   print*, indexToEdgeID(iEdge), k, j, weightsOnEdge_lsqr_temp, normalVelocity(k,jEdge), u_perp(k,iEdge)
-                  !end if
+                  u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge) 
                end do   
             end do
           end do

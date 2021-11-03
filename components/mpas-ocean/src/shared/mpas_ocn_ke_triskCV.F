@@ -54,9 +54,7 @@ module ocn_ke_triskCV
    !
    !--------------------------------------------------------------------
 
-   public :: controlVolumeEdge, &
-             buildInvMatrixBtB, &
-             Wlsqr, &
+   public :: Wlsqr, &
              inv_3x3, &
              sphericalTriangleArea, &
              sphere_distance
@@ -69,169 +67,7 @@ module ocn_ke_triskCV
 
 !***********************************************************************
 
-contains
-
-   subroutine controlVolumeEdge(domain, meshPool)
-
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! controlVolumeEdge computes the areas associated to every edge in the 
-   ! TRiSK++ discretization 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      implicit none
-
-      type (mpas_pool_type), intent(inout) :: meshPool
-      type (domain_type), intent(inout) :: domain
-      integer :: vertex1, vertex2, cell1, cell2, iEdge, jEdge, i, k
-      real (kind=RKIND) :: a, b 
-      real (kind=RKIND), dimension(:), pointer :: areaCVEdge
-      real (kind=RKIND), dimension(:,:), pointer :: weightsEdgeToCell
-
-      call mpas_pool_get_array(meshPool, 'areaCVEdge', areaCVEdge)
-      call mpas_pool_get_array(meshPool, 'weightsEdgeToCell', weightsEdgeToCell)
-
-
-      areaCVEdge(:) = 0.0_RKIND
-      weightsEdgeToCell(:,:) = 0.0_RKIND
-      do iEdge = 1, nEdgesAll !nEdgesArray(3)
-         cell1 = cellsOnEdge(1,iEdge)
-         cell2 = cellsOnEdge(2,iEdge)
-         vertex1 = verticesOnEdge(1,iEdge)
-         vertex2 = verticesOnEdge(2,iEdge)
-         a = sphericalTriangleArea(latVertex(vertex1), lonVertex(vertex1), latVertex(vertex2), lonVertex(vertex2), latCell(cell1), lonCell(cell1))
-         !if (latCell(cell2)==0.0 .AND. lonCell(cell2)==0.0) then
-         if (cell2 > nCellsAll) then 
-            b = 0.0_RKIND
-         else
-            b = sphericalTriangleArea(latVertex(vertex1), lonVertex(vertex1), latVertex(vertex2), lonVertex(vertex2), latCell(cell2), lonCell(cell2))
-         end if 
-         areaCVEdge(iEdge) = a+b
-         do i = 1, nEdgesOnCell(cell1)
-            jEdge = edgesOnCell(i,cell1)
-            if (iEdge == jEdge) then
-               weightsEdgeToCell(i,cell1) = a
-            end if
-         end do
-         do i = 1, nEdgesOnCell(cell2)
-            jEdge = edgesOnCell(i,cell2)
-            if (iEdge == jEdge) then
-               weightsEdgeToCell(i,cell2) = b
-            end if
-         end do
-      end do
-      call mpas_dmpar_field_halo_exch(domain, 'weightsEdgeToCell')
-      call mpas_dmpar_field_halo_exch(domain, 'areaCVEdge')
-
-      !do iEdge = 1, nEdgesAll
-      !   print*, iEdge, areaCVEdge(iEdge) 
-      !end do
-
-   end subroutine controlVolumeEdge
-
-   subroutine buildInvMatrixBtB(domain, meshPool)
-
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! buildMatrixBtB computes the least square matrix B^{T}B needed for the
-   ! computation of the kinetic energy in the TRiSK++ discretization 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      implicit none
-
-      type (mpas_pool_type), intent(inout) :: meshPool
-      type (domain_type), intent(inout) :: domain
-      integer :: iEdge, jEdge, i, j, k
-      integer, dimension(2) :: iEdgeCells, jEdgeCells
-      real (kind=RKIND) :: re_x, re_y, re_z, ne_x, ne_y, ne_z, norm, xTangent, yTangent, zTangent, detinv
-      real (kind=RKIND), dimension(:), pointer :: areaCVEdge   
-      real (kind=RKIND), dimension(:,:,:), pointer :: invBtB
-      real (kind=RKIND), dimension(:,:), allocatable :: BtB
-
-      call mpas_pool_get_array(meshPool, 'areaCVEdge', areaCVEdge)
-      !call mpas_pool_get_array(meshPool, 'nEdgesOnEdge', nEdgesOnEdge)
-      !call mpas_pool_get_array(meshPool, 'zEdge', zEdge)
-      call mpas_pool_get_array(meshPool, 'invBtB', invBtB)
-
-      allocate(BtB(vertexDegree, vertexDegree))
-
-      invBtB(:,:,:) = 0.0_RKIND
-      !print*, nEdgesHalo
-
-      !do iEdge = 1, nEdgesAll
-      !   print*, iEdge, areaCVEdge(iEdge)
-      !end do
-
-      do iEdge = 1, nEdgesHalo(3)
-         BtB(:,:) = 0.0_RKIND
-         iEdgeCells(1) = cellsOnEdge(1,iEdge)
-         iEdgeCells(2) = cellsOnEdge(2,iEdge)
-         norm = sqrt(xEdge(iEdge)**2.0 + yEdge(iEdge)**2.0 + zEdge(iEdge)**2.0)
-         re_x = xEdge(iEdge)/norm
-         re_y = yEdge(iEdge)/norm
-         re_z = zEdge(iEdge)/norm
-         !print*, re_x*ne_x + re_y*ne_y + re_z*ne_z !e-3
-         do j = 1, nEdgesOnEdge(iEdge)
-            !print*, nEdgesOnEdge(iEdge)
-            jEdge = edgesOnEdge(j,iEdge)
-            jEdgeCells(1) = cellsOnEdge(1,jEdge)
-            jEdgeCells(2) = cellsOnEdge(2,jEdge)
-            ne_x = (xCell(jEdgeCells(1)) - xCell(jEdgeCells(2)))
-            ne_y = (yCell(jEdgeCells(1)) - yCell(jEdgeCells(2)))
-            ne_z = (zCell(jEdgeCells(1)) - zCell(jEdgeCells(2)))
-            norm = sqrt(ne_x**2.0 + ne_y**2.0 + ne_z**2.0)
-            ne_x = ne_x/norm
-            ne_y = ne_y/norm
-            ne_z = ne_z/norm
-            BtB(1,1) = BtB(1,1) + areaCVEdge(jEdge) * ne_x * areaCVEdge(jEdge) * ne_x
-            BtB(2,2) = BtB(2,2) + areaCVEdge(jEdge) * ne_y * areaCVEdge(jEdge) * ne_y
-            BtB(3,3) = BtB(3,3) + areaCVEdge(jEdge) * ne_z * areaCVEdge(jEdge) * ne_z
-            BtB(1,2) = BtB(1,2) + areaCVEdge(jEdge) * ne_x * areaCVEdge(jEdge) * ne_y
-            BtB(1,3) = BtB(1,3) + areaCVEdge(jEdge) * ne_x * areaCVEdge(jEdge) * ne_z
-            BtB(2,3) = BtB(2,3) + areaCVEdge(jEdge) * ne_y * areaCVEdge(jEdge) * ne_z
-         end do
-         BtB(1,1) = BtB(1,1) + re_x*re_x
-         BtB(2,2) = BtB(2,2) + re_y*re_y
-         BtB(3,3) = BtB(3,3) + re_z*re_z
-         BtB(1,2) = BtB(1,2) + re_x*re_y
-         BtB(1,3) = BtB(1,3) + re_x*re_z
-         BtB(2,1) = BtB(1,2)
-         BtB(2,3) = BtB(2,3) + re_y*re_z
-         BtB(3,1) = BtB(1,3)
-         BtB(3,2) = BtB(2,3)
-
-         !Calculate the inverse determinant of the matrix
-
-         !print*, iEdge, BtB(1,1), BtB(2,2), BtB(3,3), BtB(1,2), BtB(1,3), BtB(2,1), &
-         !        BtB(2,3), BtB(3,1), BtB(3,2)
-
-         !print*, iEdge, nEdgesOnEdge(iEdge), iEdgeCells(1), iEdgeCells(2), (BtB(1,1)*BtB(2,2)*BtB(3,3) - BtB(1,1)*BtB(2,3)*BtB(3,2)&
-         !       - BtB(1,2)*BtB(2,1)*BtB(3,3) + BtB(1,2)*BtB(2,3)*BtB(3,1)&
-         !       + BtB(1,3)*BtB(2,1)*BtB(3,2) - BtB(1,3)*BtB(2,2)*BtB(3,1))
-
-         if (iEdgeCells(2) > nCellsAll) then 
-            detinv = 0.0_RKIND
-         else
-            detinv = 1.0_RKIND/(BtB(1,1)*BtB(2,2)*BtB(3,3) - BtB(1,1)*BtB(2,3)*BtB(3,2)&
-                   - BtB(1,2)*BtB(2,1)*BtB(3,3) + BtB(1,2)*BtB(2,3)*BtB(3,1)&
-                   + BtB(1,3)*BtB(2,1)*BtB(3,2) - BtB(1,3)*BtB(2,2)*BtB(3,1))
-         end if
-         !print*, iEdge, detinv
-
-         ! Calculate the inverse of the matrix
-         invBtB(1,1,iEdge) = +detinv * (BtB(2,2)*BtB(3,3) - BtB(2,3)*BtB(3,2))
-         invBtB(2,1,iEdge) = -detinv * (BtB(2,1)*BtB(3,3) - BtB(2,3)*BtB(3,1))
-         invBtB(3,1,iEdge) = +detinv * (BtB(2,1)*BtB(3,2) - BtB(2,2)*BtB(3,1))
-         invBtB(1,2,iEdge) = -detinv * (BtB(1,2)*BtB(3,3) - BtB(1,3)*BtB(3,2))
-         invBtB(2,2,iEdge) = +detinv * (BtB(1,1)*BtB(3,3) - BtB(1,3)*BtB(3,1))
-         invBtB(3,2,iEdge) = -detinv * (BtB(1,1)*BtB(3,2) - BtB(1,2)*BtB(3,1))
-         invBtB(1,3,iEdge) = +detinv * (BtB(1,2)*BtB(2,3) - BtB(1,3)*BtB(2,2))
-         invBtB(2,3,iEdge) = -detinv * (BtB(1,1)*BtB(2,3) - BtB(1,3)*BtB(2,1))
-         invBtB(3,3,iEdge) = +detinv * (BtB(1,1)*BtB(2,2) - BtB(1,2)*BtB(2,1))
-      end do
-      call mpas_dmpar_field_halo_exch(domain, 'invBtB')
-
-      deallocate(BtB)
-
-   end subroutine buildInvMatrixBtB
+contains 
 
    subroutine inv_3x3(amat,adim,ainv,vdim, adet)
 
@@ -320,9 +156,7 @@ contains
       real (kind=RKIND), dimension(:), allocatable :: elen
       real (kind=RKIND), dimension(:,:), allocatable :: enrm, edir, eprp
 
-      call mpas_pool_get_config(meshPool, 'sphere_radius', sphere_radius)
-      call mpas_pool_get_array(meshPool, 'areaCVEdge', areaCVEdge) 
-      call mpas_pool_get_array(meshPool, 'invBtB', invBtB)
+      call mpas_pool_get_config(meshPool, 'sphere_radius', sphere_radius) 
       !call mpas_pool_get_array(meshPool, 'weightsOnEdge_lsqr', weightsOnEdge_lsqr)
       !call mpas_pool_get_array(meshPool, 'weightsOnEdge', weightsOnEdge)
 
@@ -387,11 +221,7 @@ contains
                             zCell(cellsOnEdge(1,iEoE))
             end if 
 
-            elen(iEoE) = sqrt(edir(iEoE,1)**2 + edir(iEoE,2)**2 + edir(iEoE,3)**2)
-
-           ! if(iEdge==2380) then
-           !    print*, jEdge, cellsOnEdge(1,iEoE), cellsOnEdge(2,iEoE), xCell(cellsOnEdge(2,iEoE)), yCell(cellsOnEdge(2,iEoE)), zCell(cellsOnEdge(2,iEoE)), elen(iEoE)
-           ! end if
+            elen(iEoE) = sqrt(edir(iEoE,1)**2 + edir(iEoE,2)**2 + edir(iEoE,3)**2) 
 
             edir(iEoE,1) = edir(iEoE,1) / elen(iEoE)
             edir(iEoE,2) = edir(iEoE,2) / elen(iEoE)
@@ -433,25 +263,12 @@ contains
             weightsOnEdge_lsqr(jEdge,iEdge) = &
                eprp(iEdge,1) * xmul + &
                eprp(iEdge,2) * ymul + &
-               eprp(iEdge,3) * zmul
-
-            if(iEdge==2380) then
-            !   print*, jEdge, xmul, rinv(1,1), rinv(1,2), rinv(1,3), matt(1,jEdge+1), matt(2,jEdge+1), matt(3,jEdge+1), rdet 
-               print*, jEdge, eprp(iEdge,1), eprp(iEdge,2), eprp(iEdge,3), xmul, ymul, zmul, weightsOnEdge_lsqr(jEdge,iEdge), weightsOnEdge(jEdge,iEdge)
-            end if 
+               eprp(iEdge,3) * zmul 
 
          end do
       end do
 
-      call mpas_dmpar_field_halo_exch(domain, 'weightsOnEdge_lsqr')
-
-      !do iEdge = 1, nEdgesAll
-      !   do jEdge = 1, nEdgesOnEdge(iEdge)
-      !      if (weightsOnEdge_lsqr(jEdge,iEdge) > 1.0_RKIND) then
-      !      print*, iEdge, cellsOnEdge(1,iEdge), cellsOnEdge(2,iEdge), weightsOnEdge_lsqr(jEdge,iEdge), weightsOnEdge(jEdge,iEdge)
-      !      end if
-      !   end do
-      !end do
+      call mpas_dmpar_field_halo_exch(domain, 'weightsOnEdge_lsqr') 
 
       deallocate(eprp)
       deallocate(edir)
@@ -479,14 +296,9 @@ contains
       b = sphere_distance(laCell, loCell, laEdge, loEdge, one)
       c = sphere_distance(laEdge, loEdge, laVertex, loVertex, one)
       s = 0.5*(a+b+c)
-      !print*, 'printing a, b, c e s', a, b, c, s 
-      !print*, 'printing tan', tan(0.5*s), tan(0.5*(s-a)), tan(0.5*(s-b)),
-      !tan(0.5*(s-c))
-
+      
       tanqe = sqrt(tan(0.5*s)*tan(0.5*(s-a))*tan(0.5*(s-b))*tan(0.5*(s-c)))
-      sphericalTriangleArea = 4.*atan(tanqe)*radius**2
-
-      !print*, 'printing a, b, c, s e tanqe', a, b, c, s, tanqe
+      sphericalTriangleArea = 4.*atan(tanqe)*radius**2 
 
    end function sphericalTriangleArea
 
