@@ -2040,10 +2040,7 @@
 			<var name="refLayerThickness"/>
 			<var name="xtime"/>
 			<var name="zMid"/>
-			<var name="zTop"/>
-                        <var name="areaCVEdge"/>
-                        <var name="weightsEdgeToCell"/>
-                        <var name="invBtB"/>
+			<var name="zTop"/>  
                         <var name="weightsOnEdge_lsqr"/>
 			<var name="kineticEnergyCell"/>
                         <var name="kineticEnergyEdge"/>
@@ -2526,13 +2523,7 @@
 		/>
                 <var name="weightsOnEdge_lsqr" type="real" dimensions="maxEdges2 nEdges" units="unitless"
 			 desription="Weights associated with each of the edgesOnEdge needed for the tangential velocity in the kinetic energy for TRiSK-CV."
-                />
-                <var name="weightsEdgeToCell" type="real" dimensions="maxEdges nCells" units="unitless"
-                         desription="Weights needed for the edge to cell mapping in TRiSK-CV."
-                />
-                <var name="areaCVEdge" type="real" dimensions="nEdges" units="m^2"
-                         desription="Areas of the diamond-shaped control volumes for TRiSK-CV."
-                />
+                />   
 		<var name="dvEdge" type="real" dimensions="nEdges" units="m"
 			 description="The distance (great circle distance for spherical meshes, Euclidean distance for planar meshes) between the two vertices (defined by verticesOnEdge) located at the endpoints of a given edge. It is the length of the edge on the primal mesh."
 		/>
@@ -2577,10 +2568,7 @@
 		/>
 		<var name="kiteAreasOnVertex" type="real" dimensions="vertexDegree nVertices" units="m^2"
 			 description="Area of the portions of each dual cell that are part of each cellsOnVertex."
-		/>
-        <var name="invBtB" type="real" dimensions="vertexDegree vertexDegree nEdges" units="m^2"
-             description="3x3 matrix needed for each edge in the kinetic energy for TRiSK-CV."
-        />
+		/> 
 		<var name="fEdge" type="real" dimensions="nEdges" units="s^{-1}"
 			 description="Coriolis parameter at edges."
 		/>
