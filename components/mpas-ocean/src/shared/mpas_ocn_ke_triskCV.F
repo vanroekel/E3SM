@@ -133,7 +133,7 @@ contains
 
    end subroutine inv_3x3
 
-   subroutine Wlsqr(domain, meshPool)
+   subroutine Wlsqr(domain)
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! buildMatrixBtB computes the least square weightsOnEdge needed for the
@@ -142,7 +142,6 @@ contains
 
       implicit none
 
-      type (mpas_pool_type), intent(inout) :: meshPool
       type (domain_type), intent(inout) :: domain
       integer :: iEdge, jEdge, iEoE, i, j, k, cell1
       integer, dimension(2) :: iEdgeCells, jEdgeCells
@@ -150,15 +149,10 @@ contains
       real (kind=RKIND), dimension(:), pointer :: areaCVEdge
       real (kind=RKIND), dimension(:,:,:), pointer :: invBtB
 
-      real (kind=RKIND), pointer :: sphere_radius
       real (kind=RKIND) :: tmat(25,3), matt(3,25), rmat(3,3), rinv(3,3), &
                            rdet, xmul, ymul, zmul
       real (kind=RKIND), dimension(:), allocatable :: elen
       real (kind=RKIND), dimension(:,:), allocatable :: enrm, edir, eprp
-
-      call mpas_pool_get_config(meshPool, 'sphere_radius', sphere_radius) 
-      !call mpas_pool_get_array(meshPool, 'weightsOnEdge_lsqr', weightsOnEdge_lsqr)
-      !call mpas_pool_get_array(meshPool, 'weightsOnEdge', weightsOnEdge)
 
       allocate(enrm(nEdgesHalo(3),3))
       allocate(edir(nEdgesAll,3))
@@ -203,9 +197,9 @@ contains
          eprp(iEdge,3) = eprp(iEdge,3) / norm
 
       !- unit normals (to spherical surface) at each edge
-         enrm(iEdge,1) = xEdge(iEdge) / sphere_radius
-         enrm(iEdge,2) = yEdge(iEdge) / sphere_radius
-         enrm(iEdge,3) = zEdge(iEdge) / sphere_radius
+         enrm(iEdge,1) = xEdge(iEdge) / sphereRadius
+         enrm(iEdge,2) = yEdge(iEdge) / sphereRadius
+         enrm(iEdge,3) = zEdge(iEdge) / sphereRadius
 
       !- assemble lsqr matrix T: n_hat dot u = u_e
          tmat(1,1) = enrm(iEdge,1)
@@ -213,21 +207,16 @@ contains
          tmat(1,3) = enrm(iEdge,3)
 
          do jEdge = 1, nEdgesOnEdge(iEdge)
-            iEoE = edgesOnEdge(jEdge,iEdge)
 
-         !- unit normals (on spherical surface) to each edge (in E^3)
-            if (cellsOnEdge(2,iEoE)>nCellsAll) then
-               cell1 = cellsOnEdge(1,iEoE)
-               !do i = 1, nEdgesOnCell(cell1)
-               !   if(iEoE == edgesOnCell(i,cell1)) then  
-               !      edir(iEoE,1) = edgeSignOnCell(i,cell1)*(xEdge(iEoE) - xCell(cell1))
-               !      edir(iEoE,2) = edgeSignOnCell(i,cell1)*(yEdge(iEoE) - yCell(cell1))
-               !      edir(iEoE,3) = edgeSignOnCell(i,cell1)*(zEdge(iEoE) - zCell(cell1))
-               !   end if
-               !end do
-               edir(iEoE,1) = xEdge(iEoE) - xCell(cell1)
-               edir(iEoE,2) = yEdge(iEoE) - yCell(cell1)
-               edir(iEoE,3) = zEdge(iEoE) - zCell(cell1)
+            iEoE = edgesOnEdge(jEdge,iEdge)
+            if (cellsOnEdge(1,iEoE)>nCellsAll) then
+               edir(iEoE,1) = xCell(cellsOnEdge(2,iEoE)) - xEdge(iEoE)
+               edir(iEoE,2) = yCell(cellsOnEdge(2,iEoE)) - yEdge(iEoE)
+               edir(iEoE,3) = zCell(cellsOnEdge(2,iEoE)) - zEdge(iEoE)
+            else if (cellsOnEdge(2,iEoE)>nCellsAll) then
+               edir(iEoE,1) = xEdge(iEoE) - xCell(cellsOnEdge(1,iEoE))
+               edir(iEoE,2) = yEdge(iEoE) - yCell(cellsOnEdge(1,iEoE))
+               edir(iEoE,3) = zEdge(iEoE) - zCell(cellsOnEdge(1,iEoE))
             else
                edir(iEoE,1) = xCell(cellsOnEdge(2,iEoE)) - &
                             xCell(cellsOnEdge(1,iEoE))
