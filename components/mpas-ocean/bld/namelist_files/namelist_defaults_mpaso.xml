@@ -58,6 +58,7 @@
 <config_dt ocn_grid="SOwISC12to30E3r3">'00:10:00'</config_dt>
 <config_time_integrator>'split_explicit_ab2'</config_time_integrator>
 <config_number_of_time_levels>2</config_number_of_time_levels>
+<config_triskCV>.true.</config_triskCV>
 
 <!-- hmix -->
 <config_hmix_scaleWithMesh ocn_grid="oQU480">.false.</config_hmix_scaleWithMesh>

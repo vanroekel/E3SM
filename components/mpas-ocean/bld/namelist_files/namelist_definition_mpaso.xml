@@ -216,6 +216,13 @@ Valid values: Any integer greater than or equal to 2.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_triskCV" type="logical"
+	category="time_integration" group="time_integration">
+Turns on the computation of the kinetic energy in the TRiSK-CV way.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
 
 <!-- hmix -->
 
