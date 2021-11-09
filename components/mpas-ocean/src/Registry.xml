@@ -208,7 +208,7 @@
 					description="Time integration method."
 					possible_values="'split_explicit', 'RK4', 'unsplit_explicit', 'split_implicit'"
 		/>
-		<nml_option name="config_triskCV" type="logical" default_value=".false." units="unitless"
+		<nml_option name="config_triskCV" type="logical" default_value=".true." units="unitless"
                                         description="Turns on the computation of the kinetic energy in the TRiSK-CV way."
                                         possible_values=".true. or .false."
 		/>

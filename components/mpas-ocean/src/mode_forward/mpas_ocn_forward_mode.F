@@ -303,13 +303,13 @@ module ocn_forward_mode
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
       call mpas_get_timeInterval(timeStep, dt=dt)
 
+      call ocn_init_routines_block(block, dt, ierr)
+
       if (config_triskCV) then 
          ! Compute weightsOnEdge_lsqr needed in TRiSK-CV for the computation of
          ! the tangential velocity used in the new kinetic energy
-         call Wlsqr(domain, meshPool)
+         call Wlsqr(domain)
       end if
-
-      call ocn_init_routines_block(block, dt, ierr)
 
       if(ierr.eq.1) then
           call mpas_log_write('An error was encountered in ocn_init_routines_block', MPAS_LOG_CRIT)
