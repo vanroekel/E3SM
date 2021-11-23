@@ -2352,7 +2352,18 @@ contains
       !$omp end do
       !$omp end parallel
 #endif
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#ifdef MPAS_OPENACC
+      !$acc parallel loop gang vector &
+      !$acc          present(u_perp, kineticEnergyEdge, nEdgesOnEdge, edgesOnEdge, weightsOnEdge_lsqr, &
+      !$acc                  maxLevelEdgeTop, normalVelocity, minLevelEdgeBot, kineticEnergyCell, &
+      !$acc                  nEdgesOnCell, edgesOnCell, minLevelCell, maxLevelCell, dcEdge, dvEdge
+      !$acc                  areaCell, invAreaCell) &
+      !$acc          private(i, j, weightsOnEdge_lsqr_temp, k, dcEdge_temp, dvEdge_temp, invAreaCell1)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) private(i, j, weightsOnEdge_lsqr_temp, k, dcEdge_temp, dvEdge_temp, invAreaCell1)
+#endif
       if (config_triskCV) then 
          kineticEnergyEdge(:,:) = 0.0_RKIND
          do iEdge = 1, nEdges 
@@ -2398,6 +2409,10 @@ contains
             end do
          end do   
       end if
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
    !--------------------------------------------------------------------
