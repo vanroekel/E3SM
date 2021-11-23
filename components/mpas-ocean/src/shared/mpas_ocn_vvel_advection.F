@@ -10,12 +10,11 @@
 !  ocn_vvel_advection
 !
 !> \brief MPAS ocean vertical velocity advection driver
-!> \author Luke Van Roekel
-!> \date   January 2021
+!> \author Luke Van Roekel, Darren Engwirda
+!> \date   27/10/21
 !> \details
-!>  This module contains initialization and driver routines for computing vertical
-!>  velocity advection tendencies. It is based, in part, on the tracer advection code
-!>
+!>  This module contains initialization and driver routines for computing 
+!>  (non-hydrostatic) vertical velocity advection tendencies.
 !
 !-------------------------------------------------------------------------------
 
@@ -29,7 +28,6 @@ module ocn_vvel_advection
    use mpas_hash
    use mpas_timer
 
-   use ocn_vvel_horiz_advection_vector_invariant
    use ocn_vvel_horiz_advection
    use ocn_vvel_vert_advection
 
@@ -53,21 +51,22 @@ module ocn_vvel_advection
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  routine ocn_tracer_advection_tend
+!  routine ocn_vvel_advection_tend
 !
-!> \brief MPAS ocean tracer advection tendency
-!> \author Mark Petersen, David Lee, Doug Jacobsen, Phil Jones
-!> \date   October 2017, updated May 2019
+!> \brief MPAS ocean vertical velocity advection tendency
+!> \author Luke Van Roekel, Darren Engwirda
+!> \date   October 2021
 !> \details
-!>  This routine is the driver routine for computing tracer advection
+!>  This routine is the driver routine for computing vvel advection
 !>  tendencies. It simply calls submodule tendency routines based on choice of
 !>  algorithm.
 !
 !-------------------------------------------------------------------------------
 
    subroutine ocn_vvel_advection_tend(verticalVelocity, normalThicknessFlux,       &
-                                        layerThickness, layerThicknessEdge, dt,          &
-                                        tend)!{{{
+      layerThickness, layerThicknessEdge, vertAleTransportTop, dt, tend)!{{{
+
+      implicit none
 
       !*** Input/Output parameters
 
@@ -77,11 +76,12 @@ module ocn_vvel_advection
       !*** Input parameters
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         verticalVelocity             !< [in] Current tracer values
+         verticalVelocity               !< [in] non-hydrostatic vertical velocity
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          normalThicknessFlux !< [in] Thickness weighted horizontal velocity
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThickness,     &      !< [in] Thickness field at cell centers
+         vertAleTransportTop, &     !< [in] velocity through layer top levels
          layerThicknessEdge
       real (kind=RKIND), intent(in) :: &
          dt                  !< [in] Time step
@@ -95,16 +95,11 @@ module ocn_vvel_advection
 
       call mpas_timer_start("Vertical Velocity adv")
 
-      if(config_vvel_advection_use_vector_invariant_form) then
-         call ocn_vvel_horiz_vector_invariant_advection_tend(verticalVelocity, &
-               normalThicknessFlux, layerThicknessEdge, dt, tend)
-      else
-         call ocn_vvel_horiz_advection_tend(verticalVelocity, normalThicknessFlux, &
-               layerThickness, dt, tend)
-      end if
+      call ocn_vvel_horiz_advection_tend(verticalVelocity, normalThicknessFlux, &
+           layerThickness, dt, tend)
 
       call ocn_vvel_vert_advection_tend( verticalVelocity, layerThickness, dt, &
-                                                tend)
+                                         vertAleTransportTop, tend)
 
       call mpas_timer_stop("Vertical Velocity adv")
 
@@ -115,23 +110,21 @@ module ocn_vvel_advection
 !  routine ocn_vvel_advection_init
 !
 !> \brief MPAS ocean vertical velocity advection tendency
-!> \author Luke Van Roekel
-!> \date   January 2021
+!> \author Luke Van Roekel, Darren Engwirda
+!> \date   27/10/21
 !> \details
-!>  This routine is the driver routine for initializing various vertical velocity
-!>  advection choices and variables.
+!>  This routine is the driver for initializing various (non-hydrostatic)
+!>  vertical velocity advection choices and variables.
 !
 !-------------------------------------------------------------------------------
 
    subroutine ocn_vvel_advection_init(err)!{{{
 
+      implicit none
+
       !*** output parameters
 
       integer, intent(out) :: err !< [out] Error flag
-
-      !*** local variables
-
-      integer :: errTmp ! temporary error flag
 
       ! end preamble
       !-------------
@@ -143,20 +136,17 @@ module ocn_vvel_advection
       vvelAdvOn = .not. config_disable_vvel_adv
 
       ! set all other options from submodule initialization routines
-      if(config_vvel_advection_use_vector_invariant_form) then
-         call ocn_vvel_horiz_vector_invariant_advection_init(config_vert_vvel_adv_order,   &
-                                         config_coef_3rd_order,  errTmp)
-      else
-         call ocn_vvel_horiz_advection_init(config_vert_vvel_adv_order, &
-                                         config_coef_3rd_order, errTmp)
+      if (err.eq.0) then     
+         call ocn_vvel_horiz_advection_init(err)
       end if
 
-      call ocn_vvel_horiz_advection_init(config_horiz_vvel_adv_order,    &
-                                         config_coef_3rd_order, err)
+      if (err.eq.0) then
+         call ocn_vvel_vert_advection_init (err)
+      end if
 
       ! if an error is returned from init routines, write an error
       ! message and return a non-zero error code
-      if (err /= 0 .or. errTmp /= 0) then
+      if (err /= 0) then
          err = 1
          call mpas_log_write(                                 &
             'Error encountered during vertical velocity advection init', &

@@ -114,13 +114,17 @@ module ocn_compute_nonhydrostatic_pressure
 
     reuse_preconditioner = .false.
 
-    call mpas_timer_start('NH solve - matrix fill',.false.)
-    call ocn_nonhydrostatic_solver_fill_matVec(normalVelocityNew, &
-      verticalVelocityNew, layerThickness, layerThicknessEdge, mpi_comm, dt)
+!    call mpas_timer_start('NH solve - matrix fill',.false.)
+!    call ocn_nonhydrostatic_solver_fill_matVec(normalVelocityNew, &
+!      verticalVelocityNew, layerThickness, layerThicknessEdge, mpi_comm, dt)
 
-    call mpas_timer_stop('NH solve - matrix fill')
+ !   call mpas_timer_stop('NH solve - matrix fill')
 
-    call ocn_nonhydrostatic_pressure_solve(mpi_comm, reuse_preconditioner, nhPressureCorrection)
+!    call ocn_nonhydrostatic_pressure_solve(mpi_comm, reuse_preconditioner, nhPressureCorrection)
+
+     call ocn_nonhydrostatic_solver_everything(normalVelocityNew, &
+        verticalVelocityNew, layerThickness, layerThicknessEdge, mpi_comm, &
+        dt, nhPressureCorrection)
 
   end subroutine ocn_nonhydrostatic_pressure_tend
 
@@ -234,6 +238,255 @@ module ocn_compute_nonhydrostatic_pressure
   !>  creates KSP solver context, gets preconditioner and solves
   !
   !--------------------------------------------------------------------
+ subroutine ocn_nonhydrostatic_solver_everything(normalVelocityNew, &
+      verticalVelocityNew, layerThickness, layerThicknessEdge, mpi_comm, &
+      dt, nhPressureCorrection)
+
+     implicit none
+
+     real(kind=RKIND), dimension(:,:), intent(in) :: normalVelocityNew, &
+                                                     verticalVelocityNew
+     real(kind=RKIND), dimension(:,:), intent(in) :: layerThickness, &
+                                                     layerThicknessEdge
+     real(kind=RKIND), intent(in) :: dt
+     real(kind=RKIND), dimension(:,:), intent(out) :: nhPressureCorrection
+     integer, intent(in) :: mpi_comm
+
+  !--------------------------------------------------------------------
+  !
+  ! subroutine variables
+  !
+  !--------------------------------------------------------------------
+
+     integer :: k, iCell, jCell, iEdge, jEdge, iCell3d, jCell3d
+     real(kind=RKIND) :: xEdge, thicknessUpper, thicknessLower
+     real(kind=RKIND), dimension(nVertLevels) :: div
+
+     integer :: next, stat, imax, nnzRowMax, vecSpot
+     integer, allocatable, dimension(:) :: imat, jmat, irhs
+     real *8, allocatable, dimension(:) :: xmat, xrhs, xsol
+     real *8 :: xtol
+
+#ifdef USE_PETSC
+     PetscScalar :: insertVal
+     PetscInt :: itNum
+
+     call mpas_timer_start('NH solve - matrix',.false.)
+
+     ! form matrix: del^2(q) = 1/dt * div(u*)
+
+     next = 0
+     nnzRowMax = 9 * 2 + 4  ! do this better
+     allocate(imat(nVertLevels * nCellsOwned * nnzRowMax))
+     allocate(jmat(nVertLevels * nCellsOwned * nnzRowMax))
+     allocate(xmat(nVertLevels * nCellsOwned * nnzRowMax))
+
+     call MatZeroEntries(Amat, petsc_err)
+
+     do iCell = 1, nCellsOwned
+
+        ! x-part of del^2 operator
+
+        do jEdge = 1, nEdgesOnCell(iCell)
+
+           iEdge = edgesOnCell(jEdge,iCell)
+           jCell = cellsOnCell(jEdge,iCell)
+
+           xEdge = dvEdge(iEdge) / dcEdge(iEdge)
+
+           do k = 1, maxLevelCell(iCell)
+              if (boundaryEdge(k,iEdge) .ge. 1) cycle
+
+              ! this map could actually create unreferenced rows, etc
+              ! when cells are masked out under bathymetry?
+              iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+              jCell3d = (indexToCellId(jCell) - 1) * nVertLevels + k - 1
+
+              insertVal = +1 * layerThicknessEdge(k,iEdge) * xEdge
+              call MatSetValues(Amat, 1, iCell3d, 1, jCell3d, insertVal, ADD_VALUES, petsc_err)
+              insertVal = -1 * layerThicknessEdge(k,iEdge) * xEdge
+              call MatSetValues(Amat, 1, iCell3d, 1, iCell3d, insertVal, ADD_VALUES, petsc_err)
+
+           end do
+
+        end do
+
+        ! z-part of del^2 operator
+
+        ! first layer upper q = 0
+        ! first layer lower
+        k = 1 !minLevelCell(iCell)
+
+        thicknessUpper = 1.0E-15_RKIND + 0.5_RKIND * ( &
+           layerThickness(k,iCell) )
+        thicknessLower = 1.0E-15_RKIND + 0.5_RKIND * ( &
+           layerThickness(k,iCell) + layerThickness(k+1,iCell))
+
+        iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+
+        insertVal = -1 * areaCell(iCell) / thicknessUpper
+        call MatSetValues(Amat, 1, iCell3d, 1, iCell3d, insertVal, ADD_VALUES, petsc_err)
+
+        iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+        jCell3d = (indexToCellId(iCell) - 1) * nVertLevels + (k+1) - 1
+
+        insertVal = +1 * areaCell(iCell) / thicknessLower
+        call MatSetValues(Amat, 1, iCell3d, 1, jCell3d, insertVal, ADD_VALUES, petsc_err)
+        insertVal = -1 * areaCell(iCell) / thicknessLower
+        call MatSetValues(Amat, 1, iCell3d, 1, iCell3d, insertVal, ADD_VALUES, petsc_err)
+
+        do k = 2, maxLevelCell(iCell) - 1
+
+           thicknessUpper = 1.0E-15_RKIND + 0.5_RKIND * ( &
+              layerThickness(k,iCell) + layerThickness(k-1,iCell))
+           thicknessLower = 1.0E-15_RKIND + 0.5_RKIND * ( &
+              layerThickness(k,iCell) + layerThickness(k+1,iCell))
+
+           ! upper
+           iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+           jCell3d = (indexToCellId(iCell) - 1) * nVertLevels + (k-1) - 1
+
+           insertVal = +1 * areaCell(iCell) / thicknessUpper
+           call MatSetValues(Amat, 1, iCell3d, 1, jCell3d, insertVal, ADD_VALUES, petsc_err)
+           insertVal = -1 * areaCell(iCell) / thicknessUpper
+           call MatSetValues(Amat, 1, iCell3d, 1, iCell3d, insertVal, ADD_VALUES, petsc_err)
+
+           ! lower
+           iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+           jCell3d = (indexToCellId(iCell) - 1) * nVertLevels + (k+1) - 1
+
+           insertVal = +1 * areaCell(iCell) / thicknessLower
+           call MatSetValues(Amat, 1, iCell3d, 1, jCell3d, insertVal, ADD_VALUES, petsc_err)
+           insertVal = -1 * areaCell(iCell) / thicknessLower
+           call MatSetValues(Amat, 1, iCell3d, 1, iCell3d, insertVal, ADD_VALUES, petsc_err)
+
+        end do
+
+        ! final layer upper
+        ! final layer lower dq/dz = 0
+        k = maxLevelCell(iCell)
+
+        thicknessUpper = 1.0E-15_RKIND + 0.5_RKIND * ( &
+           layerThickness(k,iCell) + layerThickness(k-1,iCell))
+
+        iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+        jCell3d = (indexToCellId(iCell) - 1) * nVertLevels + (k-1) - 1
+
+        insertVal = +1 * areaCell(iCell) / thicknessUpper
+        call MatSetValues(Amat, 1, iCell3d, 1, jCell3d, insertVal, ADD_VALUES, petsc_err)
+        insertVal = -1 * areaCell(iCell) / thicknessUpper
+        call MatSetValues(Amat, 1, iCell3d, 1, iCell3d, insertVal, ADD_VALUES, petsc_err)
+
+     end do
+
+     call MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY,petsc_err)
+     call MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY,petsc_err)
+
+     !do iCell=1, nCellsOwned
+     !   do k=1, nVertLevels
+     !      iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+     !      jCell3d = (indexToCellId(iCell) - 1) * nVertLevels + (k-1) - 1
+     !      call MatGetValues(Amat,1,iCell3d,1,jCell3d,insertVal, petsc_err)
+     !      if (abs(insertVal - xmat(iCell3d+1))  > 1.e-12) then
+     !         print*, insertVal, xmat(iCell3d+1)
+     !      end if  
+     !   end do    
+     !end do
+
+     deallocate(imat, jmat, xmat)
+
+     call mpas_timer_stop('NH solve - matrix')
+
+     ! form vector: del^2(q) = 1/dt * div(u*)
+
+     allocate(xrhs(nVertLevels * nCellsOwned))
+     allocate(xsol(nVertLevels * nCellsOwned))
+
+     call mpas_timer_start('NH solve - rhs',.false.)
+
+     call vecZeroEntries(b,petsc_err) 
+
+     do iCell = 1, nCellsOwned
+
+        div(:) = 0.0_RKIND
+
+        ! x-part of 1/dt * div(u*)
+
+        do jEdge = 1, nEdgesOnCell(iCell)
+
+           iEdge = edgesOnCell(jEdge,iCell)
+
+           do k = 1, maxLevelCell(iCell)
+
+              div(k) = div(k) - &
+                 edgeSignOnCell(jEdge,iCell) * dvEdge(iEdge) * &
+                    normalVelocityNew(k,iEdge) * layerThicknessEdge(k,iEdge)
+
+           end do
+
+        end do
+
+        ! z-part of 1/dt * div(u*)
+
+        do k = 1, maxLevelCell(iCell)
+
+           div(k) = div(k) + areaCell(iCell) * ( &
+              verticalVelocityNew(k,iCell) - verticalVelocityNew(k+1,iCell))
+
+        end do 
+
+        ! copy into full rhs vector
+        do k = 1, maxLevelCell(iCell)
+           iCell3d = (indexToCellId(iCell) - 1) * nVertLevels + k - 1
+           insertVal = div(k) / dt
+           call VecSetValues(b, 1, iCell3d, insertVal, INSERT_VALUES, petsc_err)
+        end do  
+     end do
+
+     call VecAssemblyBegin(b,petsc_err)
+     call VecAssemblyEnd(b,petsc_err)
+
+     call mpas_timer_stop('NH solve - rhs')
+
+     ! PCG solver: del^2(q) = 1/dt * div(u*)
+
+     call mpas_timer_start('NH solve - solver',.false.)
+
+     call KSPCreate(mpi_comm, ksp, petsc_err)
+     call KSPSetType(ksp, config_nonhydrostatic_solver_type, petsc_err)
+     call KSPSetOperators(ksp,Amat,Amat,petsc_err)
+     call KSPGetPC(ksp,pc,petsc_err) 
+     call PCSetType(pc,config_nonhydrostatic_preconditioner,petsc_err)
+     call KSPSetFromOptions(ksp,petsc_err)
+     call KSPSetTolerances(ksp,config_petsc_rtol,config_petsc_atol,1.0E4,config_petsc_maxit,petsc_err)
+     call KSPSolve(ksp, b, x, petsc_err)
+     call KSPGetIterationNumber(ksp, itNum, petsc_err)
+     print *, 'iteration count = ',itNum
+     call KSPSetInitialGuessNonzero(ksp,PETSC_TRUE,petsc_err)
+
+     !now update the nonhydrostaticPressure array unpack into k,iCell
+     call VecScatterBegin(scatter, x, local_x, INSERT_VALUES, SCATTER_FORWARD, petsc_err)
+     call VecScatterEnd(scatter, x, local_x, INSERT_VALUES, SCATTER_FORWARD, petsc_err)
+     call VecGetArrayReadF90(local_x, values, petsc_err)
+
+     !$omp parallel
+     !$omp do schedule(runtime) private(k,vecSpot)
+     do iCell=1,nCellsOwned
+        do k=1,maxLevelCell(iCell)
+           vecSpot = (iCell - 1) * nVertLevels + k - 1
+           nhPressureCorrection(k,iCell) = values(vecSpot+1)
+        end do
+     end do
+     !$omp end do
+     !$omp end parallel
+
+     call mpas_timer_stop('NH solve - solver')
+
+     deallocate(xrhs, xsol)
+#endif
+
+  end subroutine ocn_nonhydrostatic_solver_everything
+
 
   subroutine ocn_nonhydrostatic_pressure_solve(mpi_comm, reuse_preconditioner, nhPressureCorrection)
 
@@ -535,19 +788,14 @@ module ocn_compute_nonhydrostatic_pressure
     PetscReal :: val
     ISLocalToGlobalMapping :: mapping
 #endif
-    integer :: k, iCell, iter
+    integer :: k, iCell, iter, nnzRowMax
 
 #ifndef USE_PETSC
     call mpas_log_write("nonhydrostatic solver requires PETSC library compiled and linked", &
                         mpas_log_crit)
 #endif
 
-    if(config_nonhydrostatic_solve_surface_boundary_condition == 'noGradient') then
-       surfaceBoundaryCondition = 0.0_RKIND
-    else
-       surfaceBoundaryCondition = 1.0_RKIND
-    endif
-
+    nnzRowMax = 9 * 2 + 4
     call MPI_comm_size(mpi_comm, commsize, ierr)
 
 #ifdef USE_PETSC
@@ -598,23 +846,30 @@ module ocn_compute_nonhydrostatic_pressure
     call MatSetType( Amat, MATAIJ, petsc_err )
     if( commsize == 1) then
       call MatSetType( Amat, MATAIJ, petsc_err )
+      call MatSetFromOptions( Amat, petsc_err )
+      call MatSeqAIJSetPreallocation(Amat,nnzRowMax, &
+                  PETSC_NULL_INTEGER, petsc_err)
     else
       call MatSetType( Amat, MATMPIAIJ, petsc_err )
+      call MatSetFromOptions(Amat,petsc_err)
+      call MatMPIAIJSetPreallocation(Amat,2*nnzRowMax, &
+                  PETSC_NULL_INTEGER, 2*nnzRowMax,     &
+                  PETSC_NULL_INTEGER, petsc_err)
     end if
 
-    call MatSetFromOptions(Amat,petsc_err)
-    if(petsc_err .ne. 0) then
-      call mpas_log_write("ERROR: Petsc MatSetFromOptions failed, error_code = $i", MPAS_LOG_CRIT, &
-        intArgs=(/petsc_err/))
-      ierr = petsc_err
-    endif
+!    call MatSetFromOptions(Amat,petsc_err)
+!    if(petsc_err .ne. 0) then
+!      call mpas_log_write("ERROR: Petsc MatSetFromOptions failed, error_code = $i", MPAS_LOG_CRIT, &
+!        intArgs=(/petsc_err/))
+!      ierr = petsc_err
+!    endif
 
-    call MatSetUp(Amat,petsc_err)
-    if(petsc_err .ne. 0) then
-      call mpas_log_write("ERROR: Petsc MatSetUp failed, error_code = $i", MPAS_LOG_CRIT, &
-        intArgs=(/petsc_err/))
-      ierr = petsc_err
-    endif
+!    call MatSetUp(Amat,petsc_err)
+!    if(petsc_err .ne. 0) then
+!      call mpas_log_write("ERROR: Petsc MatSetUp failed, error_code = $i", MPAS_LOG_CRIT, &
+!        intArgs=(/petsc_err/))
+!      ierr = petsc_err
+!    endif
     call MatGetOwnershipRange(Amat,Istart,Iend,petsc_err)
     if(petsc_err .ne. 0) then
       call mpas_log_write("ERROR: Petsc MatGetOwnershipRange failed, error_code = $i", MPAS_LOG_CRIT, &
