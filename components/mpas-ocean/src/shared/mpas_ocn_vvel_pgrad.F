@@ -64,16 +64,16 @@ contains
 !  routine ocn_vvel_pgf_tend
 !
 !> \brief   Computes tendency term for pressure gradient in vertical momentum equation
-!> \author  Luke Van Roekel
-!> \date    January 2021
+!> \author  Luke Van Roekel, Darren Engwirda
+!> \date    October 2021
 !> \details
-
-!>  This routine computes the PGF tendencies for the vertical momentum based on current state.
+!>  This routine computes the PGF tendencies for the vertical momentum based on 
+!>  current state.
 
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vvel_pgf_tend(meshPool, pressure, tend, err)!{{{
+   subroutine ocn_vvel_pgf_tend(meshPool, layerThickness, nhPressure, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -82,7 +82,10 @@ contains
       !-----------------------------------------------------------------
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         pressure    !< Input: pressure (hydrostatic + nonhydrostatic)
+         layerThickness                     !< Input: layer thickness at cells
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         nhPressure                         !< Input: pressure (nonhydrostatic)
 
       type (mpas_pool_type), intent(in) :: &
          meshPool           !< Input: mesh information
@@ -132,9 +135,13 @@ contains
       !$omp private(k)
       do iCell= 1, nCells
 
+         tend(1,iCell) = tend(1,iCell) - & ! nhPressure = 0.0 at surface
+            2.0_RKIND * (-nhPressure(1,iCell)) / layerThickness(1,iCell)
+
          do k = 2, maxLevelCell(iCell)
-            tend(k, iCell) = tend(k, iCell) - (pressure(k-1,iCell) - &
-                  pressure(k,iCell)) / ((zMid(k-1,iCell) - zMid(k,iCell)))
+            tend(k,iCell) = tend(k,iCell) - &
+               2.0_RKIND * (nhPressure(k-1,iCell) - nhPressure(k,iCell)) &
+                  / (layerThickness(k-1,iCell) + layerThickness(k,iCell))
          end do
 
       end do
