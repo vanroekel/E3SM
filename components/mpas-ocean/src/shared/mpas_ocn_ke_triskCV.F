@@ -197,9 +197,15 @@ contains
          eprp(iEdge,3) = eprp(iEdge,3) / norm
 
       !- unit normals (to spherical surface) at each edge
-         enrm(iEdge,1) = xEdge(iEdge) / sphereRadius
-         enrm(iEdge,2) = yEdge(iEdge) / sphereRadius
-         enrm(iEdge,3) = zEdge(iEdge) / sphereRadius
+         if (onSphere) then
+            enrm(iEdge,1) = xEdge(iEdge) / sphereRadius
+            enrm(iEdge,2) = yEdge(iEdge) / sphereRadius
+            enrm(iEdge,3) = zEdge(iEdge) / sphereRadius
+         else
+            enrm(iEdge,1) = 0.0_RKIND
+            enrm(iEdge,2) = 0.0_RKIND
+            enrm(iEdge,3) = 1.0_RKIND
+         end if
 
       !- assemble lsqr matrix T: n_hat dot u = u_e
          tmat(1,1) = enrm(iEdge,1)
