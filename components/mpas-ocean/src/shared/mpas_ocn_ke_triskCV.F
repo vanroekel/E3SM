@@ -165,6 +165,22 @@ contains
       allocate(eprp(nEdgesHalo(3),3))
       allocate(elen(nEdgesAll))
 
+#ifdef MPAS_OPENACC
+      !$acc parallel loop gang vector &
+      !$acc          present(nEdgesHalo, xVertex, yVertex, zVertex, verticesOnEdge, & 
+      !$acc                  xEdge, yEdge, zEdge, sphere_radius, nEdgesOnEdge, & 
+      !$acc                  edgesOnEdge, cellsOnEdge, nCellsAll, xCell, yCell, & 
+      !$acc                  zCell, weightsOnEdge_lsqr) &
+      !$acc          private(iEdge, tmat, matt, rmat, rinv, eprp, jEdge, norm, &
+      !$acc                  enrm, iEoE, cell1, edir, elen, xmul, ymul, zmul, & 
+      !$acc                  rinv, rdet)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp private(iEdge, tmat, matt, rmat, rinv, eprp, jEdge, norm, &
+      !$omp         enrm, iEoE, cell1, edir, elen, xmul, ymul, zmul, &
+      !$omp         rinv, rdet)
+#endif
    !- build lsqr weights for each edge in the mesh
       do iEdge = 1, nEdgesHalo(3)
          tmat(:,:) = 0.0_RKIND
@@ -267,6 +283,10 @@ contains
 
          end do
       end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
 
       call mpas_dmpar_field_halo_exch(domain, 'weightsOnEdge_lsqr') 
 
