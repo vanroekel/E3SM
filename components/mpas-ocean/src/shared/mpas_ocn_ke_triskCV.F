@@ -215,11 +215,12 @@ contains
          do jEdge = 1, nEdgesOnEdge(iEdge)
 
             iEoE = edgesOnEdge(jEdge,iEdge)
+            if(iEoE>nEdgesAll) cycle
             if (cellsOnEdge(1,iEoE)>nCellsAll) then
                edir(iEoE,1) = xCell(cellsOnEdge(2,iEoE)) - xEdge(iEoE)
                edir(iEoE,2) = yCell(cellsOnEdge(2,iEoE)) - yEdge(iEoE)
                edir(iEoE,3) = zCell(cellsOnEdge(2,iEoE)) - zEdge(iEoE)
-            else if (cellsOnEdge(2,iEoE)>nCellsAll) then
+            elseif (cellsOnEdge(2,iEoE)>nCellsAll) then
                edir(iEoE,1) = xEdge(iEoE) - xCell(cellsOnEdge(1,iEoE))
                edir(iEoE,2) = yEdge(iEoE) - yCell(cellsOnEdge(1,iEoE))
                edir(iEoE,3) = zEdge(iEoE) - zCell(cellsOnEdge(1,iEoE))
