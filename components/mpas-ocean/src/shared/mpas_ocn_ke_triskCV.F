@@ -162,18 +162,18 @@ contains
 #ifdef MPAS_OPENACC
       !$acc parallel loop gang vector &
       !$acc          present(nEdgesHalo, xVertex, yVertex, zVertex, verticesOnEdge, & 
-      !$acc                  xEdge, yEdge, zEdge, sphere_radius, nEdgesOnEdge, & 
+      !$acc                  xEdge, yEdge, zEdge, sphereRadius, nEdgesOnEdge, & 
       !$acc                  edgesOnEdge, cellsOnEdge, nCellsAll, xCell, yCell, & 
-      !$acc                  zCell, weightsOnEdge_lsqr) &
+      !$acc                  zCell, weightsOnEdge_lsqr, onSphere) &
       !$acc          private(iEdge, tmat, matt, rmat, rinv, eprp, jEdge, norm, &
       !$acc                  enrm, iEoE, cell1, edir, elen, xmul, ymul, zmul, & 
-      !$acc                  rinv, rdet)
+      !$acc                  rdet)
 #else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(iEdge, tmat, matt, rmat, rinv, eprp, jEdge, norm, &
       !$omp         enrm, iEoE, cell1, edir, elen, xmul, ymul, zmul, &
-      !$omp         rinv, rdet)
+      !$omp         rdet)
 #endif
    !- build lsqr weights for each edge in the mesh
       do iEdge = 1, nEdgesHalo(3)
