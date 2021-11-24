@@ -2353,19 +2353,18 @@ contains
       !$omp end parallel
 #endif
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector &
-      !$acc          present(u_perp, kineticEnergyEdge, nEdgesOnEdge, edgesOnEdge, weightsOnEdge_lsqr, &
-      !$acc                  maxLevelEdgeTop, normalVelocity, minLevelEdgeBot, kineticEnergyCell, &
-      !$acc                  nEdgesOnCell, edgesOnCell, minLevelCell, maxLevelCell, dcEdge, dvEdge
-      !$acc                  areaCell, invAreaCell) &
-      !$acc          private(i, j, weightsOnEdge_lsqr_temp, k, dcEdge_temp, dvEdge_temp, invAreaCell1)
-#else
-      !$omp parallel
-      !$omp do schedule(runtime) private(i, j, weightsOnEdge_lsqr_temp, k, dcEdge_temp, dvEdge_temp, invAreaCell1)
-#endif
       if (config_triskCV) then 
          kineticEnergyEdge(:,:) = 0.0_RKIND
+
+#ifdef MPAS_OPENACC
+      !$acc parallel loop gang vector &
+      !$acc          present(u_perp, nEdgesOnEdge, edgesOnEdge, weightsOnEdge_lsqr, &
+      !$acc                  minLevelEdgeBot, maxLevelEdgeTop, normalVelocity)
+      !$acc          private(iEdge, nEdges, j, jEdge, weightsOnEdge_lsqr_temp, k)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) private(iEdge, nEdges, j, jEdge, weightsOnEdge_lsqr_temp, k)
+#endif
          do iEdge = 1, nEdges 
             u_perp(:,iEdge) = 0.0_RKIND
             do j = 1, nEdgesOnEdge(iEdge)
@@ -2375,12 +2374,40 @@ contains
                   u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge) 
                end do   
             end do
-          end do
-          do iEdge = 1, nEdges
+         end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif 
+
+#ifdef MPAS_OPENACC
+      !$acc parallel loop gang vector &
+      !$acc          present(minLevelEdgeBot, maxLevelEdgeTop, kineticEnergyEdge, &
+      !$acc                  normalVelocity, u_perp)
+      !$acc          private(iEdge, nEdges, k)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) private(iEdge, nEdges, k)
+#endif
+         do iEdge = 1, nEdges
             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
                kineticEnergyEdge(k,iEdge) = 0.5_RKIND*(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + u_perp(k,iEdge)*u_perp(k,iEdge))
             end do
          end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif 
+
+#ifdef MPAS_OPENACC
+      !$acc parallel loop gang vector &
+      !$acc          present(kineticEnergyCell, nEdgesOnCell, edgesOnCell, &
+      !$acc                  minLevelCell, maxLevelCell, dcEdge, dvEdge, areaCell)
+      !$acc          private(iCell, nCells, i, iEdge, k)
+#else 
+      !$omp parallel
+      !$omp do schedule(runtime) private(iCell, nCells, i, iEdge, k)
+#endif
          do iCell = 1, nCells
             kineticEnergyCell(:, iCell) = 0.0_RKIND 
             do i = 1, nEdgesOnCell(iCell)
@@ -2393,7 +2420,25 @@ contains
                kineticEnergyCell(k,iCell) = kineticEnergyCell(k,iCell) / areaCell(iCell)
             end do
          end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
+ 
       else
+
+#ifdef MPAS_OPENACC
+      !$acc parallel loop gang vector &
+      !$acc          present(kineticEnergyCell, invAreaCell, nEdgesOnCell, &
+      !$acc                  edgesOnCell, dcEdge, dvEdge, minLevelCell, &
+      !$acc                  maxLevelCell, normalVelocity)
+      !$acc          private(iCell, nCells, invAreaCell1, i, iEdge, dcEdge_temp, &
+      !$acc                  dvEdge_temp, r_tmp)
+#else 
+      !$omp parallel
+      !$omp do schedule(runtime) private(iCell, nCells, invAreaCell1, i, iEdge, &
+      !$omp             dcEdge_temp, dvEdge_temp, r_tmp)
+#endif
          do iCell = 1, nCells
             kineticEnergyCell(:, iCell) = 0.0_RKIND
             invAreaCell1 = invAreaCell(iCell)
@@ -2407,12 +2452,12 @@ contains
                                                   + 0.25 * r_tmp * dcEdge_temp * normalVelocity(k,iEdge)
                end do
             end do
-         end do   
-      end if
+         end do  
 #ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
+#endif 
+      end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
    !--------------------------------------------------------------------
