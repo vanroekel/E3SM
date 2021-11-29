@@ -266,7 +266,7 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, timeLevelIn
      layerThickness, nonhydrostaticPressure, &
      tend_normalVelocity, circulation, relativeVorticity, viscosity, kineticEnergyCell, &
      normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, &
-     montgomeryPotential, vertAleTransportTop, divergence, vertViscTopOfEdge, &
+     montgomeryPotential, divergence, vertViscTopOfEdge, &
      inSituThermalExpansionCoeff, inSituSalineContractionCoeff, verticalVelocity, &
      tend_verticalVelocity
 
@@ -341,7 +341,7 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, timeLevelIn
    !
    ! velocity tendency: pressure gradient
    !
-   call ocn_vvel_pgf_tend(meshPool, nonhydrostaticPressure, tend_verticalVelocity, err)
+   call ocn_vvel_pgf_tend(meshPool, layerThickness, nonhydrostaticPressure, tend_verticalVelocity, err)
 
    !
    ! velocity tendency: del2 dissipation, CALL STRAIGHT to hmix_del2 FOR NOW!!! \nu_2 \nabla^2 u

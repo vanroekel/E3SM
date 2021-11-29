@@ -34,14 +34,6 @@ module ocn_vvel_vert_advection
    private
    save
 
-   ! private module variables
-
-   integer :: vertOrder  !< choice of order for vertical advection
-   integer, parameter :: &! enumerator for supported vertical adv order
-      vertOrder2=2,      &!< 2nd order
-      vertOrder3=3,      &!< 3rd order
-      vertOrder4=4        !< 4th order
-
    ! public method interfaces
    public :: ocn_vvel_vert_advection_tend, &
              ocn_vvel_vert_advection_init
@@ -72,16 +64,17 @@ module ocn_vvel_vert_advection
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          vertAleTransportTop  !< [in] velocity through layer top levels
       integer :: i, iCell, iEdge, k, cell1, cell2
-      integer :: nVertLevels
-      integer, pointer :: nCells, nEdges, maxEdges
+      integer :: nCells, nVertLevels
+      integer :: nEdges, maxEdges
       real (kind=RKIND), parameter :: eps = 1.e-10_RKIND
       real (kind=RKIND) :: levelThickness, vertVelocityUp, vertVelocityDn
 
 
+      nCells = nCellsAll
       ! -w_ale * dw/dz
       !$omp parallel
       !$omp do schedule(runtime)
-      !$omp private(k, levelThickness, vertVelocityUp, vertVelocityDn
+      !$omp private(k, levelThickness, vertVelocityUp, vertVelocityDn)
       do iCell = 1, nCells
          !w_ale = 0.0 at k==1
          do k = 2, maxLevelCell(iCell)

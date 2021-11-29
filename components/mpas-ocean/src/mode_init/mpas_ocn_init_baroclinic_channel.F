@@ -159,11 +159,10 @@ contains
         call mpas_pool_get_array(meshPool, 'yCell', yCell)
         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
 
-        call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
+        call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
         call mpas_pool_get_array(meshPool, 'xEdge', xEdge)!
         call mpas_pool_get_array(meshPool, 'yEdge', yEdge)
 
-        nEdges = nEdgesArray( 4 )
         yMin = min( yMin, minval(yCell(1:nCellsSolve)))
         yMax = max( yMax, maxval(yCell(1:nCellsSolve)))
         xMin = min( xMin, minval(xCell(1:nCellsSolve)))
