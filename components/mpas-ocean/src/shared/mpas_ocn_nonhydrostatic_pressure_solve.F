@@ -216,7 +216,7 @@ module ocn_compute_nonhydrostatic_pressure
     !$omp private(k)
     do iCell=1,nCells
        do k = 1,nVertLevels
-          nonhydrostaticPressure(k,iCell) = 0.0_RKIND*nonhydrostaticPressureOld(k,iCell) + &
+          nonhydrostaticPressure(k,iCell) = 0.5_RKIND*nonhydrostaticPressureOld(k,iCell) + &
                   nhPressureCorrection(k,iCell)
        end do
     end do
