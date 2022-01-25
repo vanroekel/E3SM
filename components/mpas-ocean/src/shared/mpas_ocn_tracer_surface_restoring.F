@@ -229,7 +229,8 @@ contains
         type (mpas_pool_type), pointer :: tracersSurfaceRestoringFieldsPool
 
         real (kind=RKIND), dimension(:), pointer :: &
-           surfaceSalinityMonthlyClimatologyValue, iceFraction, areaCell
+           surfaceSalinityMonthlyClimatologyValue, iceFraction, areaCell, &
+           latCell, lonCell
 
         real (kind=RKIND), dimension(:,:), pointer :: &
            activeTracersSurfaceRestoringValue
