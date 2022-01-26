@@ -2328,6 +2328,53 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_enhanced_salinity_restoring" type="logical"
+       category="tracer_forcing_activeTracers" group="tracer_forcing_activeTracers">
+When config_enhanced_salinity_restoring is true, enhanced salinity forcing is set within the bounds set by config_enhanced_salinity_restoring_lat_south, config_enhanced_salinity_restoring_lat_north, config_enhanced_salinity_restoring_lon_west, and config_enhanced_salinity_restoring_lon_east at a factor according to config_enhanced_salinity_restoring_factor
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_enhanced_salinity_restoring_factor" type="real"
+       category="tracer_forcing_activeTracers" group="tracer_forcing_activeTracers">
+Factor that salinity restoring is enhanced by, if config_enhanced_salinity_restoring is true
+
+Valid values: any non-negative number
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_enhanced_salinity_restoring_lat_south" type="real"
+       category="tracer_forcing_activeTracers" group="tracer_forcing_activeTracers">
+Southern boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true
+
+Valid values: between -pi/2 and pi/2
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_enhanced_salinity_restoring_lat_north" type="real"
+       category="tracer_forcing_activeTracers" group="tracer_forcing_activeTracers">
+Northern boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true
+
+Valid values: between -pi/2 and pi/2
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_enhanced_salinity_restoring_lon_west" type="real"
+       category="tracer_forcing_activeTracers" group="tracer_forcing_activeTracers">
+Western boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true
+
+Valid values: between zero and 2*pi
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_enhanced_salinity_restoring_lon_east" type="real"
+       category="tracer_forcing_activeTracers" group="tracer_forcing_activeTracers">
+Eastern boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true
+
+Valid values: between zero and 2*pi
+Default: Defined in namelist_defaults.xml
+</entry>
 
 <!-- tracer_forcing_debugTracers -->
 

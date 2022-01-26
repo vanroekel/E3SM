@@ -479,6 +479,12 @@
 <config_salinity_restoring_constant_piston_velocity>1.585e-6</config_salinity_restoring_constant_piston_velocity>
 <config_salinity_restoring_max_difference>0.5</config_salinity_restoring_max_difference>
 <config_salinity_restoring_under_sea_ice>.false.</config_salinity_restoring_under_sea_ice>
+<config_enhanced_salinity_restoring>.false.</config_enhanced_salinity_restoring>
+<config_enhanced_salinity_restoring_factor>1.0</config_enhanced_salinity_restoring_factor>
+<config_enhanced_salinity_restoring_lat_south>0.0</config_enhanced_salinity_restoring_lat_south>
+<config_enhanced_salinity_restoring_lat_north>0.0</config_enhanced_salinity_restoring_lat_north>
+<config_enhanced_salinity_restoring_lon_west>0.0</config_enhanced_salinity_restoring_lon_west>
+<config_enhanced_salinity_restoring_lon_east>0.0</config_enhanced_salinity_restoring_lon_east>
 
 <!-- tracer_forcing_debugTracers -->
 <config_use_debugTracers>.false.</config_use_debugTracers>

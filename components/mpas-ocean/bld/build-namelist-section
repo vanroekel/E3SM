@@ -459,6 +459,12 @@ add_default($nl, 'config_surface_salinity_monthly_restoring_compute_interval');
 add_default($nl, 'config_salinity_restoring_constant_piston_velocity');
 add_default($nl, 'config_salinity_restoring_max_difference');
 add_default($nl, 'config_salinity_restoring_under_sea_ice');
+add_default($nl, 'config_enhanced_salinity_restoring');
+add_default($nl, 'config_enhanced_salinity_restoring_factor');
+add_default($nl, 'config_enhanced_salinity_restoring_lat_south');
+add_default($nl, 'config_enhanced_salinity_restoring_lat_north');
+add_default($nl, 'config_enhanced_salinity_restoring_lon_west');
+add_default($nl, 'config_enhanced_salinity_restoring_lon_east');
 
 ###############################################
 # Namelist group: tracer_forcing_debugTracers #

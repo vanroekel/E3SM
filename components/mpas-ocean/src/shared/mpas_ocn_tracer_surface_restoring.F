@@ -229,7 +229,8 @@ contains
         type (mpas_pool_type), pointer :: tracersSurfaceRestoringFieldsPool
 
         real (kind=RKIND), dimension(:), pointer :: &
-           surfaceSalinityMonthlyClimatologyValue, iceFraction, areaCell
+           surfaceSalinityMonthlyClimatologyValue, iceFraction, areaCell, &
+           latCell, lonCell
 
         real (kind=RKIND), dimension(:,:), pointer :: &
            activeTracersSurfaceRestoringValue
@@ -248,6 +249,8 @@ contains
 
         integer, parameter :: nSums = 2
         real (kind=RKIND), dimension(nSums) :: reductions, sums
+
+        real (kind=RKIND) :: lat_north, lat_south, lon_east, lon_west
 
         ! initialize monthly forcing to be read from file
 
@@ -442,6 +445,14 @@ contains
         call mpas_pool_get_dimension(tracersSurfaceRestoringFieldsPool, 'index_salinitySurfaceRestoringValue',  &
                                                                          indexSalinitySurfaceRestoringValue)
 
+        call mpas_pool_get_array(meshPool, 'latCell', latCell)
+        call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+        
+        lat_south = config_enhanced_salinity_restoring_lat_south
+        lat_north = config_enhanced_salinity_restoring_lat_north
+        lon_west = config_enhanced_salinity_restoring_lon_west
+        lon_east = config_enhanced_salinity_restoring_lon_east
+
         do iCell = 1, nCells
           deltaS = activeTracersSurfaceRestoringValue(indexSalinitySurfaceRestoringValue,iCell)
           if (deltaS .ne. 0.0_RKIND) then
@@ -450,6 +461,20 @@ contains
              salinitySurfaceRestoringTendency(iCell) = &
                 activeTracersSurfaceRestoringValue(indexSalinitySurfaceRestoringValue,iCell) &
                 * config_salinity_restoring_constant_piston_velocity
+             if (config_enhanced_salinity_restoring .and. (latCell(iCell) .ge. lat_south) &
+                .and. (latCell(iCell) .le. lat_north)) then
+                if (lon_west .gt. lon_east) then
+                   if ((lonCell(iCell) .ge. lon_west) .or. (lonCell(iCell) .le. lon_east)) then
+                      salinitySurfaceRestoringTendency(iCell) = &
+                         salinitySurfaceRestoringTendency(iCell) * config_enhanced_salinity_restoring_factor
+                   endif
+                else
+                   if ((lonCell(iCell) .ge. lon_west) .and. (lonCell(iCell) .le. lon_east)) then
+                      salinitySurfaceRestoringTendency(iCell) = &
+                         salinitySurfaceRestoringTendency(iCell) * config_enhanced_salinity_restoring_factor
+                   endif
+                endif
+             endif
           else
              salinitySurfaceRestoringTendency(iCell) = 0.0_RKIND
           endif

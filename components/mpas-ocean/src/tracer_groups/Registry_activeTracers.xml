@@ -47,6 +47,33 @@
 			description="Flag to enable salinity restoring under sea ice.  The default setting is false, where salinity restoring tapers from full restoring in the open ocean (iceFraction=0.0) to zero restoring below full sea ice coverage (iceFraction=1.0); below partial sea ice coverage, restoring is in proportion to iceFraction.  If true, full salinity restoring is used everywhere, regardless of iceFraction value"
 			possible_values=".true. or .false."
 		/>
+		<nml_option name="config_enhanced_salinity_restoring" type="logical" default_value=".false." units="NA"
+			description="When config_enhanced_salinity_restoring is true, enhanced salinity forcing is set within th\
+e bounds set by config_enhanced_salinity_restoring_lat_south, config_enhanced_salinity_restoring_lat_north, config_enhanced_sali\
+nity_restoring_lon_west, and config_enhanced_salinity_restoring_lon_east at a factor according to config_enhanced_salinity_resto\
+ring_factor"
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_enhanced_salinity_restoring_factor" type="real" default_value="1.0" units="NA"
+			description="Factor that salinity restoring is enhanced by, if config_enhanced_salinity_restoring is true"
+			possible_values="any non-negative number"
+		/>
+                <nml_option name="config_enhanced_salinity_restoring_lat_south" type="real" default_value="0.0" units="radians"
+			description="Southern boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true"
+			possible_values="between -pi/2 and pi/2"
+		/>
+                <nml_option name="config_enhanced_salinity_restoring_lat_north" type="real" default_value="0.0" units="radians"
+			description="Northern boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true"
+			possible_values="between -pi/2 and pi/2"
+		/>
+                <nml_option name="config_enhanced_salinity_restoring_lon_west" type="real" default_value="0.0" units="radians"
+			description="Western boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true"
+			possible_values="between zero and 2*pi"
+		/>
+                <nml_option name="config_enhanced_salinity_restoring_lon_east" type="real" default_value="0.0" units="radians"
+			description="Eastern boundary of salinity restoring enhancement, if config_enhanced_salinity_restoring is true"
+			possible_values="between zero and 2*pi"
+		/>
 	</nml_record>
 
 	<packages>
