@@ -124,12 +124,7 @@ contains
          call ocn_surface_bulk_forcing_active_tracers(meshPool, forcingPool, tracerGroup,  &
             tracersSurfaceFlux, tracersSurfaceFluxRunoff, tracersSurfaceFluxRemoved, layerThickness, dt, err)
       end if
-      if ( trim(groupName) == 'debugTracers' ) then 
-         call ocn_surface_bulk_forcing_debug_tracers(meshPool, forcingPool, tracerGroup, &
-            tracersSurfaceFlux, err)
-      end if
       call mpas_timer_stop("bulk_" // trim(groupName))
-
 
    end subroutine ocn_surface_bulk_forcing_tracers!}}}
 
@@ -597,82 +592,8 @@ contains
 
    end subroutine ocn_surface_bulk_forcing_active_tracers!}}}
 
-!***********************************************************************
-!
-!  routine ocn_surface_bulk_forcing_debug_tracers
-!
-!> \brief   Determines the debug tracers forcing array used for the bulk forcing.
-!> \author  Kat Smith
-!> \date    01/25/2022
-!> \details
-!>  This routine computes the debug tracers forcing arrays used later in MPAS.
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_surface_bulk_forcing_debug_tracers(meshPool, forcingPool, tracerGroup,  &
-      tracersSurfaceFlux, err)
-
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
-      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
-      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux
-      real (kind=RKIND), dimension(:,:,:), intent(inout) :: tracerGroup
-
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-      integer, intent(out) :: err !< Output: Error flag
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
-
-      integer :: iCell, nCells
-      integer, pointer :: index_debug_flux
-      integer, dimension(:), pointer :: nCellsArray
-
-      type(mpas_pool_type),pointer :: tracersSurfaceFluxPool
-
-      real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux
-
-      err = 0
-
-      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
-      call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux',tracersSurfaceFluxPool)
-      
-      call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_tracer1SurfaceFlux', index_debug_flux)
-      
-      call mpas_pool_get_array(forcingPool, 'seaIceFreshWaterFlux', seaIceFreshWaterFlux)
-
-      nCells = nCellsArray( 3 )
-
-      ! Build surface fluxes at cell centers
-      !$omp parallel
-      !$omp do schedule(runtime) 
-      do iCell = 1, nCells
-        tracersSurfaceFlux(index_debug_flux, iCell) = seaIceFreshWaterFlux(iCell)
-      end do
-      !$omp end do
-      !$omp end parallel
-
-   end subroutine ocn_surface_bulk_forcing_debug_tracers!}}}
-
 end module ocn_surface_bulk_forcing
+
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 ! vim: foldmethod=marker
