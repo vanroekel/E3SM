@@ -659,13 +659,11 @@ contains
       
       call mpas_pool_get_array(forcingPool, 'seaIceFreshWaterFlux', seaIceFreshWaterFlux)
 
-      nCells = nCellsArray( 3 )
-
-      ! Build surface fluxes at cell centers
+      ! Build debug tracer flux at cell centers
       !$omp parallel
       !$omp do schedule(runtime) 
-      do iCell = 1, nCells
-        tracersSurfaceFlux(index_debug_flux, iCell) = seaIceFreshWaterFlux(iCell)
+      do iCell = 1, nCellsAll
+        tracersSurfaceFlux(index_debug_flux, iCell) = seaIceFreshWaterFlux(iCell) / rho_sw
       end do
       !$omp end do
       !$omp end parallel
