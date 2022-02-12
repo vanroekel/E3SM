@@ -723,6 +723,14 @@ Valid values: Any real value
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_cvmix_convective_notInOSBL" type="logical"
+	category="cvmix" group="cvmix">
+If true convective diffusivities are ignored in OSBL
+
+Valid values: True or False
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_use_cvmix_shear" type="logical"
 	category="cvmix" group="cvmix">
 If true, shear-based mixing is computed using CVMix

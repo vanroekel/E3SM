@@ -200,6 +200,7 @@
 <config_cvmix_convective_viscosity>1.0</config_cvmix_convective_viscosity>
 <config_cvmix_convective_basedOnBVF>.true.</config_cvmix_convective_basedOnBVF>
 <config_cvmix_convective_triggerBVF>0.0</config_cvmix_convective_triggerBVF>
+<config_cvmix_convective_notInOSBL>.true.</config_cvmix_convective_notInOSBL>
 <config_use_cvmix_shear>.true.</config_use_cvmix_shear>
 <config_cvmix_num_ri_smooth_loops>2</config_cvmix_num_ri_smooth_loops>
 <config_cvmix_use_BLD_smoothing>.true.</config_cvmix_use_BLD_smoothing>

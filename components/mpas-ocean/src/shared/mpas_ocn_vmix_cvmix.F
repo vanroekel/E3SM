@@ -696,19 +696,19 @@ contains
 
             ! add convective mixing to vertical viscosity/diffusivity
             ! if using KPP, then do not apply convective mixing within the ocean boundary layer
-            if(config_use_cvmix_kpp) then
-               do k = ceiling(indexBoundaryLayerDepth(iCell)) + 1, maxLevelCell(iCell)
-                  vertViscTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) + cvmix_variables % Mdiff_iface(k)
-                  vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k,iCell) + cvmix_variables % Tdiff_iface(k)
-               enddo
-            else
+!            if(config_use_cvmix_kpp) then
+!               do k = ceiling(indexBoundaryLayerDepth(iCell)) + 1, maxLevelCell(iCell)
+!                  vertViscTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) + cvmix_variables % Mdiff_iface(k)
+!                  vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k,iCell) + cvmix_variables % Tdiff_iface(k)
+!               enddo
+!            else
                vertViscTopOfCell(1:minLevelCell(iCell)-1, iCell) = 0.0_RKIND
                vertDiffTopOfCell(1:minLevelCell(iCell)-1, iCell) = 0.0_RKIND
                do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
                   vertViscTopOfCell(k, iCell) = vertViscTopOfCell(k, iCell) + cvmix_variables % Mdiff_iface(k)
                   vertDiffTopOfCell(k, iCell) = vertDiffTopOfCell(k, iCell) + cvmix_variables % Tdiff_iface(k)
                end do
-            endif
+!            endif
          endif  ! if (config_use_cvmix_convection)
 
          !
@@ -965,7 +965,8 @@ contains
                convect_diff = config_cvmix_convective_diffusion,  &
                convect_visc = config_cvmix_convective_viscosity,  &
                lBruntVaisala = config_cvmix_convective_basedOnBVF, &
-               BVsqr_convect = config_cvmix_convective_triggerBVF )
+               BVsqr_convect = config_cvmix_convective_triggerBVF, &
+               lnoOBL = config_cvmix_convective_notInOSBL)
       endif
 
       !
