@@ -136,6 +136,7 @@ contains
       real(kind=RKIND) :: L, sigma, Lr, Length, L_rhines, shearEdgeInv
       real(kind=RKIND), dimension(:), allocatable :: dzTop, dTdzTop, dSdzTop, k33Norm
       real(kind=RKIND) :: c_Visbeck   ! baroclinic wave speed from Visbeck parameterization
+      real(kind=RKIND) :: bottomScaling
       ! Dimensions
       integer :: nsmooth, nCells, nEdges
       integer, pointer :: nVertLevels
@@ -354,7 +355,13 @@ contains
                                     config_Redi_maximum_slope - 1.0_RKIND)*(4.0_RKIND - abs(10.0_RKIND* &
                                     abs(slopeTriadUp(k, iCellSelf, iEdge))/config_Redi_maximum_slope - 4.0_RKIND)))
                   end if
-   
+
+                  if(maxLevelEdgeTop(iEdge) - config_redi_bottom_scaling_nLayers) then
+                     bottomScaling = 0.0_RKIND 
+                  else
+                     bottomScaling = 1.0_RKIND
+                  end if
+
                   slopeTaperUp = 1.0_RKIND + slopeTaperFactor*(slopeTaperUp - 1.0_RKIND)
                   slopeTaperDown = 1.0_RKIND + slopeTaperFactor*(slopeTaperDown - 1.0_RKIND)
    
@@ -363,9 +370,9 @@ contains
                   sfcTaperDown = 1.0_RKIND + sfcTaperFactor*(sfcTaper - 1.0_RKIND)
    
                   slopeTriadUp(k, iCellSelf, iEdge) = &
-                     slopeTaperUp*sfcTaperUp*slopeTriadUp(k, iCellSelf, iEdge)
+                     slopeTaperUp*sfcTaperUp*bottomScaling*slopeTriadUp(k, iCellSelf, iEdge)
                   slopeTriadDown(k, iCellSelf, iEdge) = &
-                     slopeTaperDown*sfcTaperDown*slopeTriadDown(k, iCellSelf, iEdge)
+                     slopeTaperDown*sfcTaperDown*bottomScaling*slopeTriadDown(k, iCellSelf, iEdge)
    
                   ! Griffies 1998 eqn 34
                   if (k > minLevelCell(iCell)) then

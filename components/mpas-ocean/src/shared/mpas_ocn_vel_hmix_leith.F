@@ -58,7 +58,8 @@ module ocn_vel_hmix_leith
       leithParam,       &!< Leith parameter
       dxLeith,          &!< Leith length scale
       viscMaxLeith,     &!< maximum viscosity
-      sqrt3fact          !< sqrt(3)
+      sqrt3fact,        &!< sqrt(3)
+      divFactor
 
 !***********************************************************************
 
@@ -159,7 +160,7 @@ contains
          dcEdgeInv = 1.0_RKIND / dcEdge(iEdge)
          dvEdgeInv = 1.0_RKIND / dvEdge(iEdge)
 
-         visc2tmp = (leithParam*dxLeith*meshScalingDel2(iEdge)/pii)**3
+         visc2tmp = (leithParam*dcEdge(iEdge)/pii)**3
 
          do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
 
@@ -170,17 +171,19 @@ contains
             ! + k \times \nabla relativeVorticity pointing from cell1 
             ! to cell2.
 
-            uDiff = (div(k,cell2)  - div(k,cell1))*dcEdgeInv &
+            uDiff = divFactor*(div(k,cell2)  - div(k,cell1))*dcEdgeInv &
                    -(relVort(k,vertex2) - relVort(k,vertex1))*dvEdgeInv
 
             ! Here the first line is (\delta x)^3
             ! the second line is |\nabla \omega|
             ! and u_diffusion is \nabla^2 u (see formula for $\bf{D}$ above).
-            visc2 = visc2tmp &
-                   *abs(relVort(k,vertex2) - relVort(k,vertex1))* &
-                    dcEdgeInv*sqrt3fact
-            visc2 = min(visc2, viscMaxLeith)
+!            visc2 = visc2tmp &
+!                   *abs(relVort(k,vertex2) - relVort(k,vertex1))* &
+!                    dcEdgeInv*sqrt3fact
+!            visc2 = min(visc2, viscMaxLeith)
 
+            visc2 = visc2tmp*sqrt(((relVort(k,vertex2) - relVort(k,vertex1))*dvEdgeInv)**2 + &
+                            divFactor*((div(k,cell2) - div(k,cell1))*dcEdgeInv)**2)
             tend(k,iEdge) = tend(k,iEdge) + &
                             edgeMask(k,iEdge)*visc2*uDiff
 
@@ -231,6 +234,8 @@ contains
       viscMaxLeith = 0.0_RKIND
       sqrt3fact    = sqrt(3.0_RKIND)
 
+      divFactor = 1.0_RKIND
+
       !*** reset values based on input configuration
 
       if (config_use_leith_del2) then
@@ -238,6 +243,7 @@ contains
          leithParam   = config_leith_parameter
          dxLeith      = config_leith_dx
          viscMaxLeith = config_leith_visc2_max
+         divFactor = config_mom_del2_div_factor!
       endif
 
       !-----------------------------------------------------------------

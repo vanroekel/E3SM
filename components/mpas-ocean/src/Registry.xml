@@ -230,6 +230,10 @@
 					description="Horizontal diffusion, $\kappa_{2h}$. If config_hmix_use_ref_cell_width = .true. then $\kappa_h$ = config_tracer_del2*(cellWidth / config_hmix_use_ref_cell_width). If config_hmix_use_ref_cell_width = .false. then it is referenced to the smallest cell."
 					possible_values="any positive real"
 		/>
+		<nml_option name="config_mom_del2_div_factor" type="real" default_value="1.0" units="na"
+					description="factor to multiply horizontal mixing by for divergence"
+					possible_values="positive reals"
+		/>
 	</nml_record>
 	<nml_record name="hmix_del4" mode="forward">
 		<nml_option name="config_use_mom_del4" type="logical" default_value=".false." units="unitless"
@@ -293,6 +297,10 @@
 		<nml_option name="config_Redi_closure" type="character" default_value="constant" units="unitless"
 					description="Control what type of function is used for Redi $\kappa$."
 					possible_values="'constant', 'data'"
+		/>
+		<nml_option name="config_redi_bottom_scaling_nLayers" type="integer" default_value="0"
+					description="number of layers over  which to taper bottom"
+					possible_values="small positive integers"
 		/>
 		<nml_option name="config_Redi_constant_kappa" type="real" default_value="600.0" units="m^2 s^{-1}"
 					description="The Redi diffusion coefficient. Only used when config_Redi_closure = 'constant'."

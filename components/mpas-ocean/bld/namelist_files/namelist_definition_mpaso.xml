@@ -278,6 +278,13 @@ Valid values: any positive real
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_mom_del2_div_factor" type="real"
+	category="hmix_del2" group="hmix_del2">
+
+Valid values: any positive reals
+Default: Defined in namelist_defaults.xml
+
+</entry>
 
 <!-- hmix_del4 -->
 
@@ -399,6 +406,14 @@ Default: Defined in namelist_defaults.xml
 Control what type of function is used for Redi $\kappa$.
 
 Valid values: 'constant', 'data'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_redi_bottom_scaling_nLayers" type="integer"
+	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
+number of layers over which to taper redi at bottom
+
+Valid values: 'small positive integers'
 Default: Defined in namelist_defaults.xml
 </entry>
 

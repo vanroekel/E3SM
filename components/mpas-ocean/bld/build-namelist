@@ -521,6 +521,7 @@ add_default($nl, 'config_use_mom_del2');
 add_default($nl, 'config_mom_del2');
 add_default($nl, 'config_use_tracer_del2');
 add_default($nl, 'config_tracer_del2');
+add_default($nl, 'config_mom_del2_div_factor');
 
 #############################
 # Namelist group: hmix_del4 #
@@ -555,6 +556,7 @@ add_default($nl, 'config_eddying_resolution_ramp_max');
 
 add_default($nl, 'config_use_Redi');
 add_default($nl, 'config_Redi_closure');
+add_default($nl, 'config_redi_bottom_scaling_nLayers');
 add_default($nl, 'config_Redi_constant_kappa');
 add_default($nl, 'config_Redi_maximum_slope');
 add_default($nl, 'config_Redi_use_slope_taper');

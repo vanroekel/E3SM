@@ -91,6 +91,7 @@
 <config_mom_del2 ocn_grid="WCAtl12to45E2r4">462.0</config_mom_del2>
 <config_mom_del2 ocn_grid="SOwISC12to60E2r4">462.0</config_mom_del2>
 <config_mom_del2 ocn_grid="ECwISC30to60E2r1">1000.0</config_mom_del2>
+<config_mom_del2_div_factor>1.0</config_mom_del2_div_factor>
 <config_use_tracer_del2>.false.</config_use_tracer_del2>
 <config_tracer_del2>10.0</config_tracer_del2>
 
@@ -138,6 +139,7 @@
 <config_use_Redi ocn_grid="oRRS18to6v3">.false.</config_use_Redi>
 <config_use_Redi ocn_grid="oRRS15to5">.false.</config_use_Redi>
 <config_Redi_closure>'constant'</config_Redi_closure>
+<config_redi_bottom_scaling_nLayers>0</config_redi_bottom_scaling_nLayers>
 <config_Redi_constant_kappa>400.0</config_Redi_constant_kappa>
 <config_Redi_constant_kappa ocn_forcing="datm_forced_restoring">400.0</config_Redi_constant_kappa>
 <config_Redi_maximum_slope>0.01</config_Redi_maximum_slope>
