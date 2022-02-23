@@ -480,6 +480,7 @@ module ocn_compute_nonhydrostatic_pressure
      !$omp end do
      !$omp end parallel
 
+     call KSPDestroy(ksp,petsc_err)
      call mpas_timer_stop('NH solve - solver')
 
      deallocate(xrhs, xsol)
