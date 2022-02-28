@@ -1279,6 +1279,10 @@ contains
          nCells, nEdges, nVertices, &! number of cells, edges, vertices
          vertex1, vertex2,          &! neighbor vertex addresses
          cell1, cell2                ! neighbor cell   addresses
+      real(kind=RKIND) :: invAreaTri1, invAreaCell1, invLength
+      real(kind=RKIND) :: layerThicknessVertex
+      real(kind=RKIND) :: apvm_scale_factor
+      real(kind=RKIND) :: se, invNormVel
 
       real(kind=RKIND) :: &
          invAreaTri1,          &! 1/triangle area
@@ -1492,8 +1496,34 @@ contains
          !$omp end do
 #endif
 
+!         !
+!         ! Modify PV edge with upstream bias.
+!         !
+!#ifdef MPAS_OPENACC
+!         !$acc parallel loop, &
+!         !$acc    present(minLevelEdgeTop, maxLevelEdgeBot, tangentialVelocity, &
+!         !$acc            normalVelocity, normalizedRelativeVorticityEdge)
+!#else
+!         !$omp do schedule(runtime) private(k)
+!#endif
+!         do iEdge = 1,nEdges
+!#ifdef MPAS_OPENACC
+!        !$acc loop seq
+!#endif
+!            do k = minLevelEdgeTop(iEdge), maxLevelEdgeBot(iEdge)
+!              normalizedRelativeVorticityEdge(k,iEdge) = normalizedRelativeVorticityEdge(k,iEdge) &
+!                - apvm_scale_factor * dt * &
+!                    (  normalVelocity(k,iEdge)     * vorticityGradientNormalComponent(k,iEdge)      &
+!                     + tangentialVelocity(k,iEdge) * vorticityGradientTangentialComponent(k,iEdge) )
+!            end do
+!         enddo
+!#ifndef MPAS_OPENACC
+!         !$omp end do
+!         !$omp end parallel
+!#endif
+
          !
-         ! Modify PV edge with upstream bias.
+         ! Modify PV edge with scaling given by cell width.
          !
 #ifdef MPAS_OPENACC
          !$acc parallel loop &
@@ -1506,15 +1536,17 @@ contains
          !$omp do schedule(runtime) private(k)
 #endif
          do iEdge = 1,nEdges
-            !$acc loop seq
+#ifdef MPAS_OPENACC
+        !$acc loop seq
+#endif
+            se = 0.5_RKIND * sqrt(dvEdge(iEdge)*dcEdge(iEdge))
             do k = minLevelEdgeTop(iEdge), maxLevelEdgeBot(iEdge)
-               normalizedRelativeVorticityEdge(k,iEdge) = &
-               normalizedRelativeVorticityEdge(k,iEdge) - &
-                    apvm_scale_factor*dt* &
-                    (normalVelocity(k,iEdge)* &
-                     vorticityGradientNormalComponent(k,iEdge)      &
-                   + tangentialVelocity(k,iEdge)* &
-                     vorticityGradientTangentialComponent(k,iEdge) )
+              invNormVel = 1.0_RKIND/sqrt(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + &
+                           tangentialVelocity(k,iEdge)*tangentialVelocity(k,iEdge) + 1e-12)
+              normalizedRelativeVorticityEdge(k,iEdge) = normalizedRelativeVorticityEdge(k,iEdge) &
+                - apvm_scale_factor * se * invNormVel * &
+                    (  normalVelocity(k,iEdge)     * vorticityGradientNormalComponent(k,iEdge)      &
+                     + tangentialVelocity(k,iEdge) * vorticityGradientTangentialComponent(k,iEdge) )
             end do
          enddo
 #ifndef MPAS_OPENACC
