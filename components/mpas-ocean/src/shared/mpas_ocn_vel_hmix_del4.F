@@ -58,8 +58,7 @@ module ocn_vel_hmix_del4
    real (kind=RKIND) :: &
       viscDel4,         &!< biharmonic viscosity coefficient
       vortFactor,       &!< factor for vorticity
-      divFactor,        &!< factor for divergence term
-      divFactorNew       !< factor for del2 divergence term
+      divFactor          !< factor for divergence term
 
 !***********************************************************************
 
@@ -292,8 +291,6 @@ contains
 
             tend(k,iEdge) = tend(k,iEdge) - &
                             edgeMask(k,iEdge)*uDiff*visc4
-
-            !tend(k,iEdge) = tend(k,iEdge) + divFactorNew*(div(k,cell2) - div(k,cell1))*dcEdgeInv
          end do
       end do
 #ifndef MPAS_OPENACC
@@ -357,7 +354,6 @@ contains
       integer ::                      &
          iEdge, iCell, iVertex, k, i, &! loop counters
          cell1, cell2,     &! neighbor cell addresses across edge
-         vertex1, vertex2, &! neighbor vertex addresses along edge
          nEdges, nCells, nVertices ! num edges,cells,vertices incl halos
 
       real (kind=RKIND) :: &
@@ -365,7 +361,6 @@ contains
          areaCellInv,      &! 1/area of cell
          areaTriInv,       &! 1/area of triangle
          dcEdgeInv,        &! 1/dcEdge
-         dvEdgeInv,        &! 1/dvEdge
          visc4              ! scaled biharmonic viscosity coeff
 
       ! Scratch Arrays
@@ -397,16 +392,15 @@ contains
       !Compute Laplacian of velocity
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
-      !$acc    present(cellsOnEdge, verticesOnEdge, minLevelEdgeBot,
-      !maxLevelEdgeTop, &
-      !$acc            dvEdge, dcEdge, del2u, div, relVort) &
-      !$acc    private(k, cell1, cell2, vertex1, vertex2, &
-      !$acc            dcEdgeInv, dvEdgeInv, kmin, kmax)
+      !$acc    present(cellsOnEdge, verticesOnEdge, minLevelEdgeBot, maxLevelEdgeTop, &
+      !$acc            dcEdge, del2u, div) &
+      !$acc    private(k, cell1, cell2, &
+      !$acc            dcEdgeInv, kmin, kmax)
 #else
       !$omp parallel
       !$omp do schedule(runtime) &
-      !$omp    private(k, cell1, cell2, vertex1, vertex2, &
-      !$omp            dcEdgeInv, dvEdgeInv, kmin, kmax)
+      !$omp    private(k, cell1, cell2, &
+      !$omp            dcEdgeInv, kmin, kmax)
 #endif
       do iEdge = 1, nEdges
          del2u(:, iEdge) = 0.0_RKIND
@@ -543,7 +537,6 @@ contains
       viscDel4     = 0.0_RKIND
       vortFactor   = 1.0_RKIND
       divFactor    = 1.0_RKIND
-      divFactorNew = 0.0_RKIND
 
       !*** reset module variables based on input configuration
 
@@ -552,7 +545,6 @@ contains
          viscDel4     = config_mom_del4
          vortFactor   = config_mom_del4_vort_factor
          divFactor    = config_mom_del4_div_factor
-         divFactorNew = config_mom_del2_div_factor
          if ( config_mom_del4 <= 0.0_RKIND ) then
             call mpas_log_write( &
                'vel_hmix_del4_init: config_mom_del4 must be > 0 ', &

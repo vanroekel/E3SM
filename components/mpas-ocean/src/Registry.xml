@@ -266,10 +266,6 @@
 					description="The divergence portion of the del4 operator is scaled by this factor."
 					possible_values="any positive real"
 		/>
-                <nml_option name="config_mom_del2_div_factor" type="real" default_value="0.0" units="non-dimensional"
-                                        description="\nabla divergence is scaled by this factor in the del4 operator."
-                                        possible_values="any positive real"
-                />
                 <nml_option name="config_mom_del4_vort_factor" type="real" default_value="1.0" units="non-dimensional"
                                         description="The vorticity portion of the del4 operator is scaled by this factor."
                                         possible_values="any positive real"
