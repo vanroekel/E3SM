@@ -44,6 +44,7 @@ module ocn_vel_hmix_del4
 
    public :: ocn_vel_hmix_del4_tend, &
              ocn_vel_hmix_div_del4_tend, &
+             ocn_vel_hmix_div_del4_tend_version2, &
              ocn_vel_hmix_del4_init
 
    !--------------------------------------------------------------------
@@ -392,8 +393,8 @@ contains
       !Compute Laplacian of velocity
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
-      !$acc    present(cellsOnEdge, verticesOnEdge, minLevelEdgeBot, maxLevelEdgeTop, &
-      !$acc            dcEdge, del2u, div) &
+      !$acc    present(cellsOnEdge, verticesOnEdge, minLevelEdgeBot, &
+      !$acc            maxLevelEdgeTop, dcEdge, del2u, div) &
       !$acc    private(k, cell1, cell2, &
       !$acc            dcEdgeInv, kmin, kmax)
 #else
@@ -427,9 +428,8 @@ contains
       ! Compute del2 of divergence
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
-      !$acc    present(nEdgesOnCell, edgesOnCell, minLevelCell, maxLevelCell,
-      !dvEdge,&
-      !$acc            edgeSignOnCell, areaCell, del2u, del2div) &
+      !$acc    present(nEdgesOnCell, edgesOnCell, minLevelCell, maxLevelCell, &
+      !$acc            dvEdge, edgeSignOnCell, areaCell, del2u, del2div) &
       !$acc    private(i, k, iEdge, areaCellInv, kmin, kmax)
 #else
       !$omp parallel
@@ -455,8 +455,7 @@ contains
 #endif
 
       ! Compute final tendency \kappa \nabla^4 u
-      ! as  \nabla div(\nabla^2 u) + k \times
-      !     \nabla ( k \cross curl(\nabla^2 u) )
+      ! as  \nabla div(\nabla^2 u)
 
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
@@ -504,6 +503,200 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_hmix_div_del4_tend!}}}
+
+!***********************************************************************
+!
+!  routine ocn_vel_hmix_div_del4_tend_version2
+!
+!> \brief   Computes tendency for biharmonic horizontal momentum mixing
+!> \author  Sara Calandrini
+!> \date    March 2022
+!> \details
+!>  This routine computes the horizontal mixing tendency for momentum
+!>  based on a biharmonic form for the mixing.  The del4 operator is
+!>  applied on the divergence part only, and the visc4 is inserted
+!>  within the gradient operator.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_vel_hmix_div_del4_tend_version2(div, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         div             !< [in] velocity divergence
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend            !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer ::                      &
+         iEdge, iCell, iVertex, k, i, &! loop counters
+         cell1, cell2,     &! neighbor cell addresses across edge
+         nEdges, nCells, nVertices ! num edges,cells,vertices incl halos
+
+      real (kind=RKIND) :: &
+         uDiff,            &! diffusion operator temporary
+         areaCellInv,      &! 1/area of cell
+         areaTriInv,       &! 1/area of triangle
+         dcEdgeInv,        &! 1/dcEdge
+         visc4              ! scaled biharmonic viscosity coeff
+
+      ! Scratch Arrays
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         del2div,     &!
+         del2u
+
+      integer :: kmin, kmax
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** initialize error code and return if not selected
+      !*** otherwise start timer
+
+      err = 0
+      if (hmixDel4Off) return
+      call mpas_timer_start("vel del4")
+
+      !*** allocate temporaries
+
+      allocate(del2u(nVertLevels, nEdgesAll + 1), &
+               del2div(nVertLevels, nCellsAll + 1))
+      !$acc enter data create(del2u, del2div)
+
+      nEdges = nEdgesHalo(2)
+
+      !Compute Laplacian of velocity
+#ifdef MPAS_OPENACC
+      !$acc parallel loop &
+      !$acc    present(cellsOnEdge, verticesOnEdge, minLevelEdgeBot, &
+      !$acc            maxLevelEdgeTop, dcEdge, del2u, div) &
+      !$acc    private(k, cell1, cell2, visc4, &
+      !$acc            dcEdgeInv, kmin, kmax)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp    private(k, cell1, cell2, visc4, &
+      !$omp            dcEdgeInv, kmin, kmax)
+#endif
+      do iEdge = 1, nEdges
+         del2u(:, iEdge) = 0.0_RKIND
+         cell1 = cellsOnEdge(1,iEdge)
+         cell2 = cellsOnEdge(2,iEdge)
+
+         kmin = minLevelEdgeBot(iEdge)
+         kmax = maxLevelEdgeTop(iEdge)
+
+         dcEdgeInv = 1.0_RKIND / dcEdge(iEdge)
+         visc4 = viscDel4*meshScalingDel4(iEdge)
+
+         do k=kmin, kmax
+            ! Compute \nabla^2 u = \nabla sqrt(visc4)*divergence
+            del2u(k,iEdge) = sqrt(visc4)*(div(k,cell2) - div(k,cell1))*dcEdgeInv
+         end do
+      end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
+
+      nCells = nCellsHalo(1)
+
+      ! Compute del2 of divergence
+#ifdef MPAS_OPENACC
+      !$acc parallel loop &
+      !$acc    present(nEdgesOnCell, edgesOnCell, minLevelCell, maxLevelCell, &
+      !$acc            dvEdge, edgeSignOnCell, areaCell, del2u, del2div) &
+      !$acc    private(i, k, iEdge, areaCellInv, kmin, kmax)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) private(i, k, iEdge, areaCellInv, kmin, kmax)
+#endif
+      do iCell = 1, nCells
+         kmin = minLevelCell(iCell)
+         kmax = maxLevelCell(iCell)
+         del2div(:, iCell) = 0.0_RKIND
+         areaCellInv = 1.0_RKIND / areaCell(iCell)
+         do i = 1, nEdgesOnCell(iCell)
+            iEdge = edgesOnCell(i, iCell)
+            do k = kmin, kmax
+               del2div(k,iCell) = del2div(k,iCell) - &
+                                  edgeSignOnCell(i,iCell)*dvEdge(iEdge) &
+                                 *del2u(k,iEdge)*areaCellInv
+            end do
+         end do
+      end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
+
+      ! Compute final tendency \kappa \nabla^4 u
+      ! as  \nabla div(\nabla^2 u)
+
+#ifdef MPAS_OPENACC
+      !$acc parallel loop &
+      !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, &
+      !$acc            dcEdge, meshScalingDel4, edgeMask, &
+      !$acc            del2div, tend) &
+      !$acc private(k, cell1, cell2, dcEdgeInv, &
+      !$acc         visc4, uDiff, kmin, kmax)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp private(k, cell1, cell2, dcEdgeInv, &
+      !$omp         visc4, uDiff, kmin, kmax)
+#endif
+      do iEdge = 1, nEdgesOwned
+         kmin = minLevelEdgeBot(iEdge)
+         kmax = maxLevelEdgeTop(iEdge)
+
+         cell1 = cellsOnEdge(1,iEdge)
+         cell2 = cellsOnEdge(2,iEdge)
+
+         dcEdgeInv = 1.0_RKIND / dcEdge(iEdge)
+         visc4 = viscDel4*meshScalingDel4(iEdge)
+
+         do k = kmin, kmax
+            uDiff = sqrt(visc4)*(del2div(k,cell2) - del2div(k,cell1))* &
+                                                          dcEdgeInv
+
+            tend(k,iEdge) = tend(k,iEdge) - &
+                            edgeMask(k,iEdge)*uDiff
+
+         end do
+      end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
+
+      !$acc exit data delete(del2u, del2div)
+      deallocate(del2u, &
+                 del2div)
+
+      call mpas_timer_stop("vel del4")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_hmix_div_del4_tend_version2!}}}
 
 !***********************************************************************
 !
