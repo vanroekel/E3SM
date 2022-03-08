@@ -481,8 +481,8 @@ contains
          visc4 = viscDel4*meshScalingDel4(iEdge)
 
          do k = kmin, kmax
-            uDiff = divFactor*(del2div(k,cell2) - del2div(k,cell1))* &
-                                                          dcEdgeInv
+            uDiff = (del2div(k,cell2) - del2div(k,cell1))* &
+                                                   dcEdgeInv
 
             tend(k,iEdge) = tend(k,iEdge) - &
                             edgeMask(k,iEdge)*uDiff*visc4
