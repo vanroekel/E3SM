@@ -565,6 +565,14 @@ Valid values: small positive values less than equal to one
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_GM_gammaF_factor" type="real"
+        category="GM_eddy_parameterization" group="GM_eddy_parameterization">
+scaling factor multiplying GM equation from MOM6 implementation (source unknown), set to zero to disable
+
+Valid values: numbers greater than or equal to zero
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- Rayleigh_damping -->
 
