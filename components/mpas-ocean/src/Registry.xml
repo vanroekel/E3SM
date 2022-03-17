@@ -387,6 +387,10 @@
 					description="factor multiplying the Rhines length in the scheme from Eden Greatbatch (2008) Ocean Modeling -- Equation (28)"
 					possible_values="small positive values less than equal to one"
 		/>
+		<nml_option name="config_GM_gammaF_factor" type="real" default_value="0.0" units="NA"
+			                description="scaling factor multiplying GM equation from MOM6 implementation (source unknown), set to zero to disable"
+					possible_values="numbers greater than or equal to zero"
+		/>
 	</nml_record>
 	<nml_record name="Rayleigh_damping" mode="forward">
 		<nml_option name="config_Rayleigh_friction" type="logical" default_value=".false." units="unitless"
