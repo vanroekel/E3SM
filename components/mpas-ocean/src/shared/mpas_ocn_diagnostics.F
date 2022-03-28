@@ -1806,7 +1806,8 @@ contains
          ! Compute v (tangential) velocities
          do i = 1, nEdgesOnEdge(iEdge)
             eoe = edgesOnEdge(i,iEdge)
-            weightsOnEdge_temp = weightsOnEdge(i, iEdge)
+            !weightsOnEdge_temp = weightsOnEdge(i, iEdge)
+            weightsOnEdge_temp = weightsOnEdge_lsqr(i, iEdge)
             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
                tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
                                               + weightsOnEdge_temp * normalVelocity(k, eoe)
