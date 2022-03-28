@@ -2372,7 +2372,8 @@ contains
          kmax = maxLevelEdgeTop(iEdge)
          do i = 1, nEdgesOnEdge(iEdge)
             eoe = edgesOnEdge(i,iEdge)
-            weightsOnEdge_temp = weightsOnEdge(i, iEdge)
+            weightsOnEdge_temp = weightsOnEdge_lsqr(i, iEdge)
+!           weightsOnEdge_temp = weightsOnEdge(i, iEdge)
             do k = kmin,kmax
                tangentialVelocity(k,iEdge) = &
                tangentialVelocity(k,iEdge) + weightsOnEdge_temp* &
