@@ -287,7 +287,7 @@ contains
          do k = kmin, kmax
             uDiff = divFactor*(del2div(k,cell2) - del2div(k,cell1))* &
                                                           dcEdgeInv  &
-                  - vortFactor*(del2relVort(k,vertex2) - del2relVort(k,vertex1))* &
+                  - (del2relVort(k,vertex2) - del2relVort(k,vertex1))* &
                                                           dvEdgeInv
 
             tend(k,iEdge) = tend(k,iEdge) - &
