@@ -1681,32 +1681,60 @@ contains
       !$omp end parallel
 #endif
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if (config_triskCV) then 
-         kineticEnergyEdge(:,:) = 0.0_RKIND
-
 #ifdef MPAS_OPENACC
       !$acc parallel loop gang vector &
-      !$acc          present(u_perp, nEdgesOnEdge, edgesOnEdge, weightsOnEdge_lsqr, &
-      !$acc                  minLevelEdgeBot, maxLevelEdgeTop, normalVelocity)
-      !$acc          private(iEdge, nEdges, j, jEdge, weightsOnEdge_lsqr_temp, k)
+      !$acc          present(tangentialVelocity, nEdgesOnEdge, edgesOnEdge, &
+      !$acc                  weightsOnEdge, weightsOnEdge_lsqr, &
+      !$acc                  maxLevelEdgeTop, normalVelocity, minLevelEdgeBot) &
+      !$acc          private(i, eoe, weightsOnEdge_temp, k)
 #else
       !$omp parallel
-      !$omp do schedule(runtime) private(iEdge, nEdges, j, jEdge, weightsOnEdge_lsqr_temp, k)
+      !$omp do schedule(runtime) private(i, eoe, weightsOnEdge_temp, k)
 #endif
-         do iEdge = 1, nEdges 
-            u_perp(:,iEdge) = 0.0_RKIND
-            do j = 1, nEdgesOnEdge(iEdge)
-               jEdge = edgesOnEdge(j,iEdge)
-               weightsOnEdge_lsqr_temp = weightsOnEdge_lsqr(j,iEdge)
-               do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)  
-                  u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge) 
-               end do   
+      do iEdge = 1, nEdges
+         tangentialVelocity(:, iEdge) = 0.0_RKIND
+         ! Compute v (tangential) velocities
+         do i = 1, nEdgesOnEdge(iEdge)
+            eoe = edgesOnEdge(i,iEdge)
+            !weightsOnEdge_temp = weightsOnEdge(i, iEdge)
+            weightsOnEdge_temp = weightsOnEdge_lsqr(i, iEdge)
+            do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+               tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
+                                              + weightsOnEdge_temp * normalVelocity(k, eoe)
             end do
          end do
+      end do
 #ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif 
+#endif
+
+      if (config_triskCV) then
+         kineticEnergyEdge(:,:) = 0.0_RKIND
+
+!#ifdef MPAS_OPENACC
+!      !$acc parallel loop gang vector &
+!      !$acc          present(u_perp, nEdgesOnEdge, edgesOnEdge, weightsOnEdge_lsqr, &
+!      !$acc                  minLevelEdgeBot, maxLevelEdgeTop, normalVelocity)
+!      !$acc          private(iEdge, nEdges, j, jEdge, weightsOnEdge_lsqr_temp, k)
+!#else
+!      !$omp parallel
+!      !$omp do schedule(runtime) private(iEdge, nEdges, j, jEdge, weightsOnEdge_lsqr_temp, k)
+!#endif
+!         do iEdge = 1, nEdges
+!            u_perp(:,iEdge) = 0.0_RKIND
+!            do j = 1, nEdgesOnEdge(iEdge)
+!               jEdge = edgesOnEdge(j,iEdge)
+!               weightsOnEdge_lsqr_temp = weightsOnEdge_lsqr(j,iEdge)
+!               do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+!                  u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge)
+!               end do
+!            end do
+!         end do
+!#ifndef MPAS_OPENACC
+!      !$omp end do
+!      !$omp end parallel
+!#endif
 
 #ifdef MPAS_OPENACC
       !$acc parallel loop gang vector &
@@ -1719,7 +1747,9 @@ contains
 #endif
          do iEdge = 1, nEdges
             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-               kineticEnergyEdge(k,iEdge) = 0.5_RKIND*(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + u_perp(k,iEdge)*u_perp(k,iEdge))
+               !kineticEnergyEdge(k,iEdge) = 0.5_RKIND*(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + u_perp(k,iEdge)*u_perp(k,iEdge))
+               kineticEnergyEdge(k,iEdge) = 0.5_RKIND*(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + &
+                                            tangentialVelocity(k,iEdge)*tangentialVelocity(k,iEdge))
             end do
          end do
 #ifndef MPAS_OPENACC
@@ -1791,33 +1821,34 @@ contains
       deallocate(div_hu,div_huTransport,div_huGMBolus)
       !deallocate(u_perp, kineticEnergyEdge)
 
-      nEdges = nEdgesHalo( 2 )
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector &
-      !$acc          present(tangentialVelocity, nEdgesOnEdge, edgesOnEdge, weightsOnEdge, &
-      !$acc                  maxLevelEdgeTop, normalVelocity, minLevelEdgeBot) &
-      !$acc          private(i, eoe, weightsOnEdge_temp, k)
-#else
-      !$omp parallel
-      !$omp do schedule(runtime) private(i, eoe, weightsOnEdge_temp, k)
-#endif
-      do iEdge = 1, nEdges
-         tangentialVelocity(:, iEdge) = 0.0_RKIND
-         ! Compute v (tangential) velocities
-         do i = 1, nEdgesOnEdge(iEdge)
-            eoe = edgesOnEdge(i,iEdge)
-            !weightsOnEdge_temp = weightsOnEdge(i, iEdge)
-            weightsOnEdge_temp = weightsOnEdge_lsqr(i, iEdge)
-            do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-               tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
-                                              + weightsOnEdge_temp * normalVelocity(k, eoe)
-            end do
-         end do
-      end do
-#ifndef MPAS_OPENACC
-      !$omp end do
-      !$omp end parallel
-#endif
+!      nEdges = nEdgesHalo( 2 )
+!#ifdef MPAS_OPENACC
+!      !$acc parallel loop gang vector &
+!      !$acc          present(tangentialVelocity, nEdgesOnEdge, edgesOnEdge, &
+!      !$acc                  weightsOnEdge, weightsOnEdge_lsqr, &
+!      !$acc                  maxLevelEdgeTop, normalVelocity, minLevelEdgeBot) &
+!      !$acc          private(i, eoe, weightsOnEdge_temp, k)
+!#else
+!      !$omp parallel
+!      !$omp do schedule(runtime) private(i, eoe, weightsOnEdge_temp, k)
+!#endif
+!      do iEdge = 1, nEdges
+!         tangentialVelocity(:, iEdge) = 0.0_RKIND
+!         ! Compute v (tangential) velocities
+!         do i = 1, nEdgesOnEdge(iEdge)
+!            eoe = edgesOnEdge(i,iEdge)
+!            !weightsOnEdge_temp = weightsOnEdge(i, iEdge)
+!            weightsOnEdge_temp = weightsOnEdge_lsqr(i, iEdge)
+!            do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+!               tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
+!                                              + weightsOnEdge_temp * normalVelocity(k, eoe)
+!            end do
+!         end do
+!      end do
+!#ifndef MPAS_OPENACC
+!      !$omp end do
+!      !$omp end parallel
+!#endif
 
    end subroutine ocn_diagnostic_solve_vortVel!}}}
 
