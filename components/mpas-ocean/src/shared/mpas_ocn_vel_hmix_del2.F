@@ -42,7 +42,7 @@ module ocn_vel_hmix_del2
    !--------------------------------------------------------------------
 
    public :: ocn_vel_hmix_del2_tend, &
-             ocn_vel_hmix_div_del2_tend, &
+             ocn_vel_hmix_aust_del2_tend, &
              ocn_vel_hmix_del2_init
 
    !-------------------------------------------------------------------
@@ -52,7 +52,8 @@ module ocn_vel_hmix_del2
    !--------------------------------------------------------------------
 
    logical ::  &
-      hmixDel2Off  !< on/off flag to determine whether del2 chosen
+      hmixDel2Off,      &  !< on/off flag to determine whether del2 chosen
+      hmixDel2AustOff      !< on/off flag for AUST closure
          
    real (kind=RKIND) :: &
       viscDel2     !< viscosity coefficient for del2 horz mixing
@@ -182,7 +183,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_vel_hmix_div_del2_tend
+!  routine ocn_vel_hmix_aust_del2_tend
 !
 !> \brief   Computes tendency for Laplacian horizontal momentum mixing
 !> \author  Sara Calandrini
@@ -197,7 +198,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_hmix_div_del2_tend(div, tend, err)!{{{
+   subroutine ocn_vel_hmix_aust_del2_tend(div, tend, err)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
@@ -240,9 +241,9 @@ contains
 
       err = 0
 
-      if (hmixDel2Off) return
+      if (hmixDel2AustOff) return
 
-      call mpas_timer_start("vel del2")
+      call mpas_timer_start("vel del2 aust")
 
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
@@ -279,11 +280,11 @@ contains
       !$omp end parallel
 #endif
 
-      call mpas_timer_stop("vel del2")
+      call mpas_timer_stop("vel del2 aust")
 
    !--------------------------------------------------------------------
 
-    end subroutine ocn_vel_hmix_div_del2_tend!}}}
+    end subroutine ocn_vel_hmix_aust_del2_tend!}}}
 
 !***********************************************************************
 !
@@ -312,8 +313,9 @@ contains
 
       !*** Initialize return code and default variables
       err = 0
-      hmixDel2Off = .true.
-      viscDel2    = 0.0_RKIND
+      hmixDel2Off     = .true.
+      hmixDel2AustOff = .true.
+      viscDel2        = 0.0_RKIND
 
       !*** reset values based on input configuration
 
@@ -327,7 +329,35 @@ contains
                  MPAS_LOG_ERR)
             err = -1
          endif
+
+         if (config_use_mom_del2_aust) then
+            call mpas_log_write( &
+                'vel_hmix_del2_init: the standard momentum closure and the &
+                 aust one cannot be on at the same time', &
+                 MPAS_LOG_ERR)
+            err = -1
+         end if
       endif
+
+      if (config_use_mom_del2_aust) then
+         hmixDel2AustOff = .false.
+         viscDel2        = config_mom_del2_aust
+
+         if (viscDel2 <= 0.0_RKIND) then
+            call mpas_log_write( &
+                'vel_hmix_del2_init: viscosity must be > 0', &
+                 MPAS_LOG_ERR)
+            err = -1
+         endif
+
+         if (config_use_mom_del2) then
+            call mpas_log_write( &
+                'vel_hmix_del2_init: the standard momentum closure and the &
+                 aust one cannot be on at the same time', &
+                 MPAS_LOG_ERR)
+            err = -1
+         end if
+      end if
 
       !-----------------------------------------------------------------
 

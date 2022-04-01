@@ -44,7 +44,7 @@ module ocn_vel_hmix_del4
 
    public :: ocn_vel_hmix_del4_tend, &
              ocn_vel_hmix_div_del4_tend, &
-             ocn_vel_hmix_div_del4_tend_version2, &
+             ocn_vel_hmix_aust_del4_tend, &
              ocn_vel_hmix_del4_init
 
    !--------------------------------------------------------------------
@@ -54,11 +54,11 @@ module ocn_vel_hmix_del4
    !--------------------------------------------------------------------
 
    logical :: &
-      hmixDel4Off      !< on/off flag to determine whether del4 chosen
+      hmixDel4Off,      &    !< on/off flag to determine whether del4 chosen
+      hmixDel4AustOff        !< on/off flag for AUST closure
 
    real (kind=RKIND) :: &
       viscDel4,         &!< biharmonic viscosity coefficient
-      vortFactor,       &!< factor for vorticity
       divFactor          !< factor for divergence term
 
 !***********************************************************************
@@ -506,7 +506,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_vel_hmix_div_del4_tend_version2
+!  routine ocn_vel_hmix_aust_del4_tend
 !
 !> \brief   Computes tendency for biharmonic horizontal momentum mixing
 !> \author  Sara Calandrini
@@ -519,7 +519,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_hmix_div_del4_tend_version2(div, tend, err)!{{{
+   subroutine ocn_vel_hmix_aust_del4_tend(div, tend, err)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
@@ -572,8 +572,8 @@ contains
       !*** otherwise start timer
 
       err = 0
-      if (hmixDel4Off) return
-      call mpas_timer_start("vel del4")
+      if (hmixDel4AustOff) return
+      call mpas_timer_start("vel del4 aust")
 
       !*** allocate temporaries
 
@@ -692,11 +692,11 @@ contains
       deallocate(del2u, &
                  del2div)
 
-      call mpas_timer_stop("vel del4")
+      call mpas_timer_stop("vel del4 aust")
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_vel_hmix_div_del4_tend_version2!}}}
+   end subroutine ocn_vel_hmix_aust_del4_tend!}}}
 
 !***********************************************************************
 !
@@ -726,21 +726,45 @@ contains
       !*** initialize return error code and set module variable defaults
 
       err = 0
-      hmixDel4Off  = .true.
-      viscDel4     = 0.0_RKIND
-      vortFactor   = 1.0_RKIND
-      divFactor    = 1.0_RKIND
+      hmixDel4Off     = .true.
+      hmixDel4AustOff = .true.
+      viscDel4        = 0.0_RKIND
+      divFactor       = 1.0_RKIND
 
       !*** reset module variables based on input configuration
 
       if (config_use_mom_del4) then
          hmixDel4Off  = .false.
          viscDel4     = config_mom_del4
-         vortFactor   = config_mom_del4_vort_factor
          divFactor    = config_mom_del4_div_factor
          if ( config_mom_del4 <= 0.0_RKIND ) then
             call mpas_log_write( &
                'vel_hmix_del4_init: config_mom_del4 must be > 0 ', &
+               MPAS_LOG_ERR)
+            err = -1
+         endif
+         if (config_use_mom_del4_aust) then
+            call mpas_log_write( &
+               'vel_hmix_del4_init: the standard del4 closure and the &
+                aust one cannot be on at the same time', &
+               MPAS_LOG_ERR)
+            err = -1
+         endif
+      endif
+
+      if (config_use_mom_del4_aust) then
+         hmixDel4AustOff  = .false.
+         viscDel4         = config_mom_del4_aust
+         if ( config_mom_del4_aust <= 0.0_RKIND ) then
+            call mpas_log_write( &
+               'vel_hmix_del4_init: config_mom_del4_aust must be > 0 ', &
+               MPAS_LOG_ERR)
+            err = -1
+         endif
+         if (config_use_mom_del4) then
+            call mpas_log_write( &
+               'vel_hmix_del4_init: the standard del4 closure and the &
+                aust one cannot be on at the same time', &
                MPAS_LOG_ERR)
             err = -1
          endif
