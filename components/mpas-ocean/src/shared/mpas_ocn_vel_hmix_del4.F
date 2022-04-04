@@ -573,7 +573,7 @@ contains
 
       err = 0
       if (hmixDel4AustOff) return
-      call mpas_timer_start("vel del4 aust")
+      call mpas_timer_start("vel div4")
 
       !*** allocate temporaries
 
@@ -692,7 +692,7 @@ contains
       deallocate(del2u, &
                  del2div)
 
-      call mpas_timer_stop("vel del4 aust")
+      call mpas_timer_stop("vel div4")
 
    !--------------------------------------------------------------------
 
@@ -743,7 +743,7 @@ contains
                MPAS_LOG_ERR)
             err = -1
          endif
-         if (config_use_mom_del4_aust) then
+         if (config_use_mom_div4) then
             call mpas_log_write( &
                'vel_hmix_del4_init: the standard del4 closure and the &
                 aust one cannot be on at the same time', &
@@ -752,12 +752,12 @@ contains
          endif
       endif
 
-      if (config_use_mom_del4_aust) then
+      if (config_use_mom_div4) then
          hmixDel4AustOff  = .false.
-         viscDel4         = config_mom_del4_aust
-         if ( config_mom_del4_aust <= 0.0_RKIND ) then
+         viscDel4         = config_mom_div4
+         if ( config_mom_div4 <= 0.0_RKIND ) then
             call mpas_log_write( &
-               'vel_hmix_del4_init: config_mom_del4_aust must be > 0 ', &
+               'vel_hmix_del4_init: config_mom_div4 must be > 0 ', &
                MPAS_LOG_ERR)
             err = -1
          endif
