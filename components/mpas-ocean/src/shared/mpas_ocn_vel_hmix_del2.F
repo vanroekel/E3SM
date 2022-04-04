@@ -243,7 +243,7 @@ contains
 
       if (hmixDel2AustOff) return
 
-      call mpas_timer_start("vel del2 aust")
+      call mpas_timer_start("vel div2")
 
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
@@ -280,7 +280,7 @@ contains
       !$omp end parallel
 #endif
 
-      call mpas_timer_stop("vel del2 aust")
+      call mpas_timer_stop("vel div2")
 
    !--------------------------------------------------------------------
 
@@ -330,7 +330,7 @@ contains
             err = -1
          endif
 
-         if (config_use_mom_del2_aust) then
+         if (config_use_mom_div2) then
             call mpas_log_write( &
                 'vel_hmix_del2_init: the standard momentum closure and the &
                  aust one cannot be on at the same time', &
@@ -339,9 +339,9 @@ contains
          end if
       endif
 
-      if (config_use_mom_del2_aust) then
+      if (config_use_mom_div2) then
          hmixDel2AustOff = .false.
-         viscDel2        = config_mom_del2_aust
+         viscDel2        = config_mom_div2
 
          if (viscDel2 <= 0.0_RKIND) then
             call mpas_log_write( &
