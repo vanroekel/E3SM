@@ -100,7 +100,7 @@ contains
                                   indxT, indxS, tracers, &
                                   thermExpCoeff, salineContractCoeff, &
                                   dynamicViscosity, &
-                                  tend, err)!{{{
+                                  layerThickEdge, tend, err)!{{{
 
       implicit none
 
@@ -123,7 +123,8 @@ contains
          density,             &!< [in] density
          potentialDensity,    &!< [in] potentialDensity
          nonhydrostaticPressure,  &!< Input: nonhydrostatic pressure correction
-         dynamicViscosity      !< [in] dynamicViscosity FSP
+         dynamicViscosity,     & !< [in] dynamicViscosity FSP
+         layerThickEdge
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          thermExpCoeff,       &!< [in] in situ thermal expansion coeff
@@ -163,7 +164,7 @@ contains
          rhoL, rhoR,       &! density neighbors for Jacobian
          TL, TR,           &! temperature neighbors for Jacobian
          SL, SR, dqdza,    &! salinity neighbors for Jacobian
-         dynViscEdge        ! averaged dynamic viscosity
+         dynViscEdge, areaEdge        ! averaged dynamic viscosity
 
       real (kind=RKIND), dimension(:), allocatable :: dqdz
 
@@ -299,8 +300,8 @@ contains
                !only for strongly varying layer thickness
                do k=1,maxLevelEdgeTop(iEdge)
                   tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * invdcEdge * ( &
-                    - ( nonhydrostaticPressure(k,cell2) -             &
-                    nonhydrostaticPressure(k,cell1) ) + 0.0_RKIND*dqdz(k)*density0Inv*        &
+                   - density0Inv*( nonhydrostaticPressure(k,cell2) -             &
+                    nonhydrostaticPressure(k,cell1) ) + dqdz(k)*density0Inv*        &
                     (zMid(k,cell2) - zMid(k,cell1)))
                enddo
 
@@ -722,9 +723,10 @@ contains
             do iEdge=1,nEdgesOwned
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
+               areaEdge = 0.5_RKIND*(areaCell(cell1) + areaCell(cell2))
                do k=1,maxLevelEdgeTop(iEdge)
                   dynViscEdge = 0.5_RKIND*(dynamicViscosity(k,cell1) + dynamicViscosity(k,cell2))
-                  tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) / rho_sw
+                  tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) 
                enddo
              enddo
                    !print*,'forcing:',real(tend(:,1))
@@ -751,22 +753,44 @@ contains
          !*** error already trapped during init
 
       end select ! pGradType
-
-      if(config_use_constant_forced_pgf) then
+#ifdef MPAS_OPENACC
+         !$acc parallel loop &
+         !$acc    present(angleEdge,maxLevelEdgeTop, tend, edgeMask) &
+         !$acc    private(pGrad, k)
+#else
          !$omp parallel
-         !$omp do schedule(runtime) private(pGrad, k)
-         do iEdge=1,nEdgesOwned
-            pGrad = config_zonal_ssh_grad * cos(angleEdge(iEdge)) + config_meridional_ssh_grad * sin(angleEdge(iEdge))
-            do k=1,maxLevelEdgeTop(iEdge)
-               tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
+         !$omp do schedule(runtime) &
+         !$omp    private(pGrad, k)
+#endif
+         !Pressure gradient for channel flow (FSP) 
+         if (config_use_constant_pgf_cflow) then  !For channel flow
+            do iEdge=1,nEdgesOwned
+               cell1 = cellsOnEdge(1,iEdge)
+               cell2 = cellsOnEdge(2,iEdge)
+               areaEdge = 0.5_RKIND*(areaCell(cell1) + areaCell(cell2))
+               do k=1,maxLevelEdgeTop(iEdge)
+                  dynViscEdge = 0.5_RKIND*(dynamicViscosity(k,cell1) + dynamicViscosity(k,cell2))
+                  tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) 
+               enddo
+             enddo
+                   !print*,'forcing:',real(tend(:,1))
+         elseif(config_use_constant_forced_pgf) then
+            do iEdge=1,nEdgesOwned
+               ! compute the pressure gradient to be applied at the edge
+               pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
+
+               do k=minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
+                  tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
+               end do
             end do
-         end do
+         endif
+
+
+
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-      end if
-
-
-
+#endif
 
 
       call mpas_timer_stop("pressure grad")

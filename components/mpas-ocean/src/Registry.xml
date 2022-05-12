@@ -407,6 +407,10 @@
 		/>
 	</nml_record>
 	<nml_record name="twoEquationModel" mode="forward">
+	    <nml_option name="config_two_equation_mesoscale" type="logical" default_value=".false." units="NA"
+					description="flag determining if parameters and model values be used to determine GM kappa"
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_use_two_equation_turbulence_model" type="logical" default_value=".false." units="NA"
 					description="If true, use the GLS model extended to three dimensions"
 					possible_values=".true. or .false."
@@ -1734,6 +1738,9 @@
 			<var name="maxLevelCell"/>
 			<var name="refBottomDepth" packages="forwardMode;analysisMode"/>
 			<var name="restingThickness" packages="forwardMode;analysisMode"/>
+		    <var name="distanceToBoundary"/>
+			<var name="boundaryNormalAngle"/>
+			<var name="boundaryCellMask"/>
 		</stream>
 
 		<stream name="input"
@@ -1861,6 +1868,8 @@
             <var name="gotmEpsbTopOfCell"/>
             <var name="gotmDissTopOfCell"/>
             <var name="gotmLengthTopOfCell"/>
+			<var name="tke"/>
+			<var name="glsPsi"/>
 		</stream>
 
 		<stream name="output"
@@ -2427,7 +2436,7 @@
     <var name="boundaryNormalAngle" type="real" dimensions="nVertLevels nCells" units="radians"
        description="angle of the boundary normal relative to east/west"
     />
-    <var name="boundaryCellMask" type="integer" dimensions="nVertLevels nCells" units="unitless"
+    <var name="boundaryCellMask" type="real" dimensions="nVertLevels nCells" units="unitless"
        description="cell mask for boundary cells"
     />
 		<var name="bottomDepth" type="real" dimensions="nCells" units="m"
@@ -3121,6 +3130,10 @@
 		/>
 		<var name="gmBolusKappa" type="real" dimensions="nEdges Time" units="m^2 s^{-1}"
 			 description="GM Bolus Kappa value.  This is constant in time, and set at init based on the constant or ramp fuction."
+			 packages="gm"
+		/>
+	    <var name="mesoEddyDiffusivity" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-1}"
+			 description="future array for all bolus kappa values"
 			 packages="gm"
 		/>
 		<var name="RediKappa" type="real" dimensions="nEdges Time" units="m^2 s^{-1}"

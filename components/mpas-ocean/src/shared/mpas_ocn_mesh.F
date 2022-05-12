@@ -146,6 +146,7 @@ module ocn_mesh
    real(kind=RKIND), public, dimension(:, :), pointer :: &
       weightsOnEdge, &! weights on each edge
       kiteAreasOnVertex, &! real (vertexDegree nVertices)
+      boundaryCellMask, &
       edgeTangentVectors, &! tangent unit vector at edge
       edgeNormalVectors, &! normal  unit vector at edge
       localVerticalUnitVectors ! local unit vector iin vertical
@@ -162,8 +163,8 @@ module ocn_mesh
       boundaryNormalAngle, &
       distanceToBoundary
 
-   integer, public, dimension(:,:), pointer :: &
-      boundaryCellMask
+!   integer, public, dimension(:,:), pointer :: &
+!      boundaryCellMask
 
     !}}}
    !----------------------------------------------------------------------------

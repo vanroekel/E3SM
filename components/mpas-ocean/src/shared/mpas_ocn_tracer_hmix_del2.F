@@ -144,7 +144,8 @@ contains
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
             do k = 1, maxLevelEdgeTop(iEdge)
-               eddyDiff(k,iEdge) = 0.5_RKIND*(vertDiffTopOfCell(k,cell1) + vertDiffTopOfCell(k,cell2))
+               eddyDiff(k,iEdge) = 0.25_RKIND*(vertDiffTopOfCell(k,cell1) + vertDiffTopOfCell(k,cell2) + &
+                                               vertDiffTopOfCell(k+1,cell1) + vertDiffTopOfCell(k+1,cell2))
             end do
          end do
       end do

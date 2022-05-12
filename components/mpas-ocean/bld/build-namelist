@@ -598,6 +598,7 @@ add_default($nl, 'config_Rayleigh_bottom_damping_coeff');
 ####################################
 
 add_default($nl, 'config_use_two_equation_turbulence_model');
+add_default($nl, 'config_two_equation_mesoscale');
 add_default($nl, 'config_two_equation_hor_adv_order');
 add_default($nl, 'config_two_equation_coef_3rd_order');
 add_default($nl, 'config_two_equation_vert_adv_order');

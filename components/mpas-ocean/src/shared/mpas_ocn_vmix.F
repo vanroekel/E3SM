@@ -146,7 +146,7 @@ contains
 
       err = 0
 
-      if (config_use_two_equation_turbulence_model) return
+      if (config_use_two_equation_turbulence_model .and. .not. config_two_equation_mesoscale) return
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -1288,8 +1288,8 @@ contains
       !
       call mpas_timer_start('vmix solve momentum', .false.)
       if (config_use_implicit_bottom_drag_variable) then
-        call ocn_vel_vmix_tend_implicit_spatially_variable(meshPool, bottomDrag, dt, kineticEnergyCell, &
-          vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
+!        call ocn_vel_vmix_tend_implicit_spatially_variable(meshPool, bottomDrag, dt, kineticEnergyCell, &
+!          vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
       else if (config_use_implicit_bottom_drag_variable_mannings.or. &
                config_use_implicit_bottom_roughness) then
         ! update bottomDrag via Cd=g*n^2*h^(-1/3)
@@ -1303,8 +1303,8 @@ contains
         call ocn_vel_vmix_tend_implicit_rayleigh(meshPool, dt, kineticEnergyCell, &
           vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
       else
-        call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, &
-          vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
+!        call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, &
+!          vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
       end if
       call mpas_timer_stop('vmix solve momentum')
       !

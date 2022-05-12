@@ -189,6 +189,7 @@
 
 <!-- twoEquationModel -->
 <config_use_two_equation_turbulence_model>.false.</config_use_two_equation_turbulence_model>
+<config_use_two_equation_mesoscale>.false.</config_use_two_equation_mesoscale>
 <config_two_equation_hor_adv_order>3</config_two_equation_hor_adv_order>
 <config_two_equation_coef_3rd_order>0.25</config_two_equation_coef_3rd_order>
 <config_two_equation_vert_adv_order>3</config_two_equation_vert_adv_order>

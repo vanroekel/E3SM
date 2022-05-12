@@ -635,6 +635,14 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_two_equation_mesoscale" type="logical"
+	category="twoEquationModel" group="twoEquationModel">
+If true, the diagnostic mesoscale eddy implementation for GM is enabled.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_two_equation_hor_adv_order" type="integer"
 	category="twoEquationModel" group="twoEquationModel">
 order for horizontal advection of TKE and glsPsi

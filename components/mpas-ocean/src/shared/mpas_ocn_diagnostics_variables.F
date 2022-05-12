@@ -120,6 +120,7 @@ module ocn_diagnostics_variables
    real(kind=RKIND), dimension(:,:), pointer :: k33
    real(kind=RKIND), dimension(:), pointer   :: gmBolusKappa
    real(kind=RKIND), dimension(:), pointer   :: cGMphaseSpeed
+   real(kind=RKIND), dimension(:,:), pointer :: mesoEddyDiffusivity
    real(kind=RKIND), dimension(:,:,:), pointer :: slopeTriadUp, slopeTriadDown
 
    integer, dimension(:), pointer :: indMLD
@@ -269,6 +270,8 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'rediLimiterCount', &
                    rediLimiterCount)
 
+         call mpas_pool_get_array(diagnosticsPool, 'mesoEddyDiffusivity', &
+                   mesoEddyDiffusivity)
          call mpas_pool_get_array(diagnosticsPool, 'gmBolusKappa',  &
                    gmBolusKappa)
          call mpas_pool_get_array(diagnosticsPool, 'gmKappaScaling', &
@@ -791,6 +794,7 @@ contains
          !$acc enter data copyin(                   &
          !$acc                   RediKappa,         &
          !$acc                   gmBolusKappa,      &
+         !$acc                   mesoEddyDiffusivity, &
          !$acc                   gmKappaScaling,    &
          !$acc                   RediKappaScaling,  &
          !$acc                   rediLimiterCount,  &
@@ -1044,6 +1048,7 @@ contains
          !$acc exit data delete(                    &
          !$acc                   RediKappa,         &
          !$acc                   gmBolusKappa,      &
+         !$acc                   mesoEddyDiffusivity, &
          !$acc                   gmKappaScaling,    &
          !$acc                   RediKappaScaling,  &
          !$acc                   rediLimiterCount,  &
@@ -1254,6 +1259,7 @@ contains
       if ( config_use_GM ) then
          nullify(RediKappa,         &
                  gmBolusKappa,      &
+                 mesoEddyDiffusivity, &
                  gmKappaScaling,    &
                  RediKappaScaling,  &
                  rediLimiterCount,  &

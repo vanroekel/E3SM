@@ -107,6 +107,14 @@ contains
 
      integer :: iCell, k
 
+     if(config_LES_mode) then
+        do iCell=1,nCellsOwned
+           do k=minLevelCell(iCell),maxLevelCell(iCell)
+              tkeTend(k,iCell) = tkeTend(k,iCell) - 1.0E-7_RKIND*tke(k,iCell)
+              glsPsiTend(k,iCell) = 0.0_RKIND
+           end do
+        end do
+     else
      do iCell = 1, nCellsOwned
         do k = 1, maxLevelCell(iCell)
            !
@@ -125,7 +133,7 @@ contains
                                  (tke(k,iCell) + 1.0E-15_RKIND)*dissipation
         end do
      end do
-
+     end if
    end subroutine ocn_compute_two_equation_dissipation
 
 !***********************************************************************
@@ -159,7 +167,10 @@ contains
 
      real(kind=RKIND), intent(in) :: dt
 
-     integer :: iCell, k, nCells, nEdges, iEdge
+     integer :: iCell, k, nCells, nEdges, iEdge, cell1, cell2, i
+
+     real(kind=RKIND) :: dbdz
+     real(kind=RKIND),dimension(:),allocatable :: dbdy
 
      nCells = nCellsHalo(2)
 
@@ -170,6 +181,7 @@ contains
         end do
      end do
 
+     allocate(dbdy(nVertLevels))
      nEdges = nEdgesAll
      allocate(normalThicknessFlux(nVertLevels,nEdges))
      do iEdge=1,nEdges
@@ -189,7 +201,7 @@ contains
                                       nAdvCellsForEdge, advCellsForEdge,&
                                       advMaskHighOrder)
 
-     call ocn_tke_transport_horizontal_compute(tke, tkeTend, sigma_k, fkin, feps, err)
+     call ocn_tke_transport_horizontal_compute(tke, tkeTend, layerThickness, sigma_k, fkin, feps, err)
 
      if (.not. config_LES_mode) then
 
@@ -199,15 +211,51 @@ contains
                                             nAdvCellsForEdge, advCellsForEdge,&
                                             advMaskHighOrder)
 
-         call ocn_glsPsi_transport_horizontal_compute(glsPsi, glsPsiTend, c_psi2, sigma_psi, fkin, feps, err)
+         call ocn_glsPsi_transport_horizontal_compute(glsPsi, glsPsiTend, layerThickness, &
+                                        c_psi2, sigma_psi, fkin, feps, err)
 
      endif
 
      call ocn_compute_two_equation_dissipation(tke, glsPsi, tkeTend, glsPsiTend)
      call ocn_buoyancy_production_compute(tkeTend, glsPsiTend, glsPsi, tke, c_psi3, &
-                                          surfaceBuoyancyForcing, err)
+                                         surfaceBuoyancyForcing, err)
      call ocn_shear_production_compute(tkeTend, glsPsiTend, tke, glsPsi, c_psi1, &
                                        surfaceFrictionVelocity, c_mu, err)
+
+     if (config_two_equation_mesoscale) then
+     !add source term to tke tendency equivalent to kappaGM*(M4/N2)
+     !   over cells then loop around edges and use edgeareafraction to interpolate to center
+        do iCell=1,nCellsAll
+              dbdy(:) = 0.0_RKIND
+              do i=1,nEdgesOnCell(iCell)
+                 iEdge = edgesOnCell(i,iCell)
+                 !dbdy = dbdy + edgeAreaFactionOfCell(i,iCell)*( 
+                 cell1 = cellsOnEdge(1,iEdge)
+                 cell2 = cellsOnEdge(2,iEdge)
+                 do k=minLevelEdgeTop(iEdge),maxLevelEdgeTop(iEdge)
+                    dbdy(k) = dbdy(k) + edgeAreaFractionOfCell(i,iCell)*(density(k,cell2) - density(k,cell1)) / &
+                               dcEdge(iEdge)*gravity/rho_sw
+                 end do
+              end do
+
+           do k=minLevelCell(iCell),maxLevelCell(iCell)
+              if(k==minLevelCell(iCell)) then
+                 dbdz = max(BruntVaisalaFreqTop(k+1,iCell),1.0E-20_RKIND)
+              elseif(k==maxLevelCell(iCell)) then
+                 dbdz = max(BruntVaisalaFreqTop(k,iCell),1.0E-20_RKIND)
+              else
+                 dbdz = max(0.5_RKIND*(BruntVaisalaFreqTop(k,iCell) + BruntVaisalaFreqTop(k+1,iCell)),1.0E-20_RKIND)
+              end if
+              if(dbdz > 1e-10_RKIND) then
+                 tkeTend(k,iCell) = tkeTend(k,iCell) + config_GM_constant_kappa* & 
+                                              max(0.0_RKIND,min(dbdy(k)/dbdz,0.3_RKIND)) * &
+                                              dbdy(k)
+              end if
+           end do
+        end do
+     end if
+
+     deallocate(dbdy)
      deallocate(normalThicknessFlux)
   end subroutine ocn_compute_two_equation_tendency
 
@@ -239,16 +287,34 @@ contains
 
      real(kind=RKIND) :: tkeAvg, glsPsiAvg !FSP
      real(kind=RKIND) :: length, dissipation, length_grid, length_stable, dcAv
-     integer :: j, iCell, k, nCells, nEdges, iEdge, spot(2)
+     real(kind=RKIND) :: Lrhines,gradH
+     integer :: cell1, cell2, j, iCell, k, nCells, nEdges, iEdge, spot(2)
 
      !compute new diffusivity based on older values
      call ocn_canuto_structure_function_compute(Sm, Sh, tke, glsPsi, c_p, c_m, c_n, c_mu)
-     nCells = nCellsHalo(1)
+     nCells = nCellsAll
 
+     if (config_two_equation_mesoscale) then
+        
+        !add in the length scale from Jansen 2015
+        do iEdge=1,nEdgesAll
+           cell1 = cellsOnEdge(1,iEdge)
+           cell2 = cellsOnEdge(2,iEdge)
+           gradH = (bottomDepth(cell2) - bottomDepth(cell1))/dcEdge(iEdge)
+           gradH = fEdge(iEdge)*gradH / (0.5_RKIND*(bottomDepth(Cell1) + bottomDepth(cell2)))
+           Lrhines = 2.0_RKIND*7.292E-5_RKIND*cos(latEdge(iEdge))/6371000_RKIND + abs(gradH)
+           do k=minLevelEdgeTOp(iEdge),maxLevelEdgeTop(iEdge)
+              Lrhines = (tke(k,cell1)+tke(k,cell2))**0.25_RKIND / (1.0E-15_RKIND + sqrt(Lrhines))
+              length = min(dcEdge(iEdge),Lrhines)
+              eddyLength(iEdge) = length
+              mesoEddyDiffusivity(k,iEdge) = 0.25_RKIND*sqrt((tke(k,cell1)+tke(k,cell2)))*length
+         end do
+         end do
+     else
      if (config_LES_mode) then
         !$omp parallel
         !$omp do schedule(runtime) private(k,iEdge,dcAv,length_grid,length_stable,length)
-        do iCell=1,nCells
+        do iCell=1,nCellsAll
            dcAv = 0.0_RKIND
            do j=1,nEdgesOnCell(iCell)
               iEdge = edgesOnCell(j, iCell)
@@ -271,7 +337,7 @@ contains
         !$omp end parallel
      else
         !$omp parallel
-        !$omp do schedule(runtime) private(k,length,dissipation)
+        !$omp do schedule(runtime) private(tkeAvg,glsPsiAvg,k,length,dissipation)
         do iCell=1,nCells
            vertViscTopOfCell(1,iCell) = 0.0_RKIND
            vertViscTopOfCell(maxLevelCell(iCell)+1:nVertLevels,iCell) = 0.0_RKIND
@@ -338,7 +404,7 @@ contains
        ! Recompute now that everything is fully up to date
         call ocn_canuto_structure_function_compute(Sm, Sh, tke, glsPsi, c_p, c_m, c_n, c_mu)
         !$omp parallel
-        !$omp do schedule(runtime) private(k,dissipation,length)
+        !$omp do schedule(runtime) private(tkeAvg,glsPsiAvg,k,dissipation,length)
         do iCell=1,nCells
            vertDiffTopOfCell(1,iCell) = 0.0_RKIND
            vertViscTopOfCell(1,iCell) = 0.0_RKIND
@@ -374,6 +440,8 @@ contains
         !$omp end parallel
      end if
 
+   end if !meso_eddy closure if
+
    end subroutine ocn_compute_two_equation_diff
 
 !***********************************************************************
@@ -408,9 +476,11 @@ contains
 
      integer :: iCell, iEdge, j, k, cell1, cell2
 
+     real(kind=RKIND) :: eSign, coeff1, coeff2, factor
+
      ! initialize gradients
 
-     do iCell=1,nCellsOwned
+     do iCell=1,nCellsAll
         ugrad(:,:,iCell) = 0.0_RKIND
         vgrad(:,:,iCell) = 0.0_RKIND
         tgrad(:,:,iCell) = 0.0_RKIND
@@ -419,34 +489,46 @@ contains
            iEdge = edgesOnCell(j,iCell)
            cell1 = cellsOnEdge(1,iEdge)
            cell2 = cellsOnEdge(2,iEdge)
-           do k = 1,maxLevelEdgeTop(iEdge)
-              tgrad(1,k,iCell) = tgrad(1,k,iCell) + coeffs_reconstruct(1,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (activeTracers(1,k,cell2) - activeTracers(1,k,cell1)) / dcEdge(iEdge) *   &
-                            edgeMask(k,iEdge)
-              tgrad(2,k,iCell) = tgrad(2,k,iCell) + coeffs_reconstruct(2,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (activeTracers(1,k,cell2) - activeTracers(1,k,cell1)) / dcEdge(iEdge) *   &
-                            edgeMask(k,iEdge)
-              sgrad(1,k,iCell) = sgrad(1,k,iCell) + coeffs_reconstruct(1,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (activeTracers(2,k,cell2) - activeTracers(2,k,cell1)) / dcEdge(iEdge) *   &
-                            edgeMask(k,iEdge)
-              sgrad(2,k,iCell) = sgrad(2,k,iCell) + coeffs_reconstruct(2,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (activeTracers(2,k,cell2) - activeTracers(2,k,cell1)) / dcEdge(iEdge) *   &
-                            edgeMask(k,iEdge)
-              ugrad(1,k,iCell) = ugrad(1,k,iCell) + coeffs_reconstruct(1,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (velocityZonal(k,cell2) - velocityZonal(k,cell1)) / dcEdge(iEdge) *   &
-                            edgeMask(k,iEdge)
-              ugrad(2,k,iCell) = ugrad(2,k,iCell) + coeffs_reconstruct(2,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (velocityZonal(k,cell2) - velocityZonal(k,cell1)) / dcEdge(iEdge) *   &
-                            edgeMask(k,iEdge)
-              vgrad(1,k,iCell) = vgrad(1,k,iCell) + coeffs_reconstruct(1,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (velocityMeridional(k,cell2) - velocityMeridional(k,cell1)) /         &
-                            dcEdge(iEdge) * edgeMask(k,iEdge)
-              vgrad(2,k,iCell) = vgrad(2,k,iCell) + coeffs_reconstruct(2,j,iCell) * edgeSignOnCell(j,iCell) * &
-                            (velocityMeridional(k,cell2) - velocityMeridional(k,cell1)) /         &
-                            dcEdge(iEdge) * edgeMask(k,iEdge)
-          end do 
-       end do !end n edges loop
+           eSign = edgeSignOnCell(j,iCell)
+           coeff1 = coeffs_reconstruct(1,j,iCell)
+           coeff2 = coeffs_reconstruct(2,j,iCell)
 
+           do k = 1,maxLevelEdgeTop(iEdge)
+              tgrad(1,k,iCell) = tgrad(1,k,iCell) + coeff1 * eSign * & 
+                            (activeTracers(1,k,cell2) - activeTracers(1,k,cell1)) / dcEdge(iEdge)
+              tgrad(2,k,iCell) = tgrad(2,k,iCell) + coeff2 * eSign * & 
+                            (activeTracers(1,k,cell2) - activeTracers(1,k,cell1)) / dcEdge(iEdge)
+              sgrad(1,k,iCell) = sgrad(1,k,iCell) + coeff1 * eSign * & 
+                            (activeTracers(2,k,cell2) - activeTracers(2,k,cell1)) / dcEdge(iEdge)
+              sgrad(2,k,iCell) = sgrad(2,k,iCell) + coeff2 * eSign * &
+                            (activeTracers(2,k,cell2) - activeTracers(2,k,cell1)) / dcEdge(iEdge)
+              ugrad(1,k,iCell) = ugrad(1,k,iCell) + coeff1 * eSign * &
+                           (velocityZonal(k,cell2) - velocityZonal(k,cell1)) / dcEdge(iEdge)
+              ugrad(2,k,iCell) = ugrad(2,k,iCell) + coeff2 * eSign * &
+                            (velocityZonal(k,cell2) - velocityZonal(k,cell1)) / dcEdge(iEdge)
+              vgrad(1,k,iCell) = vgrad(1,k,iCell) + coeff1 * eSign * &
+                            (velocityMeridional(k,cell2) - velocityMeridional(k,cell1)) /         &
+                            dcEdge(iEdge)
+              vgrad(2,k,iCell) = vgrad(2,k,iCell) + coeff2 * eSign * &
+                            (velocityMeridional(k,cell2) - velocityMeridional(k,cell1)) /         &
+                            dcEdge(iEdge)
+
+          end do
+          if(maxLevelEdgeTop(iEdge) == 0) then
+             if (cell1 == iCell) then
+                factor = -1.0_RKIND
+             else
+                factor = 1.0_RKIND
+             end if
+
+             do k=1,maxLevelCell(iCell)
+               ugrad(1,k,iCell) = ugrad(1,k,iCell) + abs(eSign*coeff1*velocityZonal(k,iCell)/dcEdge(iEdge))
+               ugrad(2,k,iCell) = ugrad(2,k,iCell) + abs(eSign*coeff2*velocityZonal(k,iCell)/dcEdge(iEdge))
+               vgrad(1,k,iCell) = vgrad(1,k,iCell) + abs(eSign*coeff1*velocityMeridional(k,iCell)/dcEdge(iEdge))
+               vgrad(2,k,iCell) = vgrad(2,k,iCell) + abs(eSign*coeff2*velocityMeridional(k,iCell)/dcEdge(iEdge))
+            end do
+          end if
+      end do !end n edges loop
        ! instead of doing this put in surface BCs for generation
        ! compute dudz dvdz
        ugrad(3,1,iCell) = (velocityZonal(1,iCell) - velocityZonal(2,iCell)) /   &
@@ -468,7 +550,7 @@ contains
           vgrad(3,k,iCell) = 0.5_RKIND*(vgrad(3,k-1,iCell) + (velocityMeridional(k-1,iCell) - velocityMeridional(k,iCell)) / &
                         (0.5_RKIND*(layerThickness(k-1,iCell) + layerThickness(k,iCell))))
        end do
-
+!
     end do ! end cell loop
 
     ! add w part if requested 
@@ -481,15 +563,22 @@ contains
              cell1 = cellsOnEdge(1,iEdge)
              cell2 = cellsOnEdge(2,iEdge)
          
+             coeff1 = coeffs_reconstruct(1,j,iCell)
+             coeff2 = coeffs_reconstruct(2,j,iCell)
+             eSign = edgeSignOnCell(j,iCell)
              do k=1,maxLevelEdgeTop(iEdge)
-                wgrad(1,k,iCell) = wgrad(1,k,iCell) + coeffs_reconstruct(1,j,iCell) * edgeSignOnCell(j,iCell) * &
-                             (verticalVelocity(k,cell2) - verticalVelocity(k,cell1)) / dcEdge(iEdge) * &
-                             edgeMask(k,iEdge)
-                wgrad(2,k,iCell) = wgrad(2,k,iCell) + coeffs_reconstruct(2,j,iCell) * edgeSignOnCell(j,iCell) * &
-                             (verticalVelocity(k,cell2) - verticalVelocity(k,cell1)) / dcEdge(iEdge) * &
-                             edgeMask(k,iEdge)
+                wgrad(1,k,iCell) = wgrad(1,k,iCell) + coeff1 * eSign * & 
+                             (verticalVelocity(k,cell2) - verticalVelocity(k,cell1)) / dcEdge(iEdge)
+                wgrad(2,k,iCell) = wgrad(2,k,iCell) + coeff2 * eSign * & 
+                             (verticalVelocity(k,cell2) - verticalVelocity(k,cell1)) / dcEdge(iEdge)
              end do
 
+             if(maxLevelEdgeTop(iEdge) == 0) then
+                do k=1,maxLevelCell(iCell)
+                  wgrad(1,k,iCell) = wgrad(1,k,iCell) - coeff1*eSign*verticalVelocity(k,iCell)/dcEdge(iEdge)
+                  wgrad(2,k,iCell) = wgrad(2,k,iCell) - coeff2*eSign*verticalVelocity(k,iCell)/dcEdge(iEdge)
+                end do
+             end if
           end do !end n edges loop
 
           do k=2,maxLevelCell(iCell)
@@ -591,7 +680,7 @@ contains
                                   " 'epsilon', 'kl', 'omega', 'ktau', 'user-defined'", MPAS_LOG_CRIT)
          endif
 
-         if(config_use_cvmix) then
+         if(config_use_cvmix .and. .not. config_two_equation_mesoscale) then
             call mpas_log_write("Cannot use two equation turbulence closure and cvmix at the same time: " // &
                     "set either config_use_cvmix or config_use_two_equation_model to .false.", MPAS_LOG_CRIT)
          end if
@@ -693,7 +782,6 @@ contains
 
            uStar(k,iCell) = sqrt(boundaryCellMask(k,iCell)*abs(boundaryTangentialVel/(0.5_RKIND*dcEdgeAverage)) &
                           * viscAvg/rho_sw)
-        print*,'ustar1',boundaryTangentialVel,uStar(k,iCell),boundaryCellMask(k,iCell),dcEdgeAverage,viscAvg
            yPlus(k,iCell) = uStar(k,iCell)*distanceToBoundary(k,iCell) / (viscAvg/rho_sw)
         end do
 !
@@ -705,7 +793,6 @@ contains
 
         uStar(k,iCell) = sqrt(boundaryCellMask(k,iCell)*abs(boundaryTangentialVel/(0.5_RKIND*dcEdgeAverage)) &
                           * viscAvg/rho_sw)
-        print*,'ustar2',boundaryTangentialVel,uStar(k,iCell)
         yPlus(k,iCell) = uStar(k,iCell)*distanceToBoundary(k,iCell) / (viscAvg/rho_sw)
 
      end do

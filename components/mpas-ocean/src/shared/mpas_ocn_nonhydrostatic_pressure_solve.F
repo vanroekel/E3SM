@@ -173,7 +173,7 @@ module ocn_compute_nonhydrostatic_pressure
     !$omp parallel
     !$omp do schedule(runtime) &
     !$omp private(k, cell1, cell2)
-    do iEdge=1,nEdges
+    do iEdge=1,nEdgesAll
        cell1 = cellsOnEdge(1,iEdge)
        cell2 = cellsOnEdge(2,iEdge)
        do k = 1,maxLevelEdgeTop(iEdge)
@@ -190,12 +190,12 @@ module ocn_compute_nonhydrostatic_pressure
     !$omp parallel
     !$omp do schedule(runtime) &
     !$omp private(i, r_tmp, iEdge, invAreaCell, k, div_hu)
-    do iCell = 1, nCells
+    do iCell = 1, nCellsAll
        div_hu(:) = 0.0_RKIND
        invAreaCell = 1.0_RKIND / areaCell(iCell)
        do i = 1,nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
-          do k = 1,maxLevelCell(iCell)
+          do k = 1,maxLevelEdgeTop(iEdge)
              r_tmp = dvEdge(iEdge)*normalVelocityNew(k,iEdge)*invAreaCell
              div_hu(k) = div_hu(k) - layerThicknessEdge(k,iEdge)*edgeSignOnCell(i,iCell)*r_tmp
           end do

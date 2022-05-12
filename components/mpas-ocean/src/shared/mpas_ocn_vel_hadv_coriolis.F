@@ -201,7 +201,7 @@ contains
       !$omp do schedule(runtime) &
       !$omp    private(k, j, eoe, edgeWeight, avgVorticity, kmin, kmax)
 #endif
-      do iEdge = 1, nEdgesOwned
+      do iEdge = 1, nEdgesAll
          kmin = minLevelEdgeBot(iEdge)
          kmax = maxLevelEdgeTop(iEdge)
 
@@ -262,7 +262,7 @@ contains
         !$omp parallel
         !$omp do schedule(runtime) &
         !$omp private(cell1, cell2, wav)
-        do iEdge = 1, nEdgesAll
+        do iEdge = 1, 0 !nEdgesAll
            cell1 = cellsOnEdge(1,iEdge)
            cell2 = cellsOnEdge(2,iEdge)
 

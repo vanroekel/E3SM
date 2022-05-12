@@ -529,7 +529,7 @@ end subroutine ocn_tend_vvel!}}}
       ! Add top drag to surface stress
       call ocn_surface_land_ice_fluxes_vel( &
                                        sfcStress, sfcStressMag, err)
-      do iEdge=1,nEdgesOwned
+     do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             !!PRINT*,tendVel(k,iEdge) !FSP-DEBUG
             velocityCoriolisTend(k,iEdge) = tendVel(k,iEdge)
@@ -569,7 +569,7 @@ end subroutine ocn_tend_vvel!}}}
                                indxTemp, indxSalt, activeTracers, &
                                thermExpCoeff, salineContractCoeff, &
                                dynamicViscosity, &  !FSP
-                               tendVel, err)
+                               layerThickEdge, tendVel, err)
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             velocityPGFtend(k,iEdge) = tendVel(k,iEdge) - velocityPGFtend(k,iEdge)
@@ -591,7 +591,7 @@ end subroutine ocn_tend_vvel!}}}
       end do
 
 
-      ! Add horizontal mixing
+    ! Add horizontal mixing
       call ocn_vel_hmix_tend(divergence, relativeVorticity, viscosity, tendVel,err)
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels

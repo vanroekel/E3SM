@@ -141,13 +141,10 @@ contains
                iEdge = edgesOnCell(i, iCell)
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
-               do k=1,maxLevelEdgeTop(iEdge)-1
-                  eddyViscArr(k,iEdge) = 0.25_RKIND*(vertViscTopOfCell(k,cell1) + &
-                                      vertViscTopOfCell(k,cell2) + vertViscTopOfCell(k+1,cell1) + &
-                                      vertViscTopOfCell(k+1,cell2))
+               do k=1,maxLevelEdgeTop(iEdge)+1
+                  eddyViscArr(k,iEdge) = 0.5_RKIND*(vertViscTopOfCell(k,cell1) + &
+                                      vertViscTopOfCell(k,cell2)) +  config_vertMom_del2
                end do
-               eddyViscArr(maxLevelEdgeTop(iEdge), iEdge) = eddyViscArr(maxLevelEdgeTop(iEdge)-1,iEdge)
-               eddyViscArr(maxLevelEdgeTop(iEdge)+1, iEdge) = 0.0_RKIND
             end do
          end do
          !$omp end do

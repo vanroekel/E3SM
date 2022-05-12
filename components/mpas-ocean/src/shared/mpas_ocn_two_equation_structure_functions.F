@@ -130,7 +130,7 @@ contains
             0.5_RKIND*lambda5*lambda1*(3.0_RKIND*lambda3 - lambda2) + &
             3.0_RKIND/4.0_RKIND*lambda1*(lambda6 - lambda7)
 
-      do iCell=1,nCellsOwned
+      do iCell=1,nCellsAll
          do k=1,maxLevelCell(iCell)-1
             dissipation = c_mu**(3.0+c_p/c_n)*tke(k,iCell)**(1.5+c_m/c_n)* &
                                         glsPsi(k,iCell)**(-1.0/c_n)
@@ -151,8 +151,10 @@ contains
                           s6*tau**2.0*bvfMid /       &
                           (1.0E-15_RKIND + riMid)) / (D + 1.0E-15_RKIND)
         end do
-        Sm(maxLevelCell(iCell):nVertLevels,iCell) = 0.0_RKIND
-        Sh(maxLevelCell(iCell):nVertLevels,iCell) = 0.0_RKIND
+        Sm(maxLevelCell(iCell),iCell) = Sm(maxLevelCell(iCell)-1,iCell)
+        Sh(maxLevelCell(iCell),iCell) = Sh(maxLevelCell(iCell)-1,iCell)
+        Sm(maxLevelCell(iCell)+1:nVertLevels,iCell) = 0.0_RKIND
+        Sh(maxLevelCell(iCell)+1:nVertLevels,iCell) = 0.0_RKIND
      end do
 
    end subroutine ocn_canuto_structure_function_compute

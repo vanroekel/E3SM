@@ -489,7 +489,7 @@ module ocn_time_integration_split
       if(config_use_two_equation_turbulence_model) then
          !$omp parallel
          !$omp do schedule(runtime) private(k)
-         do iCell = 1, nCells
+         do iCell = 1, nCellsAll
             do k = 2, maxLevelCell(iCell)
                tkeNew(k,iCell) = tkeCur(k,iCell)
             end do
@@ -500,7 +500,7 @@ module ocn_time_integration_split
          if(.not. config_LES_mode) then
             !$omp parallel
             !$omp do schedule(runtime) private(k)
-            do iCell = 1, nCells
+            do iCell = 1, nCellsAll
                do k = 2, maxLevelCell(iCell)
                   glsPsiNew(k,iCell) = glsPsiCur(k,iCell)
                end do

@@ -671,18 +671,10 @@ module ocn_time_integration_rk4
         block => block % next
       end do
 
-      if (config_use_two_equation_turbulence_model) then
-         call mpas_pool_get_array(statePool, 'tke', tkeNew, 2)
-         call mpas_pool_get_array(statePool, 'glsPsi', glsPsiNew, 2)
-         call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, 2)
-         call ocn_compute_two_equation_diff(tkeNew, glsPsiNew, layerThicknessNew, dt, err)
-      end if
-      call mpas_timer_start("RK4-implicit vert mix")
       ! Update halo on u and tracers, which were just updated for implicit vertical mixing.  If not done,
       ! this leads to lack of volume conservation.  It is required because halo updates in RK4 are only
       ! conducted on tendencies, not on the velocity and tracer fields.  So this update is required to
       ! communicate the change due to implicit vertical mixing across the boundary.
-      call mpas_timer_start("RK4-implicit vert mix halos")
 
       call mpas_pool_get_subpool(domain % blocklist % structs, 'state', statePool)
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
@@ -699,23 +691,6 @@ module ocn_time_integration_rk4
             call mpas_dmpar_field_halo_exch(domain, groupItr % memberName, timeLevel=2)
          end if
       end do
-
-      call mpas_timer_stop("RK4-implicit vert mix halos")
-      if (config_use_two_equation_turbulence_model) then
-         call mpas_timer_start("Two equation model diff compute")
-         block => domain % blocklist
-         do while(associated(block))
-            call mpas_pool_get_subpool(block % structs, 'state', statePool)
-            call mpas_pool_get_array(statePool, 'tke', tkeNew, 2)
-            call mpas_pool_get_array(statePool, 'glsPsi', glsPsiNew, 2)
-            call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, 2)
-            call ocn_compute_two_equation_diff(tkeNew, glsPsiNew, layerThicknessNew, dt, err)
-            block => block % next
-         end do
-         call mpas_timer_stop("Two equation model diff compute")
-      end if
-
-      call mpas_timer_stop("RK4-implicit vert mix")
 
       block => domain % blocklist
       do while (associated(block))
@@ -1606,16 +1581,16 @@ module ocn_time_integration_rk4
          !$omp parallel
          !$omp do schedule(runtime)
          do iCell = 1, nCells
-            tkeNew(:, iCell) = max(tkeNew(:, iCell) + rkWeight * tendTKE(:, iCell),0.0_RKIND)
+            tkeNew(:, iCell) = max(tkeNew(:, iCell) + rkWeight * tendTKE(:, iCell),1.0E-20_RKIND)
          end do
          !$omp end do
          !$omp end parallel
 
-         if(config_LES_mode) then
+         if(.not. config_LES_mode) then
             !$omp parallel
             !$omp do schedule(runtime)
             do iCell = 1, nCells
-               glsPsiNew(:, iCell) = max(glsPsiNew(:, iCell) + rkWeight * tendglsPsi(:, iCell),0.0_RKIND)
+               glsPsiNew(:, iCell) = max(glsPsiNew(:, iCell) + rkWeight * tendglsPsi(:, iCell),1.0E-20_RKIND)
             end do
             !$omp end do 
             !$omp end parallel
@@ -1684,7 +1659,7 @@ module ocn_time_integration_rk4
       type (mpas_pool_type), pointer :: tracersPool
 
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessNew, normalVelocityNew
-      real (kind=RKIND), dimension(:, :), pointer :: verticalVelocityNew
+      real (kind=RKIND), dimension(:, :), pointer :: verticalVelocityNew, tkeNew, glsPsiNew
       real (kind=RKIND), dimension(:, :), pointer :: nonhydrostaticPressure
       real (kind=RKIND), dimension(:, :, :), pointer :: tracersGroupNew
 
@@ -1724,6 +1699,11 @@ module ocn_time_integration_rk4
          call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityNew, 2)
       end if
 
+      if (config_use_two_equation_turbulence_model) then
+         call mpas_pool_get_array(statePool, 'tke', tkeNew, 2)
+         call mpas_pool_get_array(statePool, 'glsPsi', glsPsiNew, 2)
+      end if
+
       call mpas_pool_begin_iteration(tracersPool)
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
          if ( groupItr % memberType == MPAS_POOL_FIELD ) then
@@ -1743,6 +1723,10 @@ module ocn_time_integration_rk4
       end do
 
       call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, scratchPool, tracersPool, 2)
+
+      if(config_use_two_equation_turbulence_model) then
+         call ocn_compute_two_equation_diff(tkeNew, glsPsiNew, layerThicknessNew, dt, err)
+      end if
 
       call ocn_vmix_implicit(dt, meshPool, statePool, forcingPool, scratchPool, err, 2)
 
