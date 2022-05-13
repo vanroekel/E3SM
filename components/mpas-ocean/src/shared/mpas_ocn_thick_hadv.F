@@ -159,19 +159,19 @@ contains
           iEdge = edgesOnCell(i, iCell)
           cell1 = cellsOnEdge(1, iEdge)
           cell2 = cellsOnEdge(2, iEdge)
-          if(iCell == cell1) then
-             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-                flux = max(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell1) + &
-                       min(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell2)
-                tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
-             end do
-          else if(iCell == cell2) then
-             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-                flux = max(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell1) + &
-                       min(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell2)
-                tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
-             end do
-          end if
+!          if(iCell == cell1) then
+!             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+!                flux = max(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell1) + &
+!                       min(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell2)
+!                tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
+!             end do
+!          else if(iCell == cell2) then
+!             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+!                flux = max(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell1) + &
+!                       min(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell2)
+!                tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
+!             end do
+!          end if
 
           do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
             flux = normalVelocity(k, iEdge) * dvEdge(iEdge) * layerThicknessEdge(k, iEdge)
