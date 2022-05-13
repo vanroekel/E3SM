@@ -59,6 +59,7 @@ module ocn_vel_hmix_del4
 
    real (kind=RKIND) :: &
       viscDel4,         &!< biharmonic viscosity coefficient
+      viscDel4Aust,     &!< AUST viscosity coefficient
       divFactor          !< factor for divergence term
 
 !***********************************************************************
@@ -605,7 +606,7 @@ contains
          kmax = maxLevelEdgeTop(iEdge)
 
          dcEdgeInv = 1.0_RKIND / dcEdge(iEdge)
-         visc4 = viscDel4*meshScalingDel4(iEdge)
+         visc4 = viscDel4Aust*meshScalingDel4(iEdge)
 
          do k=kmin, kmax
             ! Compute \nabla^2 u = \nabla sqrt(visc4)*divergence
@@ -672,7 +673,7 @@ contains
          cell2 = cellsOnEdge(2,iEdge)
 
          dcEdgeInv = 1.0_RKIND / dcEdge(iEdge)
-         visc4 = viscDel4*meshScalingDel4(iEdge)
+         visc4 = viscDel4Aust*meshScalingDel4(iEdge)
 
          do k = kmin, kmax
             uDiff = sqrt(visc4)*(del2div(k,cell2) - del2div(k,cell1))* &
@@ -729,6 +730,7 @@ contains
       hmixDel4Off     = .true.
       hmixDel4AustOff = .true.
       viscDel4        = 0.0_RKIND
+      viscDel4Aust    = 0.0_RKIND
       divFactor       = 1.0_RKIND
 
       !*** reset module variables based on input configuration
@@ -743,28 +745,14 @@ contains
                MPAS_LOG_ERR)
             err = -1
          endif
-         if (config_use_mom_div4) then
-            call mpas_log_write( &
-               'vel_hmix_del4_init: the standard del4 closure and the &
-                aust one cannot be on at the same time', &
-               MPAS_LOG_ERR)
-            err = -1
-         endif
       endif
 
       if (config_use_mom_div4) then
          hmixDel4AustOff  = .false.
-         viscDel4         = config_mom_div4
+         viscDel4Aust     = config_mom_div4
          if ( config_mom_div4 <= 0.0_RKIND ) then
             call mpas_log_write( &
                'vel_hmix_del4_init: config_mom_div4 must be > 0 ', &
-               MPAS_LOG_ERR)
-            err = -1
-         endif
-         if (config_use_mom_del4) then
-            call mpas_log_write( &
-               'vel_hmix_del4_init: the standard del4 closure and the &
-                aust one cannot be on at the same time', &
                MPAS_LOG_ERR)
             err = -1
          endif
