@@ -132,9 +132,9 @@ contains
                                     wgrad(2,k,iCell))*vgrad(3,k,iCell) + viscMid*(ugrad(3,k,iCell) +  &
                                     wgrad(1,k,iCell))*wgrad(1,k,iCell) + viscMid*(vgrad(3,k,iCell) +  &
                                     wgrad(2,k,iCell))*wgrad(2,k,iCell) + 2.0_RKIND*(viscMid*wgrad(3,k,iCell) - &
-                                    tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) !FSP - surfaceFrictionVelocity to be added
+                                    tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) + &!FSP - surfaceFrictionVelocity to be added
 !!                                  tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) + &
-!!                                  surfaceFrictionVelocity(iCell)**2.0 * rho_sw / c_mu)
+                                    surfaceFrictionVelocity(iCell)**2.0! * rho_sw / c_mu
 
          tkeTend(k,iCell) = tkeTend(k,iCell) + shearProduction(k,iCell)
          glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + glsPsi(k,iCell)/(tke(k,iCell) + 1.0E-15_RKIND) &

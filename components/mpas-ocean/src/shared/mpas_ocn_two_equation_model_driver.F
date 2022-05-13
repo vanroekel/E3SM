@@ -110,7 +110,7 @@ contains
      if(config_LES_mode) then
         do iCell=1,nCellsOwned
            do k=minLevelCell(iCell),maxLevelCell(iCell)
-              tkeTend(k,iCell) = tkeTend(k,iCell) - 1.0E-7_RKIND*tke(k,iCell)
+              tkeTend(k,iCell) = tkeTend(k,iCell) - 8.0E-7_RKIND*tke(k,iCell)
               glsPsiTend(k,iCell) = 0.0_RKIND
            end do
         end do
@@ -248,8 +248,8 @@ contains
               end if
               if(dbdz > 1e-10_RKIND) then
                  tkeTend(k,iCell) = tkeTend(k,iCell) + config_GM_constant_kappa* & 
-                                              max(0.0_RKIND,min(dbdy(k)/dbdz,0.3_RKIND)) * &
-                                              dbdy(k)
+                                              max(0.0_RKIND,min(abs(dbdy(k))/dbdz,0.005_RKIND)) * &
+                                              abs(dbdy(k))
               end if
            end do
         end do
@@ -278,36 +278,64 @@ contains
    subroutine ocn_compute_two_equation_diff(tke, glsPsi, layerThickness, dt, err)
 
      real(kind=RKIND),dimension(:,:), intent(inout) :: glsPsi, tke
-     
+
      real(kind=RKIND),dimension(:,:), intent(in) :: layerThickness
 
      integer,intent(inout) :: err
 
      real(kind=RKIND), intent(in) :: dt
 
-     real(kind=RKIND) :: tkeAvg, glsPsiAvg !FSP
+     real(kind=RKIND),dimension(:),allocatable :: dbdy,N2edge,intValue
+     real(kind=RKIND) :: tkeAvg, glsPsiAvg, dbdz !FSP
      real(kind=RKIND) :: length, dissipation, length_grid, length_stable, dcAv
-     real(kind=RKIND) :: Lrhines,gradH
-     integer :: cell1, cell2, j, iCell, k, nCells, nEdges, iEdge, spot(2)
+     real(kind=RKIND) :: Lrhines, valEdge, gradH, sumE, sumD, N2ref
+     integer :: cell1, cell2, j, i, iCell, k, nCells, nEdges, iEdge, spot(2)
 
      !compute new diffusivity based on older values
      call ocn_canuto_structure_function_compute(Sm, Sh, tke, glsPsi, c_p, c_m, c_n, c_mu)
      nCells = nCellsAll
 
+     allocate(intValue(nCells),N2edge(nVertLevels),dbdy(nVertLevels))
      if (config_two_equation_mesoscale) then
-        
+         do iCell=1,nCellsAll
+              dbdy(:) = 0.0_RKIND
+              do i=1,nEdgesOnCell(iCell)
+                 iEdge = edgesOnCell(i,iCell)
+                 !dbdy = dbdy + edgeAreaFactionOfCell(i,iCell)*( 
+                 cell1 = cellsOnEdge(1,iEdge)
+                 cell2 = cellsOnEdge(2,iEdge)
+                 do k=minLevelEdgeTop(iEdge),maxLevelEdgeTop(iEdge)
+                    dbdy(k) = dbdy(k) + edgeAreaFractionOfCell(i,iCell)*(density(k,cell2) - density(k,cell1)) / &
+                               dcEdge(iEdge)*gravity/rho_sw
+                 end do
+              end do
+
+           sumE = 0.0_RKIND
+           N2ref = max(1.0E-10_RKIND,maxval(BruntVaisalaFreqTop(2:maxLevelCell(iCell)-1,iCell)))
+           sumD = 0.0_RKIND
+           do k=minLevelCell(iCell),maxLevelCell(iCell)
+              dbdz = max(1.0E-10_RKIND,BruntVaisalaFreqTop(k,iCell))
+              sumE = sumE + tke(k,iCell)*layerThickness(k,iCell)
+              sumD = sumD + dbdz/N2ref*min(abs(dbdy(k))/dbdz,0.01_RKIND)
+           end do
+           intValue(iCell) = sumE/sumD*0.04_RKIND
+        end do
+       
         !add in the length scale from Jansen 2015
         do iEdge=1,nEdgesAll
            cell1 = cellsOnEdge(1,iEdge)
            cell2 = cellsOnEdge(2,iEdge)
            gradH = (bottomDepth(cell2) - bottomDepth(cell1))/dcEdge(iEdge)
-           gradH = fEdge(iEdge)*gradH / (0.5_RKIND*(bottomDepth(Cell1) + bottomDepth(cell2)))
-           Lrhines = 2.0_RKIND*7.292E-5_RKIND*cos(latEdge(iEdge))/6371000_RKIND + abs(gradH)
+           gradH = fEdge(iEdge)*gradH / (0.5_RKIND*(bottomDepth(cell1) + bottomDepth(cell2)))
+           N2edge(:) = 0.0_RKIND
+           do k=minLevelEdgeTop(iEdge),maxLevelEdgeTop(iEdge)
+              N2edge(k) = max(1.0E-10_RKIND,0.5_RKIND*(BruntVaisalaFreqTop(k,cell1) + &
+                                                       BruntVaisalaFreqTop(k,cell2)))
+           enddo
+           N2ref = maxval(N2edge)
            do k=minLevelEdgeTOp(iEdge),maxLevelEdgeTop(iEdge)
-              Lrhines = (tke(k,cell1)+tke(k,cell2))**0.25_RKIND / (1.0E-15_RKIND + sqrt(Lrhines))
-              length = min(dcEdge(iEdge),Lrhines)
-              eddyLength(iEdge) = length
-              mesoEddyDiffusivity(k,iEdge) = 0.25_RKIND*sqrt((tke(k,cell1)+tke(k,cell2)))*length
+              valEdge = 0.5_RKIND*(intValue(cell1)+intValue(cell2))*N2edge(k)/N2ref
+              mesoEddyDiffusivity(k,iEdge) = max(50.0_RKIND,min(15000.0_RKIND,valEdge))
          end do
          end do
      else
@@ -442,6 +470,7 @@ contains
 
    end if !meso_eddy closure if
 
+   deallocate(N2edge, intValue, dbdy)
    end subroutine ocn_compute_two_equation_diff
 
 !***********************************************************************

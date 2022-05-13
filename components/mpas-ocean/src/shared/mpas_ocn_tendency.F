@@ -1274,7 +1274,8 @@ end subroutine ocn_tend_vvel!}}}
                                    RediKappa, slopeTriadUp, &
                                    slopeTriadDown, dt, isActiveTracer, &
                                    RediKappaSfcTaper, RediKappaScaling,&
-                                   rediLimiterCount, tracerGroupTend, err)
+                                   rediLimiterCount, mesoEddyDiffusivity, &
+                                   edgeAreaFractionOfCell, tracerGroupTend, err)
 
          if (computeBudgets) then
             ! Finish budget calculation by subtracting before, after

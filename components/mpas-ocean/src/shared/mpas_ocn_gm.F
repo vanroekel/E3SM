@@ -621,6 +621,7 @@ contains
              else !for really shallow columns use min bolus kappa
                 gmBolusKappa(iEdge) = config_GM_spatially_variable_min_kappa
              end if
+             mesoEddyDiffusivity(:,iEdge) = gmBolusKappa(iEdge)
            end do
            !$omp end do
            !$omp end parallel
@@ -684,7 +685,7 @@ contains
                                                                      *layerThickEdge(k, iEdge)) - BruntVaisalaFreqTopEdge
                tridiagC(k - 1) = 2.0_RKIND*cGMphaseSpeed(iEdge)**2/layerThickEdge(k, iEdge) &
                                  /(layerThickEdge(k - 1, iEdge) + layerThickEdge(k, iEdge))
-               rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw &
+               rightHandSide(k - 1) = mesoEddyDiffusivity(k,iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw &
                                       *gradDensityConstZTopOfEdge(k,iEdge)
 
                ! Second to next to the last rows
@@ -697,7 +698,7 @@ contains
                                                                         *layerThickEdge(k, iEdge)) - BruntVaisalaFreqTopEdge
                   tridiagC(k - 1) = 2.0_RKIND*cGMphaseSpeed(iEdge)**2/layerThickEdge(k, iEdge) &
                                     /(layerThickEdge(k - 1, iEdge) + layerThickEdge(k, iEdge))
-                  rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw &
+                  rightHandSide(k - 1) = mesoEddyDiffusivity(k,iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw &
                                          *gradDensityConstZTopOfEdge(k,iEdge)
                end do
 
@@ -709,7 +710,7 @@ contains
                                  /(layerThickEdge(k - 1, iEdge) + layerThickEdge(k, iEdge))
                tridiagB(k - 1) = -2.0_RKIND*cGMphaseSpeed(iEdge)**2/(layerThickEdge(k - 1, iEdge) &
                                                                      *layerThickEdge(k, iEdge)) - BruntVaisalaFreqTopEdge
-               rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw &
+               rightHandSide(k - 1) = mesoEddyDiffusivity(k,iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw &
                                       *gradDensityConstZTopOfEdge(k,iEdge)
                ! Total number of rows
                N = maxLevelEdgeTop(iEdge) - minLevelEdgeBot(iEdge)
@@ -975,7 +976,8 @@ contains
             end do
             !$omp end do
             !$omp end parallel
-         else
+         else if (.not. config_GM_closure == 'twoEquation' .and. &
+                  .not. config_GM_closure == 'twoequation') then
             call mpas_log_write('Invalid choice of config_GM_closure.', MPAS_LOG_CRIT)
             err = 1
             call mpas_dmpar_finalize(domain%dminfo)
