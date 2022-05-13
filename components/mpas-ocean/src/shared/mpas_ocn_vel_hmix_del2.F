@@ -56,7 +56,8 @@ module ocn_vel_hmix_del2
       hmixDel2AustOff      !< on/off flag for AUST closure
          
    real (kind=RKIND) :: &
-      viscDel2     !< viscosity coefficient for del2 horz mixing
+      viscDel2,         &  !< viscosity coefficient for del2 horz mixing
+      viscDel2Aust         !< viscosity coefficient for aust
 
 !***********************************************************************
 
@@ -264,7 +265,7 @@ contains
 
          dcEdgeInv = 1.0_RKIND / dcEdge(iEdge)
 
-         visc2 =  viscDel2*meshScalingDel2(iEdge)
+         visc2 =  viscDel2Aust*meshScalingDel2(iEdge)
 
          do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
 
@@ -316,6 +317,7 @@ contains
       hmixDel2Off     = .true.
       hmixDel2AustOff = .true.
       viscDel2        = 0.0_RKIND
+      viscDel2Aust    = 0.0_RKIND
 
       !*** reset values based on input configuration
 
@@ -330,33 +332,19 @@ contains
             err = -1
          endif
 
-         if (config_use_mom_div2) then
-            call mpas_log_write( &
-                'vel_hmix_del2_init: the standard momentum closure and the &
-                 aust one cannot be on at the same time', &
-                 MPAS_LOG_ERR)
-            err = -1
-         end if
       endif
 
       if (config_use_mom_div2) then
          hmixDel2AustOff = .false.
-         viscDel2        = config_mom_div2
+         viscDel2Aust    = config_mom_div2
 
-         if (viscDel2 <= 0.0_RKIND) then
+         if (viscDel2Aust <= 0.0_RKIND) then
             call mpas_log_write( &
                 'vel_hmix_del2_init: viscosity must be > 0', &
                  MPAS_LOG_ERR)
             err = -1
          endif
 
-         if (config_use_mom_del2) then
-            call mpas_log_write( &
-                'vel_hmix_del2_init: the standard momentum closure and the &
-                 aust one cannot be on at the same time', &
-                 MPAS_LOG_ERR)
-            err = -1
-         end if
       end if
 
       !-----------------------------------------------------------------
