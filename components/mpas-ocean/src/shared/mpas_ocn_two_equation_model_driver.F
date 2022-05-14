@@ -110,7 +110,7 @@ contains
      if(config_LES_mode) then
         do iCell=1,nCellsOwned
            do k=minLevelCell(iCell),maxLevelCell(iCell)
-              tkeTend(k,iCell) = tkeTend(k,iCell) - 8.0E-7_RKIND*tke(k,iCell)
+              tkeTend(k,iCell) = tkeTend(k,iCell) - 8.0E-6_RKIND*tke(k,iCell)
               glsPsiTend(k,iCell) = 0.0_RKIND
            end do
         end do
