@@ -632,6 +632,7 @@ contains
       nEdges = nEdgesAll
 
       if (.not. config_use_wetting_drying .or. (config_use_wetting_drying .and. (trim(config_thickness_flux_type) .eq. 'centered'))) then
+        if((trim(config_thickness_flux_type) .eq. 'centered')) then
 #ifdef MPAS_OPENACC
         !$acc parallel loop present(normalVelocity, layerThickness, minLevelEdgeBot, maxLevelEdgeTop, layerThicknessEdge, cellsOnEdge)
 #else
@@ -652,7 +653,36 @@ contains
         !$omp end do
         !$omp end parallel
 #endif
-      else
+        else
+#ifdef MPAS_OPENACC
+            !$acc parallel loop present(normalVelocity, layerThickness, minLevelEdgeBot, maxLevelEdgeTop, layerThicknessEdge, cellsOnEdge)
+#else
+            !$omp parallel
+            !$omp do schedule(runtime) private(cell1, cell2, k)
+#endif
+            do iEdge = 1, nEdges
+              ! initialize layerThicknessEdge to avoid divide by zero and NaN problems.
+              layerThicknessEdge(:, iEdge) = -1.0e34_RKIND
+              cell1 = cellsOnEdge(1,iEdge)
+              cell2 = cellsOnEdge(2,iEdge)
+              do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+                ! upwind
+                if (normalVelocity(k, iEdge) > 0.0_RKIND) then
+                  layerThicknessEdge(k,iEdge) = layerThickness(k,cell1)
+                elseif (normalVelocity(k, iEdge) < 0.0_RKIND) then
+                  layerThicknessEdge(k,iEdge) = layerThickness(k,cell2)
+                else
+                  layerThicknessEdge(k,iEdge) = max(layerThickness(k,cell1), layerThickness(k,cell2))
+                end if
+              end do
+            end do
+#ifndef MPAS_OPENACC
+            !$omp end do
+            !$omp end parallel
+#endif
+end if
+
+     else
         if (config_use_wetting_drying .and. (trim(config_thickness_flux_type) .ne. 'centered')) then
           if ( trim(config_thickness_flux_type) .eq. 'upwind') then
 #ifdef MPAS_OPENACC
