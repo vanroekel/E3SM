@@ -721,6 +721,7 @@ module ocn_time_integration_rk4
          call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressure, 2)
          call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressureOld, 1)
 
+         call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityNew, 2)
          call mpas_timer_start('RK4 NH pressure tend halo pressure')
          call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=2)
          call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=1)

@@ -203,6 +203,7 @@ module ocn_compute_nonhydrostatic_pressure
 
        verticalVelocityNew(maxLevelCell(iCell) + 1, iCell) = 0.0_RKIND
        do k=maxLevelCell(iCell),1,-1
+          if (abs(div_hu(k)) < 1e-19_RKIND) div_hu(k) = 0.0_RKIND
           verticalVelocityNew(k,iCell) = verticalVelocityNew(k+1,iCell) - div_hu(k)
        end do
     end do

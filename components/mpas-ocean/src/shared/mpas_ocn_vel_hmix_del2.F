@@ -162,7 +162,6 @@ contains
          !$omp end do
          !$omp end parallel
       end if
-
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp    private(k, cell1, cell2, uDiff, vertex1, vertex2, &

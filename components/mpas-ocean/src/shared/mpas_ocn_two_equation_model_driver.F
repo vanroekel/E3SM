@@ -397,14 +397,6 @@ contains
      end if
 
      if (config_LES_mode) then
-       if(minval(tke) < 0) then
-         spot = minloc(tke)
-         print *, 'tke = ', tke(:,spot(2))
-         print *, 'vdiff = ',vertViscTopOfCell(:,spot(2))
-         print *, 'dyn = ',dynamicViscosity(:,spot(2))
-         print *, 'minval = ',minval(tke)
-         print *, 'minloc = ',minloc(tke)
-       endif
         !$omp parallel
         !$omp do schedule(runtime) private(k,dcAv,iEdge,length_grid,length_stable,length)
         do iCell=1,nCells

@@ -1303,8 +1303,8 @@ contains
         call ocn_vel_vmix_tend_implicit_rayleigh(meshPool, dt, kineticEnergyCell, &
           vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
       else
-!        call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, &
-!          vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
+        call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, &
+          vertViscTopOfEdge, layerThickness, layerThickEdge, normalVelocity, err)
       end if
       call mpas_timer_stop('vmix solve momentum')
       !

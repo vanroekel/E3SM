@@ -726,19 +726,20 @@ contains
                areaEdge = 0.5_RKIND*(areaCell(cell1) + areaCell(cell2))
                do k=1,maxLevelEdgeTop(iEdge)
                   dynViscEdge = 0.5_RKIND*(dynamicViscosity(k,cell1) + dynamicViscosity(k,cell2))
-                  tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) 
+                  dynViscEdge = 0.001286_RKIND
+                  tend(k,iEdge) = tend(k,iEdge) + 1e-12_RKIND*cos(angleEdge(iEdge)) !edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) 
                enddo
              enddo
                    !print*,'forcing:',real(tend(:,1))
-         else
-            do iEdge=1,nEdgesOwned
-               ! compute the pressure gradient to be applied at the edge
-               pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
-
-               do k=minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
-                  tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
-               end do
-            end do
+ !        else
+ !           do iEdge=1,nEdgesOwned
+ !              ! compute the pressure gradient to be applied at the edge
+ !              pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
+!
+!               do k=minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
+!                  tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
+!               end do
+!            end do
          endif
 
 

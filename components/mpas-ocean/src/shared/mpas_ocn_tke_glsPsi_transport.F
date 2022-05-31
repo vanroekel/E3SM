@@ -145,8 +145,8 @@ contains
              ! \kappa_2 \nabla \phi on edge
              tke_turb_flux = tke(k, cell2) - tke(k, cell1)
 
-             eddyDiff2 = 0.25_RKIND*(vertDiffTopOfCell(k,cell1) + vertDiffTopOfCell(k,cell2) + &
-                                     vertDiffTopOfCell(k+1,cell1) + vertDiffTopOfCell(k+1,cell2))/sigma_k * &
+             eddyDiff2 = 0.25_RKIND*(vertViscTopOfCell(k,cell1) + vertViscTopOfCell(k,cell2) + &
+                                     vertViscTopOfCell(k+1,cell1) + vertViscTopOfCell(k+1,cell2))/sigma_k * &
                                      (feps/fkin**2)
              eddyDiff2 = eddyDiff2 + 0.25_RKIND*(dynamicViscosity(k,cell1) + dynamicViscosity(k,cell2) + &
                                                  dynamicViscosity(k+1,cell1) + dynamicViscosity(k+1,cell2))/rho_sw
@@ -337,8 +337,8 @@ contains
              glsPsi_turb_flux = glsPsi(k, cell2) - glsPsi(k, cell1)
 
              glsPsi_turb_flux = glsPsi_turb_flux
-             eddyDiff2 = 0.25_RKIND*(vertDiffTopOfCell(k,cell1) + vertDiffTopOfCell(k,cell2) + &
-                                     vertDiffTopOfCell(k+1,cell1) + vertDiffTopOfCell(k+1,cell2))/sigma_psi * &
+             eddyDiff2 = 0.25_RKIND*(vertViscTopOfCell(k,cell1) + vertViscTopOfCell(k,cell2) + &
+                                     vertViscTopOfCell(k+1,cell1) + vertViscTopOfCell(k+1,cell2))/sigma_psi * &
                                      (feps/fkin**2)
              eddyDiff2 = eddyDiff2+0.25_RKIND*(dynamicViscosity(k,cell1)   + dynamicViscosity(k,cell2) + &
                                                dynamicViscosity(k+1,cell1) + dynamicViscosity(k+1,cell2))/rho_sw
@@ -416,7 +416,7 @@ contains
                         else
                            iCellValid = cell1
                         endif
-                        eddyDiff2 = 0.25_RKIND*(vertDiffTopOfCell(k,iCellValid) + vertDiffTopOfCell(k+1,iCellValid))*(feps/fkin**2)
+                        eddyDiff2 = 0.25_RKIND*(vertViscTopOfCell(k,iCellValid) + vertViscTopOfCell(k+1,iCellValid))*(feps/fkin**2)
                         eddyDiff2 = eddyDiff2+0.5_RKIND*(dynamicViscosity(k,iCellValid) + dynamicViscosity(k+1,iCellValid))/rho_sw
                         glsPsi_turb_flux = -glsPsi(k,iCellValid) !Assumes k=0 in boundary condition
                         ! div(h \kappa_2 \nabla \phi) at cell center

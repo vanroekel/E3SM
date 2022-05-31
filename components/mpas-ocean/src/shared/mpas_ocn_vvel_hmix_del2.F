@@ -160,7 +160,7 @@ contains
          !$omp end do
          !$omp end parallel
       end if
-      ! compute a boundary mask to enforce insulating boundary conditions in the horizontal
+    
       !
       !$omp parallel
       !$omp do schedule(runtime) &
