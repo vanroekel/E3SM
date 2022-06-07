@@ -64,6 +64,7 @@ module ocn_tendency
    use ocn_vmix
    use ocn_wetting_drying
    use ocn_vel_tidal_potential
+   use ocn_vel_noise
 
    use ocn_vvel_pgrad
    use ocn_vvel_coriolis
@@ -522,13 +523,13 @@ end subroutine ocn_tend_vvel!}}}
       call mpas_timer_start("ocn_tend_vel")
 
       ! Compute bulk forcing surface stress
-!      call ocn_surface_bulk_forcing_vel( &
-!                                    forcingPool, sfcStress, &
-!                                    sfcStressMag, err)
+      call ocn_surface_bulk_forcing_vel( &
+                                    forcingPool, sfcStress, &
+                                    sfcStressMag, err)
 
       ! Add top drag to surface stress
-!      call ocn_surface_land_ice_fluxes_vel( &
-!                                       sfcStress, sfcStressMag, err)
+      call ocn_surface_land_ice_fluxes_vel( &
+                                       sfcStress, sfcStressMag, err)
      do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             !!PRINT*,tendVel(k,iEdge) !FSP-DEBUG
@@ -538,11 +539,11 @@ end subroutine ocn_tend_vvel!}}}
 
       ! Add nonlinear Coriolis term and horizontal advection of
       ! momentum, formulated as grad of kinetic energy
-!      call ocn_vel_hadv_coriolis_tend(normRelVortEdge, &
-!                                      normPlanetVortEdge, &
-!                                      layerThickEdge, normalVelocity, &
-!                                      kineticEnergyCell, verticalVelocity, &
-!                                      tendVel, err)
+      call ocn_vel_hadv_coriolis_tend(normRelVortEdge, &
+                                      normPlanetVortEdge, &
+                                      layerThickEdge, normalVelocity, &
+                                      kineticEnergyCell, verticalVelocity, &
+                                      tendVel, err)
       do iEdge = 1,nEdgesOwned
          do k=1,nVertLevels
             velocityCoriolisTend(k,iEdge) = tendVel(k,iEdge) - velocityCoriolisTend(k,iEdge)
@@ -552,8 +553,8 @@ end subroutine ocn_tend_vvel!}}}
       end do
 
       ! Add vertical advection term -w du/dz
-!      call ocn_vel_vadv_tend(normalVelocity, layerThickEdge, &
-!                             vertAleTransportTop, tendVel, err)
+      call ocn_vel_vadv_tend(normalVelocity, layerThickEdge, &
+                             vertAleTransportTop, tendVel, err)
       do iEdge = 1,nEdgesOwned
          do k=1,nVertLevels
             velocityVadvTend(k,iEdge) = tendVel(k,iEdge) - velocityVadvTend(k,iEdge)
@@ -581,7 +582,7 @@ end subroutine ocn_tend_vvel!}}}
       call ocn_compute_tidal_potential_forcing(err)
       if (config_time_integrator == 'RK4') then
         ! for split explicit, tidal forcing is added in barotropic subcycles
-!        call ocn_vel_tidal_potential_tend(ssh,surfacePressure, tendVel, err)
+        call ocn_vel_tidal_potential_tend(ssh,surfacePressure, tendVel, err)
       endif
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
@@ -601,15 +602,16 @@ end subroutine ocn_tend_vvel!}}}
       end do
 
       ! Add forcing and bottom drag
-!      call ocn_vel_forcing_tend(normalVelocity, sfcFlxAttCoeff, &
-!                                sfcStress, kineticEnergyCell, &
-!                                layerThickEdge, tendVel, err)
+      call ocn_vel_forcing_tend(normalVelocity, sfcFlxAttCoeff, &
+                                sfcStress, kineticEnergyCell, &
+                                layerThickEdge, tendVel, err)
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             velocityForcingTend(k,iEdge) = tendVel(k,iEdge) - velocityForcingTend(k,iEdge)
          end do
       end do
 
+      call ocn_vel_add_noise(tendVel, dt, err)
       ! vertical mixing treated implicitly in a later routine
       ! adjust total velocity tendency based on wetting/drying
 

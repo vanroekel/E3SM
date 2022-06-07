@@ -1108,6 +1108,28 @@
 					possible_values="any positive real, but typically 1000-1035"
 		/>
 	</nml_record>
+	<nml_record name="LES_noise">
+	    <nml_option name="config_LES_noise_enable" type="logical" default_value=".false." units="unitless"
+                    description="Flag to enable adding noise to normal velocity"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_LES_noise_max_time" type="real" default_value="0" units="s"
+					description="Time in seconds to apply noise"
+					possible_values="positive reals"
+					/>
+		<nml_option name="config_LES_noise_min_level" type="integer" default_value="1" units="unitless"
+					description="minimum level to apply noise, must be bigger than minLevelCell"
+					possible_values="positive integers"
+					/>
+		<nml_option name="config_LES_noise_max_level" type="integer" default_value="100" units="unitless"
+					description="maximum level to apply noise, must be smaller than maxLevelCell"
+					possible_values="positive integers"
+					/>
+		<nml_option name="config_LES_noise_perturbation_magnitude" type="real" default_value="0.0001" units="unitless"
+					description="magnitude of noise to add to normal velocity"
+					possible_values="small positive integers"
+					/>
+	</nml_record>
 	<nml_record name="nonhydrostatic_pressure">
 	    <nml_option name="config_enable_nonhydrostatic_mode" type="logical" default_value=".false." units="unitless"
 					description="Flag to enable the nonhydrostatic pressure calculation"
