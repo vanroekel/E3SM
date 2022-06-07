@@ -64,7 +64,7 @@ module ocn_tendency
    use ocn_vmix
    use ocn_wetting_drying
    use ocn_vel_tidal_potential
-   use ocn_vel_noise
+   use ocn_vel_add_noise
 
    use ocn_vvel_pgrad
    use ocn_vvel_coriolis
