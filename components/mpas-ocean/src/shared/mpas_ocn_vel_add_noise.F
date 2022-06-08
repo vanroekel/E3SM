@@ -122,21 +122,23 @@ contains
 
       if(.not.noiseOn) return
 
+
       if(curTime > maxTime) return
       curTime = curTime + dt
 
       call mpas_timer_start("noise tend")
 
       nEdges = nEdgesOwned
+
       !$omp parallel
       !$omp do schedule(runtime) private(k,randomPerturbation,finalPert,minNoiseLevel,maxNoiseLevel)
       do iEdge = 1, nEdges
          call random_number(randomPerturbation)
          randomPerturbation = 2.0_RKIND * randomPerturbation - 1.0_RKIND
          finalPert = config_LES_noise_perturbation_magnitude * randomPerturbation
-
          minNoiseLevel = max(minLevelEdgeTop(iEdge),config_LES_noise_min_level)
          maxNoiseLevel = min(maxLevelEdgeTop(iEdge),config_LES_noise_max_level)
+
          do k = minNoiseLevel, maxNoiseLevel
             normalVelocity(k,iEdge) = normalVelocity(k,iEdge) + finalPert
          end do

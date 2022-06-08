@@ -84,6 +84,7 @@ module ocn_forward_mode
 
    use ocn_equation_of_state
 
+   use ocn_vel_noise
    use ocn_vmix
    use ocn_vmix_gotm, only: ocn_vmix_gotm_finalize
 
@@ -313,6 +314,8 @@ module ocn_forward_mode
         call ocn_vvel_hmix_del2_init(err_tmp)
         ierr = ior(ierr, err_tmp)
         call ocn_nonhydrostatic_solver_init(domain % dminfo % comm, err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vel_noise_init(err_tmp)
         ierr = ior(ierr, err_tmp)
       endif
 
