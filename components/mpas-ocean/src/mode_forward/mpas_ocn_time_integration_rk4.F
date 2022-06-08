@@ -41,6 +41,7 @@ module ocn_time_integration_rk4
    use ocn_time_average_coupled
    use ocn_wetting_drying
 
+   use ocn_vel_noise
    use ocn_effective_density_in_land_ice
 
    implicit none
@@ -1735,6 +1736,8 @@ module ocn_time_integration_rk4
          call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, verticalVelocityNew, layerThicknessNew, &
               layerThickEdge, nhPressureCorrection, dminfo % comm, dt)
       end if
+
+      call ocn_vel_add_noise(normalVelocityNew, dt, err)
 
    end subroutine ocn_time_integrator_rk4_cleanup
 

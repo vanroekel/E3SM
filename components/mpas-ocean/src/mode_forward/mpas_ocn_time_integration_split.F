@@ -44,6 +44,7 @@ module ocn_time_integration_split
    use ocn_vmix
    use ocn_time_average_coupled
 
+   use ocn_vel_noise
    use ocn_effective_density_in_land_ice
 
    implicit none
@@ -2101,6 +2102,8 @@ module ocn_time_integration_split
               verticalVelocityNew, layerThicknessNew, layerThickEdge, &
               nonhydrostaticPressure, nonhydrostaticPressureOld, &
               nhPressureCorrection, dt)
+         call ocn_vel_add_noise(normalVelocityNew,dt,err)
+
       end if
 
       call mpas_timer_start('se vmix halos')

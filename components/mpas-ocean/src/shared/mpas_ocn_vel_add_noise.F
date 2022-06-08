@@ -75,15 +75,14 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_add_noise(tend, dt, err)!{{{
-
+   subroutine ocn_vel_add_noise(normalVelocity, dt, err)!{{{
       !-----------------------------------------------------------------
       !
-      ! input variables
+      ! input/output variables
       !
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), intent(in) :: dt
+      real(kind=RKIND),intent(in) :: dt
 
       !-----------------------------------------------------------------
       !
@@ -92,7 +91,7 @@ contains
       !-----------------------------------------------------------------
 
       real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         tend          !< Input/Output: velocity tendency
+         normalVelocity    !< Input/Output: velocity tendency
 
       !-----------------------------------------------------------------
       !
@@ -139,7 +138,7 @@ contains
          minNoiseLevel = max(minLevelEdgeTop(iEdge),config_LES_noise_min_level)
          maxNoiseLevel = min(maxLevelEdgeTop(iEdge),config_LES_noise_max_level)
          do k = minNoiseLevel, maxNoiseLevel
-            tend(k,iEdge) = tend(k,iEdge) + finalPert/dt !division by dt is to make this a straight noise addition
+            normalVelocity(k,iEdge) = normalVelocity(k,iEdge) + finalPert
          end do
       end do
       !$omp end do

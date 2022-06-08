@@ -49,6 +49,7 @@ module ocn_time_integration_si
    use ocn_vmix
    use ocn_time_average_coupled
 
+   use ocn_vel_noise
    use ocn_effective_density_in_land_ice
 
    implicit none
@@ -3165,8 +3166,8 @@ module ocn_time_integration_si
       !   call ocn_gm_compute_Bolus_velocity(statePool, &
       !             meshPool, scratchPool, timeLevelIn=2)
       !end if
-!      call ocn_vmix_implicit(dt, meshPool, statePool, forcingPool, &
-!                             scratchPool, err, 2)
+      call ocn_vmix_implicit(dt, meshPool, statePool, forcingPool, &
+                             scratchPool, err, 2)
 
       ! Update halo on u and tracers, which were just updated for
       ! implicit vertical mixing.  If not done, this leads to lack of
@@ -3219,6 +3220,8 @@ module ocn_time_integration_si
               nhPressureCorrection, dt)
 
             call mpas_dmpar_field_halo_exch(domain, 'verticalVelocity', timeLevel=2)
+
+            call ocn_vel_add_noise(normalVelocityNew, dt, err)
       end if
 
       call mpas_pool_begin_iteration(tracersPool)

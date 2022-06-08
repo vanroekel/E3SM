@@ -64,7 +64,6 @@ module ocn_tendency
    use ocn_vmix
    use ocn_wetting_drying
    use ocn_vel_tidal_potential
-   use ocn_vel_noise
 
    use ocn_vvel_pgrad
    use ocn_vvel_coriolis
@@ -611,7 +610,6 @@ end subroutine ocn_tend_vvel!}}}
          end do
       end do
 
-      call ocn_vel_add_noise(tendVel, dt, err)
       ! vertical mixing treated implicitly in a later routine
       ! adjust total velocity tendency based on wetting/drying
 
