@@ -474,6 +474,56 @@
 					possible_values="Any positive real value."
 		/>
 	</nml_record>
+	<nml_record name="vmix_tke" mode="forward">
+	    <nml_option name="config_use_vmix_tke" type="logical" default_value=".false." units="NA"
+					description="If true use the mixing model based on Gaspar 1990, as described in Calvert and Siddorn (2013) -- https://library.metoffice.gov.uk/Portal/Default/en-GB/DownloadImageFile.ashx?objectId=1103&ownerType=0&ownerId=207517"
+					possible_values=".true. or .false."
+		/>
+	    <nml_option name="config_vmix_tke_emin_sfc" type="real" default_value="1.0E-4" units="m^2 s^2"
+					description="minimum tke threshold at the surface"
+					possible_values="small positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_emin_int" type="real" default_value="1.0E-6" units="m^2 s^2"
+		            description="minimum tke threshold in the interior"
+					possible_values="small positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_lenmin_sfc" type="real" default_value="0.04" units="m"
+					description="minimum length scale at the surface"
+					possible_values="positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_lenmin_int" type="real" default_value="0.01" units="m"
+					description="minimum length scale in the interior"
+					possible_values="positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_niw_gamma" type="real" default_value="0.05" units="m"
+					description="near inertial wave breaking TKE efficiency scaling"
+					possible_values="numbers between 0 and 1"
+		/>
+	    <nml_option name="config_vmix_tke_wb_alpha" type="real" default_value="67.83" units="m"
+					description="surface wave breaking coefficient"
+					possible_values="positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_ck" type="real" default_value="0.1" units="unitless"
+					description="stability function value for TKE"
+					possible_values="numbers between 0 and 1"
+		/>
+	    <nml_option name="config_vmix_tke_ce" type="real" default_value="0.7" units="unitless"
+					description="stability function for dissipation"
+					possible_values="numbers between 0 and 1"
+		/>
+	    <nml_option name="config_vmix_tke_nu_bkg" type="real" default_value="1.2e-4" units="m^2 s^-1"
+					description="background viscosity for TKE scheme"
+					possible_values="small positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_kappa_bkg" type="real" default_value="1.2e-5" units="m^2 s^-1"
+					description="background diffusivity for TKE scheme"
+					possible_values="small positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_kappa_conv" type="real" default_value="10.0" units="m^2 s^-1"
+					description="convective diffusivity in the TKE scheme"
+					possible_values="positive reals"
+		/>
+	</nml_record>
 	<nml_record name="cvmix" mode="forward">
 		<nml_option name="config_use_cvmix" type="logical" default_value=".true." units="NA"
 					description="If true, use the Community Vertical MIXing routines to compute vertical diffusivity and viscosity"
@@ -2118,7 +2168,9 @@
 		<var name="ssh" type="real" dimensions="nCells Time" units="m"
 			 description="sea surface height"
 		/>
-
+		<var name="tke" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2 s^-2"
+			 description="turbulence kinetic energy"
+		/>
 		<!-- FIELDS FOR FREQUENCY FILTERED THICKNESS -->
 		<var name="highFreqThickness" type="real" dimensions="nVertLevels nCells Time" units="m"
 			 description="high frequency-filtered layer thickness"
@@ -2886,6 +2938,10 @@
 		/>
 		<var name="vertDiffTopOfCell" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2 s^{-1}"
 			 description="vertical diffusion defined at the cell center (horizontally) and top (vertically)"
+			 packages="forwardMode;analysisMode"
+		/>
+	    <var name="shearSquared" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^-2"
+			 description="vertical shear of mean currents squared"
 			 packages="forwardMode;analysisMode"
 		/>
 		<var name="bulkRichardsonNumber" type="real" dimensions="nVertLevels nCells Time" units="nondimensional"

@@ -77,6 +77,7 @@ module ocn_forward_mode
    use ocn_tracer_surface_restoring
    use ocn_gm
    use ocn_submesoscale_eddies
+   use ocn_vmix_tke
 
    use ocn_high_freq_thickness_hmix_del2
 
@@ -441,6 +442,8 @@ module ocn_forward_mode
       call ocn_gm_init(domain, err_tmp)
       ierr = ior(ierr,err_tmp)
       call ocn_submesoscale_init(err_tmp)
+      ierr = ior(ierr,err_tmp)
+      call ocn_vmix_tke_init(err_tmp)
       ierr = ior(ierr,err_tmp)
       call ocn_tracer_nonlocalflux_init(err_tmp)
       ierr = ior(ierr,err_tmp)
@@ -812,6 +815,8 @@ module ocn_forward_mode
       type (domain_type), intent(inout) :: domain
 
       integer :: ierr
+
+      call ocn_vmix_tke_finalize()
 
       ! destroy the ocean mesh structure
       call ocn_meshDestroy(ierr)

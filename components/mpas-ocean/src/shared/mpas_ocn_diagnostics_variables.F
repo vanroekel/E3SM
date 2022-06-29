@@ -139,6 +139,7 @@ module ocn_diagnostics_variables
    type (field2DReal), pointer :: wettingVelocityField
 
    real (kind=RKIND), dimension(:,:), pointer :: vertDiffTopOfCell
+   real (kind=RKIND), dimension(:,:), pointer :: shearSquared
    real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
    integer, dimension(:,:), pointer :: rediLimiterCount
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerSurfaceFluxTendency
@@ -482,6 +483,8 @@ contains
                    vertViscTopOfCell)
          call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', &
                    vertDiffTopOfCell)
+         call mpas_pool_get_array(diagnosticsPool, 'shearSquared', &
+                   shearSquared)
          call mpas_pool_get_array(diagnosticsPool, 'vertAleTransportTop', &
                    vertAleTransportTop)
          call mpas_pool_get_array(diagnosticsPool, 'vertTransportVelocityTop', &
@@ -733,6 +736,7 @@ contains
          !$acc                   barotropicForcing,               &
          !$acc                   vertViscTopOfCell,               &
          !$acc                   vertDiffTopOfCell,               &
+         !$acc                   shearSquared,                    &
          !$acc                   GMStreamFuncZonal,               &
          !$acc                   relativeVorticity,               &
          !$acc                   kineticEnergyCell,               &
@@ -984,6 +988,7 @@ contains
          !$acc                   barotropicForcing,               &
          !$acc                   vertViscTopOfCell,               &
          !$acc                   vertDiffTopOfCell,               &
+         !$acc                   shearSquared,                    &
          !$acc                   GMStreamFuncZonal,               &
          !$acc                   relativeVorticity,               &
          !$acc                   kineticEnergyCell,               &
@@ -1193,6 +1198,7 @@ contains
                  barotropicForcing,               &
                  vertViscTopOfCell,               &
                  vertDiffTopOfCell,               &
+                 shearSquared,                    &
                  GMStreamFuncZonal,               &
                  relativeVorticity,               &
                  kineticEnergyCell,               &

@@ -30,6 +30,7 @@ module ocn_vmix
    use mpas_constants
    use ocn_constants
    use ocn_config
+   use ocn_vmix_tke
    use ocn_vmix_cvmix
    use ocn_vmix_gotm
    use ocn_vmix_coefs_redi
@@ -85,7 +86,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_coefs(meshPool, statePool, forcingPool, scratchPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_coefs(meshPool, statePool, forcingPool, scratchPool, err, dt, timeLevelIn)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -99,6 +100,8 @@ contains
       type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
 
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
+
+      real (kind=RKIND), intent(in) :: dt
 
       !-----------------------------------------------------------------
       !
@@ -186,6 +189,7 @@ contains
       !$acc update host(vertViscTopOfEdge, vertDiffTopOfCell)
 #endif
 
+      call ocn_vmix_tke_compute(statePool, forcingPool, dt, err1)
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, err1, timeLevel)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, err2, timeLevel)
       call ocn_vmix_coefs_gotm_build(statePool, forcingPool, err3, timeLevel)
@@ -1117,7 +1121,7 @@ contains
       call mpas_pool_get_array(forcingPool, 'bottomDrag', bottomDrag)
 
       call mpas_timer_start('vmix coefs', .false.)
-      call ocn_vmix_coefs(meshPool, statePool, forcingPool, scratchPool, err, timeLevel)
+      call ocn_vmix_coefs(meshPool, statePool, forcingPool, scratchPool, err, dt, timeLevel)
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
