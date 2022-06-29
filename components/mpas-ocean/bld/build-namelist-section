@@ -162,6 +162,23 @@ add_default($nl, 'config_Rayleigh_damping_depth_variable');
 add_default($nl, 'config_Rayleigh_bottom_friction');
 add_default($nl, 'config_Rayleigh_bottom_damping_coeff');
 
+############################
+# Namelist group: vmix_tke #
+############################
+
+add_default($nl, 'config_use_vmix_tke');
+add_default($nl, 'config_vmix_tke_emin_sfc');
+add_default($nl, 'config_vmix_tke_emin_int');
+add_default($nl, 'config_vmix_tke_lenmin_sfc');
+add_default($nl, 'config_vmix_tke_lenmin_int');
+add_default($nl, 'config_vmix_tke_niw_gamma');
+add_default($nl, 'config_vmix_tke_wb_alpha');
+add_default($nl, 'config_vmix_tke_ck');
+add_default($nl, 'config_vmix_tke_ce');
+add_default($nl, 'config_vmix_tke_nu_bkg');
+add_default($nl, 'config_vmix_tke_kappa_bkg');
+add_default($nl, 'config_vmix_tke_kappa_conv');
+
 #########################
 # Namelist group: cvmix #
 #########################

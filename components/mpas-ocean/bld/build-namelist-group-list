@@ -13,6 +13,7 @@ my @groups = qw(run_modes
                 gm_eddy_parameterization
                 eddy_parameterization
                 rayleigh_damping
+                vmix_tke
                 cvmix
                 gotm
                 forcing

@@ -759,6 +759,105 @@ Default: Defined in namelist_defaults.xml
 </entry>
 
 
+<!-- vmix_tke -->
+
+<entry id="config_use_vmix_tke" type="logical"
+	category="vmix_tke" group="vmix_tke">
+If true use the mixing model based on Gaspar 1990, as described in Calvert and Siddorn (2013) -- https://library.metoffice.gov.uk/Portal/Default/en-GB/
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_emin_sfc" type="real"
+	category="vmix_tke" group="vmix_tke">
+minimum tke threshold at the surface
+
+Valid values: small positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_emin_int" type="real"
+	category="vmix_tke" group="vmix_tke">
+minimum tke threshold in the interior
+
+Valid values: small positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_lenmin_sfc" type="real"
+	category="vmix_tke" group="vmix_tke">
+minimum length scale at the surface
+
+Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_lenmin_int" type="real"
+	category="vmix_tke" group="vmix_tke">
+minimum length scale in the interior
+
+Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_niw_gamma" type="real"
+	category="vmix_tke" group="vmix_tke">
+near inertial wave breaking TKE efficiency scaling
+
+Valid values: numbers between 0 and 1
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_wb_alpha" type="real"
+	category="vmix_tke" group="vmix_tke">
+surface wave breaking coefficient
+
+Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_ck" type="real"
+	category="vmix_tke" group="vmix_tke">
+stability function value for TKE
+
+Valid values: numbers between 0 and 1
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_ce" type="real"
+	category="vmix_tke" group="vmix_tke">
+stability function for dissipation
+
+Valid values: numbers between 0 and 1
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_nu_bkg" type="real"
+	category="vmix_tke" group="vmix_tke">
+background viscosity for TKE scheme
+
+Valid values: small positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_kappa_bkg" type="real"
+	category="vmix_tke" group="vmix_tke">
+background diffusivity for TKE scheme
+
+Valid values: small positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_kappa_conv" type="real"
+	category="vmix_tke" group="vmix_tke">
+convective diffusivity in the TKE scheme
+
+Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
 <!-- cvmix -->
 
 <entry id="config_use_cvmix" type="logical"
