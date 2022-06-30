@@ -573,7 +573,6 @@ end subroutine ocn_tend_vvel!}}}
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             velocityPGFtend(k,iEdge) = tendVel(k,iEdge) - velocityPGFtend(k,iEdge)
-            velocityHmixtend(k,iEdge) = tendVel(k,iEdge)
          end do
       end do
 
@@ -585,7 +584,7 @@ end subroutine ocn_tend_vvel!}}}
       endif
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
-            velocityHmixtend(k,iEdge) = tendVel(k,iEdge) - velocityHmixtend(k,iEdge)
+            velocityHmixtend(k,iEdge) = tendVel(k,iEdge)
             velocityForcingtend(k,iEdge) = tendVel(k,iEdge)
          end do
       end do

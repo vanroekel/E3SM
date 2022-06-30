@@ -365,7 +365,7 @@ contains
                   iEdge = edgesOnCell(1,iCell) !FIXME - change to average of edges
                   eddyDiff2 = 0.25_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))*(feps/fkin**2)
                   eddyDiff2 = eddyDiff2+0.5_RKIND*(dynamicViscosity(k,iCell) + dynamicViscosity(k+1,iCell))/rho_sw
-                  bcValue = 60.0_RKIND*dynamicViscosity(k,iCell)/rho_sw/(c_psi2*distanceToBoundary(k,iCell))
+                  bcValue = 60.0_RKIND*dynamicViscosity(k,iCell)/rho_sw/(c_psi2*distanceToBoundary(k,iCell)**2)
 
                   glsPsi_turb_flux = bcValue - glsPsi(k,iCell) !Assumes k=0 in boundary condition
                   ! div(h \kappa_2 \nabla \phi) at cell center

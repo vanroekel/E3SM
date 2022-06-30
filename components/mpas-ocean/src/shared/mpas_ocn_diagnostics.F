@@ -1656,6 +1656,7 @@ end if
          do i = 1, nEdgesOnEdge(iEdge)
             eoe = edgesOnEdge(i,iEdge)
             weightsOnEdge_temp = weightsOnEdge(i, iEdge)
+            if(abs(weightsOnEdge_temp) < 1e-10_RKIND) weightsOnEdge_temp = 0.0_RKIND
             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
                tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
                                               + weightsOnEdge_temp * normalVelocity(k, eoe)

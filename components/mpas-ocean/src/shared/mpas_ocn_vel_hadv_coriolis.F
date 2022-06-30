@@ -213,6 +213,12 @@ contains
             eoe = edgesOnEdge(j, iEdge)
             edgeWeight = weightsOnEdge(j, iEdge)
 
+            !if(abs(edgeWeight - 0.25_RKIND) < 1e-5_RKIND .or. abs(edgeWeight + 0.25_RKIND) < 1e-5_RKIND) then
+            !   edgeWeight = sign(1.0_RKIND,edgeWeight)*0.25_RKIND
+            ! endif
+            !if(abs(edgeWeight) < 1e-5_RKIND) then
+            !   edgeWeight = 0.0_RKIND
+            !endif
             do k = kmin, kmax
                avgVorticity = 0.5_RKIND* &
                               (tmpVorticity(k,iEdge) + &
@@ -257,24 +263,24 @@ contains
       !$omp end parallel
 #endif
 
-      if(config_enable_nonHydrostatic_mode) then
-        !Add in the tendency for coriolis from vertical velocity
-        !$omp parallel
-        !$omp do schedule(runtime) &
-        !$omp private(cell1, cell2, wav)
-        do iEdge = 1, 0 !nEdgesAll
-           cell1 = cellsOnEdge(1,iEdge)
-           cell2 = cellsOnEdge(2,iEdge)
-
-           do k=1,maxLevelEdgeTop(iEdge)
-              wav = 0.25_RKIND * (verticalVelocity(k,cell1) + verticalVelocity(k,cell2) + &
-                      verticalVelocity(k+1,cell1) + verticalVelocity(k+1,cell2))
-              tend(k, iEdge) = tend(k,iEdge) - 2.0_RKIND*omega*cos(latEdge(iEdge))*wav
-           end do
-        end do
-        !$omp end do
-        !$omp end parallel
-      endif
+!      if(config_enable_nonHydrostatic_mode) then
+!        !Add in the tendency for coriolis from vertical velocity
+!        !$omp parallel
+!        !$omp do schedule(runtime) &
+!        !$omp private(cell1, cell2, wav)
+!        do iEdge = 1, 0 !nEdgesAll
+!           cell1 = cellsOnEdge(1,iEdge)
+!           cell2 = cellsOnEdge(2,iEdge)
+!
+!           do k=1,maxLevelEdgeTop(iEdge)
+!              wav = 0.25_RKIND * (verticalVelocity(k,cell1) + verticalVelocity(k,cell2) + &
+!                      verticalVelocity(k+1,cell1) + verticalVelocity(k+1,cell2))
+!              tend(k, iEdge) = tend(k,iEdge) - 2.0_RKIND*omega*cos(latEdge(iEdge))*wav
+!           end do
+!        end do
+!        !$omp end do
+!        !$omp end parallel
+!      endif
 
       !$acc exit data delete(tmpVorticity, qArr)
       deallocate(qArr,tmpVorticity)

@@ -486,6 +486,14 @@
                                         description="PANS model - choice for ratio modeled-to-total of turbulent dissipation"
                                         possible_values="Reals in the interval 0 < feps <= 1. feps=0 (DNS) and feps=1 (RANS). Recommended value = 1.00"
                 />
+                <nml_option name="config_tke_ini" type="real" default_value="1.0e-10" units="m^2/s^2"
+                                        description="Initial tke value"
+                                        possible_values="Any positive real value. Default value: k=1.0-10"
+                />
+                <nml_option name="config_nut_ini" type="real" default_value="1.25e-6" units="m^2/s^2"
+                                        description="Initial nut value to define glsPsi"
+                                        possible_values="Any positive real value. Default value: nut/nu=1 => nut=1.25e-6"
+                />
 
 	</nml_record>
 	<nml_record name="cvmix" mode="forward">
@@ -3021,6 +3029,22 @@
                          description="Turbulence kinetic energy production by shear processes"
                          packages="forwardMode;analysisMode"
                 />
+			  <var name="tkeAdvTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="turbulence kinetic energy tendency from advection"
+						 packages="forwardMode;analysisMode"
+						 />
+			  <var name="tkeTransportTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="turbulence kinetic energy tendency from transport"
+						 packages="forwardMode;analysisMode"
+						 />
+			  <var name="tkeDissTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="turb tend from dissipation"
+						 packages="forwardMode;analysisMode"
+						 />
+			  <var name="tkeTransTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="turb tend from transport"
+						 packages="forwardMode;analysisMode"
+						 />
 		<var name="vertDiffTopOfCell" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2 s^{-1}"
 			 description="vertical diffusion defined at the cell center (horizontally) and top (vertically)"
 			 packages="forwardMode;analysisMode"

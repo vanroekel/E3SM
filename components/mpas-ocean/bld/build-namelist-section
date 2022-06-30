@@ -160,6 +160,8 @@ add_default($nl, 'config_user_c_m');
 add_default($nl, 'config_user_c_n');
 add_default($nl, 'fkin_value');
 add_default($nl, 'feps_value');
+add_default($nl, 'config_tke_ini');
+add_default($nl, 'config_nut_ini');
 
 #########################
 # Namelist group: cvmix #

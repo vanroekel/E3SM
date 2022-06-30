@@ -319,11 +319,6 @@ module ocn_forward_mode
         ierr = ior(ierr, err_tmp)
       endif
 
-      if(config_use_two_equation_turbulence_model) then
-        call ocn_two_equation_init(domain, err_tmp)
-        ierr = ior(ierr, err_tmp)
-      end if
-
       call ocn_init_routines_block(block, dt, ierr)
 
       if(ierr.eq.1) then
@@ -348,6 +343,12 @@ module ocn_forward_mode
 
       ! Update any mesh fields that may have been modified during init
       call ocn_meshUpdateFields(domain)
+
+      if(config_use_two_equation_turbulence_model) then
+        call ocn_two_equation_init(domain, err_tmp)
+        ierr = ior(ierr, err_tmp)
+      end if
+
 
       if (config_conduct_tests) then
          call mpas_timer_start("test suite")

@@ -175,7 +175,8 @@ contains
 
       real (kind=RKIND) :: &
          meridSshGrad,     &! config_meridional_ssh_grad
-         zonalSshGrad       ! config_zonal_ssh_grad
+         zonalSshGrad,     &! config_zonal_ssh_grad
+         cosAngle
 
       ! End preamble
       !-----------------------------------------------------------------
@@ -771,7 +772,10 @@ contains
                areaEdge = 0.5_RKIND*(areaCell(cell1) + areaCell(cell2))
                do k=1,maxLevelEdgeTop(iEdge)
                   dynViscEdge = 0.5_RKIND*(dynamicViscosity(k,cell1) + dynamicViscosity(k,cell2))
-                  tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) 
+                  cosAngle = cos(angleEdge(iEdge))
+                  if(abs(cosAngle - 1.0_RKIND) < 1e-10_RKIND) cosAngle = sign(1.0_RKIND,cosAngle)*1.0_RKIND
+                  if(abs(cosAngle) < 1e-10_RKIND) cosAngle = 0.0_RKIND
+                  tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cosAngle 
                enddo
              enddo
                    !print*,'forcing:',real(tend(:,1))

@@ -207,6 +207,7 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:), pointer :: SIvec_z0,SIvec_z1 ,SIvec_zh0,SIvec_zh1
    real (kind=RKIND), dimension(:,:), pointer :: dynamicViscosity, uStar, yPlus
    real (kind=RKIND), dimension(:,:), pointer :: buoyancyProduction, shearProduction
+   real (kind=RKIND), dimension(:,:), pointer :: tkeAdvTend, tkeTransTend, tkeDissTend
 
    real (kind=RKIND), dimension(:,:), pointer :: nhPressureCorrection
 
@@ -614,6 +615,9 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'dynamicViscosity', dynamicViscosity)
       call mpas_pool_get_array(diagnosticsPool, 'buoyancyProduction', buoyancyProduction)
       call mpas_pool_get_array(diagnosticsPool, 'shearProduction', shearProduction)
+      call mpas_pool_get_array(diagnosticsPool, 'tkeAdvTend', tkeAdvTend)
+      call mpas_pool_get_array(diagnosticsPool, 'tkeDissTend', tkeDissTend)
+      call mpas_pool_get_array(diagnosticsPool, 'tkeTransTend', tkeTransTend)
       call mpas_pool_get_array(diagnosticsPool, 'ugrad', ugrad)
       call mpas_pool_get_array(diagnosticsPool, 'vgrad', vgrad)
       call mpas_pool_get_array(diagnosticsPool, 'wgrad', wgrad)
@@ -778,6 +782,9 @@ contains
          !$acc                   dynamicViscosity,                &
          !$acc                   buoyancyProduction,              &
          !$acc                   shearProduction,                 &
+         !$acc                   tkeTransTend,                    &
+         !$acc                   tkeAdvTend,                      &
+         !$acc                   tkeDissTend,                     &
          !$acc                   ugrad,                           &
          !$acc                   vgrad,                           &
          !$acc                   wgrad,                           &
@@ -1032,6 +1039,9 @@ contains
          !$acc                   dynamicViscosity,                &
          !$acc                   buoyancyProduction,              &
          !$acc                   shearProduction,                 &
+         !$acc                   tkeAdvTend,                      &
+         !$acc                   tkeDissTend,                     &
+         !$acc                   tkeTransTend,                    &
          !$acc                   ugrad,                           &
          !$acc                   vgrad,                           &
          !$acc                   wgrad,                           &
@@ -1248,6 +1258,9 @@ contains
                  dynamicViscosity,                &
                  buoyancyProduction,              &
                  shearProduction,                 &
+                 tkeAdvTend,                      &
+                 tkeDissTend,                     &
+                 tkeTransTend,                    &
                  velocityHmixTend,                &
                  velocityVadvTend,                &
                  velocityPGFtend,                 &

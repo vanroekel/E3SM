@@ -193,7 +193,10 @@ contains
      !Compute the strain for the remaining terms in the tendency
      call ocn_compute_strain(velocityZonal, velocityMeridional,  &
                 verticalVelocity, activeTracers, layerThickness, err)
-     call ocn_compute_two_equation_molecular_viscosity(activeTracers)
+
+     if(.not. config_LES_Mode) call ocn_compute_two_equation_molecular_viscosity(activeTracers)
+
+     tkeAdvTend(:,:) = tkeTend(:,:)
 
      call ocn_tke_advection_mono_tend(tkeTend, tke, layerThickness,    &
                                       normalThicknessFlux, verticalVelocity, dt,       &
@@ -201,7 +204,11 @@ contains
                                       nAdvCellsForEdge, advCellsForEdge,&
                                       advMaskHighOrder)
 
+     tkeAdvTend(:,:) = tkeTend(:,:) - tkeAdvTend(:,:)
+
+     tkeTransTend(:,:) = tkeTend(:,:)
      call ocn_tke_transport_horizontal_compute(tke, tkeTend, layerThickness, sigma_k, fkin, feps, err)
+     tkeTransTend(:,:) = tkeTend(:,:) - tkeTransTend(:,:)
 
      if (.not. config_LES_mode) then
 
@@ -216,7 +223,9 @@ contains
 
      endif
 
+     tkeDissTend(:,:) = tkeTend(:,:)
      call ocn_compute_two_equation_dissipation(tke, glsPsi, tkeTend, glsPsiTend)
+     tkeDissTend(:,:) = tkeTend(:,:) - tkeDissTend(:,:)
      call ocn_buoyancy_production_compute(tkeTend, glsPsiTend, glsPsi, tke, c_psi3, &
                                          surfaceBuoyancyForcing, err)
      call ocn_shear_production_compute(tkeTend, glsPsiTend, tke, glsPsi, c_psi1, &
@@ -340,6 +349,8 @@ contains
          end do
      else
      if (config_LES_mode) then
+        vertViscTopOfCell(:,:) = 0.0_RKIND
+        vertDiffTopOfCell(:,:) = 0.0_RKIND
         !$omp parallel
         !$omp do schedule(runtime) private(k,iEdge,dcAv,length_grid,length_stable,length)
         do iCell=1,nCellsAll
@@ -380,7 +391,8 @@ contains
               dissipation = c_mu**(3.0+c_p/c_n)*tkeAvg**(1.5+c_m/c_n)* &
                             glsPsiAvg**(-1.0/c_n)
               length = c_mu**3*tkeAvg**1.5/(1.0E-15_RKIND + dissipation)
-              vertViscTopOfCell(k,iCell) = length*Sm(k,iCell)*sqrt(tkeAvg) + &
+              !vertViscTopOfCell(k,iCell) = length*Sm(k,iCell)*sqrt(tkeAvg) + &
+              vertViscTopOfCell(k,iCell) = length*sqrt(tkeAvg) + &
                                            dynamicViscosity(k,iCell)/rho_sw
            end do
            !FSP
@@ -413,8 +425,8 @@ contains
               length_stable = 0.76_RKIND*sqrt(max(tke(k,iCell),0.0_RKIND))/(sqrt(max(BruntVaisalaFreqTop(k,iCell),0.0_RKIND)) + &
                                                              1.0E-15_RKIND)
               length = min(length_grid, length_stable)
-              vertViscTopOfCell(k,iCell) = smagorinsky_coefficient*length*sqrt(tke(k,iCell)) + &
-                              dynamicViscosity(k,iCell)/rho_sw
+              vertViscTopOfCell(k,iCell) = smagorinsky_coefficient*length*sqrt(tke(k,iCell)) !+ &
+                     !         dynamicViscosity(k,iCell)/rho_sw
               vertDiffTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) !Assume turbulent Pr of 1
            end do
         end do
@@ -437,9 +449,11 @@ contains
                             glsPsiAvg**(-1.0/c_n)
               length = c_mu**3*tkeAvg**1.5/(1.0E-15_RKIND + dissipation)
               !vertViscTopOfCell(k,iCell) = length*Sm(k,iCell)*sqrt(tke(k,iCell)) 
-              vertViscTopOfCell(k,iCell) = length*Sm(k,iCell)*sqrt(tkeAvg) + &
+              !vertViscTopOfCell(k,iCell) = length*Sm(k,iCell)*sqrt(tkeAvg) + &
+              vertViscTopOfCell(k,iCell) = length*sqrt(tkeAvg) + &
                                            dynamicViscosity(k,iCell)/rho_sw
-              vertDiffTopOfCell(k,iCell) = length*Sh(k,iCell)*sqrt(tkeAvg)
+              !!!vertDiffTopOfCell(k,iCell) = length*Sh(k,iCell)*sqrt(tkeAvg)
+              vertDiffTopOfCell(k,iCell) = length*sqrt(tkeAvg)
 
 
               !!!dissipation = c_mu**(3.0+c_p/c_n)*tke(k,iCell)**(1.5+c_m/c_n)* &
@@ -543,10 +557,10 @@ contains
              end if
 
              do k=1,maxLevelCell(iCell)
-               ugrad(1,k,iCell) = ugrad(1,k,iCell) + abs(eSign*coeff1*velocityZonal(k,iCell)/dcEdge(iEdge))
-               ugrad(2,k,iCell) = ugrad(2,k,iCell) + abs(eSign*coeff2*velocityZonal(k,iCell)/dcEdge(iEdge))
-               vgrad(1,k,iCell) = vgrad(1,k,iCell) + abs(eSign*coeff1*velocityMeridional(k,iCell)/dcEdge(iEdge))
-               vgrad(2,k,iCell) = vgrad(2,k,iCell) + abs(eSign*coeff2*velocityMeridional(k,iCell)/dcEdge(iEdge))
+!               ugrad(1,k,iCell) = ugrad(1,k,iCell) + abs(eSign*coeff1*velocityZonal(k,iCell)/dcEdge(iEdge))
+               ugrad(2,k,iCell) = ugrad(2,k,iCell) + abs(velocityZonal(k,iCell)/dcEdge(iEdge))
+!               vgrad(1,k,iCell) = vgrad(1,k,iCell) + abs(eSign*coeff1*velocityMeridional(k,iCell)/dcEdge(iEdge))
+!               vgrad(2,k,iCell) = vgrad(2,k,iCell) + abs(eSign*coeff2*velocityMeridional(k,iCell)/dcEdge(iEdge))
             end do
           end if
       end do !end n edges loop
@@ -571,7 +585,7 @@ contains
           vgrad(3,k,iCell) = 0.5_RKIND*(vgrad(3,k-1,iCell) + (velocityMeridional(k-1,iCell) - velocityMeridional(k,iCell)) / &
                         (0.5_RKIND*(layerThickness(k-1,iCell) + layerThickness(k,iCell))))
        end do
-!
+
     end do ! end cell loop
 
     ! add w part if requested 
@@ -630,13 +644,17 @@ contains
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: meshPool
       integer, intent(out) :: err
+      real(kind=RKIND) ,dimension(:,:), pointer :: glsPsi, tke         !FSP
+      real(kind=RKIND) ,dimension(:,:), pointer :: glsPsiNew, tkeNew   !FSP
       real(kind=RKIND), dimension(:,:), pointer :: layerThickness
       real(kind=RKIND), dimension(:,:), pointer :: distanceToBoundary
       real(kind=RKIND), dimension(:,:), pointer :: boundaryNormalAngle
 
       integer :: cell1, cell2, iEdge, k
 
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
+      call mpas_pool_get_subpool(domain%blocklist%structs,'mesh',meshPool)
+      call mpas_pool_get_subpool(domain%blocklist%structs,'state',statePool)
+ 
       twoEquationMixingOn = .false.
       if(config_use_two_equation_turbulence_model) then
 
@@ -705,6 +723,17 @@ contains
             call mpas_log_write("Cannot use two equation turbulence closure and cvmix at the same time: " // &
                     "set either config_use_cvmix or config_use_two_equation_model to .false.", MPAS_LOG_CRIT)
          end if
+
+         !Initial conditions for tke and glsPsi
+         call mpas_pool_get_array(statePool,'tke',tke,1)             !FSP
+         call mpas_pool_get_array(statePool,'tke',tkeNew,2)       !FSP
+         call mpas_pool_get_array(statePool,'glsPsi',glsPsi,1)       !FSP
+         call mpas_pool_get_array(statePool,'glsPsi',glsPsiNew,2) !FSP
+         tke(:,:)       = config_tke_ini                                                          !FSP
+         tkeNew(:,:)    = tke(:,:)                                                                !FSP
+         glsPsi(:,:)    = 1.0E-30_RKIND!( config_nut_ini**c_n) / ( c_mu**(-c_p)*config_tke_ini**(c_n/2-c_m) )   !FSP 
+         glsPsiNew(:,:) = glsPsi(:,:)                                                             !FSP 
+
 
          !init advection of tke and glsPsi
 

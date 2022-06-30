@@ -787,6 +787,23 @@ Valid values: Between 0 and 1.0 (code forces feps>=0.05)
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_tke_ini" type="real"
+        category="twoEquationModel" group="twoEquationModel">
+Initial tke value
+
+Any positive real value
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_nut_ini" type="real"
+        category="twoEquationModel" group="twoEquationModel">
+Initial nut value to define glsPsi
+
+Any positive real value
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
 <!-- cvmix -->
 
 <entry id="config_use_cvmix" type="logical"
