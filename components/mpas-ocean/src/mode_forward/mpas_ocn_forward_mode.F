@@ -100,6 +100,8 @@ module ocn_forward_mode
    use ocn_constants
    use ocn_config
 
+   use ocn_ke_triskcv
+
    implicit none
    private
 
@@ -181,6 +183,8 @@ module ocn_forward_mode
       ! Initialize variables needed for all
       !-----------------------------------------------------------------
       ierr = 0
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
 
       ! Setup ocean config pool
       call ocn_config_init(domain % configs)
@@ -326,6 +330,12 @@ module ocn_forward_mode
       endif
 
       call ocn_init_routines_block(block, dt, ierr)
+
+      if (config_triskCV) then 
+         ! Compute weightsOnEdge_lsqr needed in TRiSK-CV for the computation of
+         ! the tangential velocity used in the new kinetic energy
+         call Wlsqr(domain)
+      end if
 
       if(ierr.eq.1) then
           call mpas_log_write('An error was encountered in ocn_init_routines_block', MPAS_LOG_CRIT)
