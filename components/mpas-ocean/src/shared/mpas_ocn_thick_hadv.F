@@ -108,7 +108,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k, i, iCell
+      integer :: cell1, cell2, iEdge, k, i, iCell
 
       real (kind=RKIND) :: flux, invAreaCell
 

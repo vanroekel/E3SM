@@ -79,7 +79,7 @@ contains
 
    subroutine ocn_vel_hadv_coriolis_tend(normRelVortEdge, &
                                       normPlanetVortEdge, &
-                                      layerThickEdge, normalVelocity, &
+                                      layerThickEdgeFlux, normalVelocity, &
                                       kineticEnergyCell, verticalVelocity, tend, err)!{{{
 
       !-----------------------------------------------------------------

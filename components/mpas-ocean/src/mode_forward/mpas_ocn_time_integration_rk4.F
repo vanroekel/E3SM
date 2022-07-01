@@ -114,7 +114,6 @@ module ocn_time_integration_rk4
 
       integer :: rk_step
 
-      type (dm_info) :: dminfo
       type (mpas_pool_type), pointer :: nextProvisPool, prevProvisPool
 
       real (kind=RKIND), dimension(4) :: rk_weights, rk_substep_weights
@@ -752,7 +751,7 @@ module ocn_time_integration_rk4
          call mpas_timer_stop('RK4 NH pressure tend halo pressure')
 
             call ocn_nonhydrostatic_pressure_update_velocity(normalVelocityNew, verticalVelocityNew, &
-                 layerThicknessNew, layerThickEdge, nonhydrostaticPressure, nonhydrostaticPressureOld, &
+                 layerThicknessNew, layerThickEdgeMean, nonhydrostaticPressure, nonhydrostaticPressureOld, &
                  nhPressureCorrection, dt)
       end if
          if (config_prescribe_velocity) then
@@ -1133,7 +1132,7 @@ module ocn_time_integration_rk4
             vertAleTransportTop, nhPressureCorrection, err)
       endif
 
-      call ocn_tend_thick(statePool, tendPool, forcingPool, meshPool)
+      call ocn_tend_thick(tendPool, forcingPool)
 
 
    end subroutine ocn_time_integrator_rk4_compute_thick_tends
@@ -1269,12 +1268,12 @@ module ocn_time_integration_rk4
       ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
       if (associated(highFreqThicknessProvis)) then
          call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur,layerThickEdge, normalVelocityProvis, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
             verticalVelocityProvis, sshCur, rkSubstepWeight, &
             vertAleTransportTop, nhPressureCorrection, err, highFreqThicknessProvis)
       else
          call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur,layerThickEdge, normalVelocityProvis, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
             verticalVelocityProvis, sshCur, rkSubstepWeight, &
             vertAleTransportTop, nhPressureCorrection, err)
       endif
@@ -1299,7 +1298,6 @@ module ocn_time_integration_rk4
       real (kind=RKIND), intent(in) :: rkWeight
       integer, intent(out) :: err
 
-      type (dm_info), intent(in) :: dminfo
       type (mpas_pool_type), pointer :: meshPool, verticalMeshPool
       type (mpas_pool_type), pointer :: statePool, forcingPool
       type (mpas_pool_type), pointer :: scratchPool, tendPool, provisStatePool
@@ -1348,8 +1346,6 @@ module ocn_time_integration_rk4
             vertAleTransportTop, nhPressureCorrection, err)
       endif
 
-      call ocn_tend_vel(domain, tendPool, provisStatePool, forcingPool, 1, dminfo, dt)
-
       if (associated(highFreqThicknessProvis)) then
          call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
             layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
@@ -1362,7 +1358,7 @@ module ocn_time_integration_rk4
             vertAleTransportTop, nhPressureCorrection, err)
       endif
 
-      call ocn_tend_thick(statePool, tendPool, forcingPool, meshPool)
+      call ocn_tend_thick(tendPool, forcingPool)
 
       if (config_filter_btr_mode) then
           call ocn_filter_btr_mode_tend_vel(tendPool, provisStatePool, meshPool, 1)
@@ -1983,7 +1979,7 @@ module ocn_time_integration_rk4
 
       if (config_enable_nonhydrostatic_mode .and. .not. config_enable_vertMomentum_disable_nonHydro) then
          call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, verticalVelocityNew, layerThicknessNew, &
-              layerThickEdge, nhPressureCorrection, dminfo % comm, dt)
+              layerThickEdgeFlux, nhPressureCorrection, dminfo % comm, dt)
       end if
 
       call ocn_vel_add_noise(normalVelocityNew, dt, err)

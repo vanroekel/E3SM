@@ -54,8 +54,7 @@ module ocn_tracer_hmix_Redi
    !--------------------------------------------------------------------
 
    real(kind=RKIND) :: term1TaperFactor
-   real(kind=RKIND), dimension(:,:), allocatable :: rediKappaCell
-   real(kind=RKIND), dimension(:,:), allocatable :: rediKappaArray
+   real(kind=RKIND), dimension(:), allocatable :: rediKappaCell
    real(kind=RKIND), dimension(:, :, :), allocatable :: redi_term2_edge, redi_term3_topOfCell
    real(kind=RKIND), dimension(:, :, :), allocatable :: redi_term1, redi_term2, redi_term3
 
@@ -175,13 +174,12 @@ contains
 
       allocate (minimumVal(nTracers))
       allocate (fluxRediZTop(nTracers, nVertLevels + 1))
-      allocate (rediKappaCell(nVertLevels,nCells))
+      allocate (rediKappaCell(nCells))
       allocate (redi_term1(nTracers, nVertLevels, nCells))
       allocate (redi_term2(nTracers, nVertLevels, nCells))
       allocate (redi_term3(nTracers, nVertLevels, nCells))
       allocate (redi_term2_edge(nTracers, nVertLevels, nEdges))
       allocate (redi_term3_topOfCell(nTracers, nVertLevels + 1, nCells))
-      allocate (rediKappaArray(nVertLevels, nEdges))
 
       ! RediKappa changes every time step if either:
       !   config_Redi_horizontal_taper == 'RossbyRadius'  
@@ -191,26 +189,14 @@ contains
 
       nCells = nCellsArray(2)
 
-      if(config_Redi_closure == 'equalGM') then
-         do iEdge=1,nEdges
-            rediKappaArray(:,iEdge) = mesoEddyDiffusivity(:,iEdge)*RediKappa(iEdge)
-         end do
-      else
-         do iEdge=1,nEdges
-            rediKappaArray(:,iEdge) = RediKappa(iEdge)
-         end do
-      end if
-
       !$omp parallel
       !$omp do schedule(runtime) private(k, i, iEdge)
       do iCell = 1,nCells
-        rediKappaCell(:,iCell) = 0.0_RKIND
+        rediKappaCell(iCell) = 0.0_RKIND
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
-          do k = minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
-             rediKappaCell(k,iCell) = rediKappaCell(k,iCell) + edgeAreaFractionOfCell(i,iCell)* &
-                                               RediKappaArray(k,iEdge)
-          end do
+          rediKappaCell(iCell) = rediKappaCell(iCell) + edgeAreaFractionOfCell(i,iCell)* &
+                                               RediKappa(iEdge)
         enddo
       enddo
       !$omp end do
@@ -492,7 +478,6 @@ contains
       deallocate (redi_term3)
       deallocate (redi_term2_edge)
       deallocate (redi_term3_topOfCell)
-      deallocate (rediKappaArray)
 
       call mpas_timer_stop("tracer redi")
 
@@ -614,13 +599,13 @@ contains
                !$omp parallel
                !$omp do schedule(runtime)
                do iEdge=1,nEdges
-                  if (dcEdge(iEdge) <= config_eddying_resolution_ramp_min) then
+                  if (dcEdge(iEdge) <= config_Redi_horizontal_ramp_min) then
                      RediKappa(iEdge) = 0.0_RKIND
-                  else if (dcEdge(iEdge) >= config_eddying_Resolution_ramp_max) then
+                  else if (dcEdge(iEdge) >= config_Redi_horizontal_ramp_max) then
                      RediKappa(iEdge) = 1.0_RKIND
                   else
-                     RediKappa(iEdge) = 1.0_RKIND*(dcEdge(iEdge) - config_eddying_resolution_ramp_min) / &
-                                        (config_eddying_resolution_ramp_max - config_eddying_resolution_ramp_min)
+                     RediKappa(iEdge) = 1.0_RKIND*(dcEdge(iEdge) - config_Redi_horizontal_ramp_min) / &
+                                        (config_Redi_horizontal_ramp_max - config_Redi_horizontal_ramp_min)
                   end if
                end do
                !$omp end do

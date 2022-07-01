@@ -129,8 +129,7 @@ contains
 
       type (mpas_pool_type), intent(inout) :: &
          tendPool,          &!< [inout] Pool with accumulated tendencies
-         forcingPool,       &!< [inout] Forcing information
-         statePool
+         forcingPool         !< [inout] Forcing information
 
       ! pointers for the actual output variables within the pools above
       real (kind=RKIND), dimension(:), pointer, contiguous :: &
@@ -166,9 +165,6 @@ contains
                                              fractionAbsorbed)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', &
                                              fractionAbsorbedRunoff)
-
-      call mpas_pool_get_array(statePool, 'layerThickness', &
-                                           layerThickness, 2)
 
       !
       ! layer thickness tendency: 
@@ -318,7 +314,7 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, timeLevelIn
    !$omp do schedule(runtime) private(k)
    do iEdge = 1, nEdges
       do k = 1, nVertLevels
-         normalThicknessFlux(k, iEdge) = normalTransportVelocity(k, iEdge) * layerThickEdge(k, iEdge)
+         normalThicknessFlux(k, iEdge) = normalTransportVelocity(k, iEdge) * layerThickEdgeFlux(k, iEdge)
       end do
    end do
    !$omp end do
@@ -345,7 +341,7 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, timeLevelIn
    !
    ! velocity tendency: horizontal and vertical advection
    call ocn_vvel_advection_tend(verticalVelocity, normalThicknessFlux,       &
-                                        layerThickness, layerThickEdge, vertAleTransportTop, &
+                                        layerThickness, layerThickEdgeFlux, vertAleTransportTop, &
                                         dt, tend_verticalVelocity)
 
    !
@@ -358,8 +354,8 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, timeLevelIn
    !   computed as \nu( \nabla divergence + k \times \nabla relativeVorticity )
    !   strictly only valid for config_mom_del2 == constant
    !
-   call ocn_vvel_hmix_del2_tend(layerThickEdge, verticalVelocity, &
-                           tend_verticalVelocity, err)
+   call ocn_vvel_hmix_del2_tend(layerThickEdgeFlux, verticalVelocity, &
+                                tend_verticalVelocity, err)
 
 
    call mpas_timer_stop("ocn_tend_vvel")
@@ -581,7 +577,7 @@ end subroutine ocn_tend_vvel!}}}
                                indxTemp, indxSalt, activeTracers, &
                                thermExpCoeff, salineContractCoeff, &
                                dynamicViscosity, &  !FSP
-                               layerThickEdge, tendVel, err)
+                               layerThickEdgeMean, tendVel, err)
       do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             velocityPGFtend(k,iEdge) = tendVel(k,iEdge) - velocityPGFtend(k,iEdge)

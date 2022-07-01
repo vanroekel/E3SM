@@ -152,7 +152,7 @@ contains
                                                  dynamicViscosity(k+1,cell1) + dynamicViscosity(k+1,cell2))/rho_sw
 
              ! div(h \kappa_2 \nabla \phi) at cell center
-             flux = eddyDiff2 * layerThickEdge(k, iEdge) * tke_turb_flux * r_tmp
+             flux = eddyDiff2 * layerThickEdgeMean(k, iEdge) * tke_turb_flux * r_tmp
 
              tkeTend(k, iCell) = tkeTend(k, iCell) - edgeSignOnCell(i, iCell) * flux * invAreaCell
           end do
@@ -343,7 +343,7 @@ contains
              eddyDiff2 = eddyDiff2+0.25_RKIND*(dynamicViscosity(k,cell1)   + dynamicViscosity(k,cell2) + &
                                                dynamicViscosity(k+1,cell1) + dynamicViscosity(k+1,cell2))/rho_sw
 
-             flux = eddyDiff2 * layerThickEdge(k, iEdge) * glsPsi_turb_flux * r_tmp
+             flux = eddyDiff2 * layerThickEdgeMean(k, iEdge) * glsPsi_turb_flux * r_tmp
 
              glsPsiTend(k, iCell) = glsPsiTend(k, iCell) - edgeSignOnCell(i, iCell) * flux * invAreaCell
           end do
@@ -420,7 +420,7 @@ contains
                         eddyDiff2 = eddyDiff2+0.5_RKIND*(dynamicViscosity(k,iCellValid) + dynamicViscosity(k+1,iCellValid))/rho_sw
                         glsPsi_turb_flux = -glsPsi(k,iCellValid) !Assumes k=0 in boundary condition
                         ! div(h \kappa_2 \nabla \phi) at cell center
-                        flux = eddyDiff2 * layerThickEdge(k, iEdge) * glsPsi_turb_flux * dvEdge(iEdge)/dcEdge(iEdge)
+                        flux = eddyDiff2 * layerThickEdgeMean(k, iEdge) * glsPsi_turb_flux * dvEdge(iEdge)/dcEdge(iEdge)
 
                         glsPsiTend(k, iCellValid) = glsPsiTend(k, iCellValid) - flux * invAreaCell
                      end if

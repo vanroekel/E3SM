@@ -184,7 +184,7 @@ contains
               tracer_turb_flux = tracers(iTracer, k, cell2) - tracers(iTracer, k, cell1)
 
               ! div(h \kappa_2 \nabla \phi) at cell center
-              flux = layerThicknessEdge(k, iEdge) * tracer_turb_flux * r_tmp * eddyDiff(k,iEdge)
+              flux = layerThickEdgeMean(k, iEdge) * tracer_turb_flux * r_tmp * eddyDiff(k,iEdge)
 
               tend(iTracer, k, iCell) = tend(iTracer, k, iCell) - edgeSignOnCell(i, iCell) * flux * invAreaCell
             end do

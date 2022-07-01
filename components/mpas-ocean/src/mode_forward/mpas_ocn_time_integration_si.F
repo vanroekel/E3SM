@@ -266,8 +266,6 @@ module ocn_time_integration_si
       type (field1DReal), pointer :: &
          effectiveDensityField         ! field pointer for halo update
 
-      type (dm_info) :: dminfo
-
       ! State/Tracer arrays, info
       real (kind=RKIND), dimension(:,:,:), pointer ::      &!
          tracersGroupCur,      &! old, new tracer arrays
@@ -3436,7 +3434,7 @@ module ocn_time_integration_si
 
             dminfo = domain % dminfo
             call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, verticalVelocityNew, &
-              layerThicknessNew, layerThickEdge, nhPressureCorrection, dminfo % comm, dt)
+              layerThicknessNew, layerThickEdgeFlux, nhPressureCorrection, dminfo % comm, dt)
 
             call mpas_timer_start('se NHpressure tend halo pressure')
             call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=2)
@@ -3448,7 +3446,7 @@ module ocn_time_integration_si
 
             call mpas_dmpar_field_halo_exch(domain, 'layerThickEdge')
             call ocn_nonhydrostatic_pressure_update_velocity(normalVelocityNew, verticalVelocityNew, &
-              layerThicknessNew, layerThickEdge, nonhydrostaticPressure, nonhydrostaticPressureOld, &
+              layerThicknessNew, layerThickEdgeFlux, nonhydrostaticPressure, nonhydrostaticPressureOld, &
               nhPressureCorrection, dt)
 
             call mpas_dmpar_field_halo_exch(domain, 'verticalVelocity', timeLevel=2)

@@ -2597,7 +2597,7 @@ module ocn_time_integration_split
 
       if(config_enable_nonhydrostatic_mode) then
          call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, &
-              verticalVelocityNew, layerThicknessNew, layerThickEdge, &
+              verticalVelocityNew, layerThicknessNew, layerThickEdgeFlux, &
               nonHydrostaticPressure, dminfo % comm, dt)
 
          call mpas_timer_start('se NHpressure tend halo pressure')
@@ -2605,7 +2605,7 @@ module ocn_time_integration_split
          call mpas_timer_stop('se NHpressure tend halo pressure')
 
          call ocn_nonhydrostatic_pressure_update_velocity(normalVelocityNew, &
-              verticalVelocityNew, layerThicknessNew, layerThickEdge, &
+              verticalVelocityNew, layerThicknessNew, layerThickEdgeFlux, &
               nonhydrostaticPressure, nonhydrostaticPressureOld, &
               nhPressureCorrection, dt)
          call ocn_vel_add_noise(normalVelocityNew,dt,err)
