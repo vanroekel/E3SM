@@ -81,7 +81,8 @@ contains
 
    subroutine ocn_tracer_hmix_tend(meshPool, layerThickEdgeMean, layerThickness, zMid, tracers, &
                                    RediKappa, slopeTriadUp, slopeTriadDown, dt, isActiveTracer,          &
-                                   RediKappaSfcTaper, RediKappaScaling, rediLimiterCount, tend, err)!{{{
+                                   RediKappaSfcTaper, RediKappaScaling, rediLimiterCount,       &
+                                   mesoEddyDiffusivity, edgeAreaFractionOfCell, tend, err)!{{{
 
 
       !-----------------------------------------------------------------
@@ -97,9 +98,12 @@ contains
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThickEdgeMean, &!< Input: mean thickness at edge
          layerThickness,     &!< Input: thickness at centers
-         zMid                 !< Input: Z coordinate at the center of a cell
+         zMid,               &!< Input: Z coordinate at the center of a cell
+         edgeAreaFractionOfCell
+
       real (kind=RKIND), dimension(:,:), intent(in), optional :: &
-         RediKappaSfcTaper, RediKappaScaling        !< Input: vertical structure of GM/Redi limiter
+         RediKappaSfcTaper, RediKappaScaling, &        !< Input: vertical structure of GM/Redi limiter
+         mesoEddyDiffusivity
 
       real (kind=RKIND), dimension(:,:,:), intent(in) :: &
         slopeTriadUp, slopeTriadDown, &
@@ -154,7 +158,9 @@ contains
         call ocn_tracer_hmix_Redi_tend(meshPool, layerThickness, layerThickEdgeMean, zMid, tracers, &
                                      RediKappa, dt, isActiveTracer,        &
                                      slopeTriadUp, slopeTriadDown, RediKappaSfcTaper, &
-                                     RediKappaScaling, rediLimiterCount, tend, err1)
+                                     RediKappaScaling, rediLimiterCount,  &
+                                     mesoEddyDiffusivity, edgeAreaFractionOfCell, &
+                                     tend, err1)
       endif
       err = ior(err1, err2)
       call mpas_timer_stop("tracer hmix")

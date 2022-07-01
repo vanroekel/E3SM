@@ -30,7 +30,8 @@ TEST_CASES = mpas_ocn_init_baroclinic_channel.o \
              mpas_ocn_init_cosine_bell.o \
              mpas_ocn_init_mixed_layer_eddy.o \
              mpas_ocn_init_transport_tests.o \
-             mpas_ocn_init_test_sht.o
+             mpas_ocn_init_test_sht.o \
+			 mpas_ocn_init_deep_convection.o
              #mpas_ocn_init_TEMPLATE.o
 
 all: init_mode
@@ -52,6 +53,8 @@ mpas_ocn_init_spherical_utils.o:
 mpas_ocn_init_vertical_grids.o:
 
 mpas_ocn_init_seaSurfaceHeightAndPressure.o:
+
+mpas_ocn_init_deep_convection.o: $(UTILS)
 
 mpas_ocn_init_baroclinic_channel.o: $(UTILS)
 

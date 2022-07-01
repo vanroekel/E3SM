@@ -10,6 +10,7 @@
 !  ocn_vmix
 !
 !> \brief MPAS ocean vertical mixing driver
+! need to be careful with the viscosity and the tridiag solve
 !> \author Mark Petersen
 !> \date   September 2011
 !> \details
@@ -26,6 +27,7 @@ module ocn_vmix
    use mpas_pool_routines
    use mpas_timer
    use ocn_mesh
+   use ocn_diagnostics_variables
 
    use mpas_constants
    use ocn_constants
@@ -53,6 +55,7 @@ module ocn_vmix
 
    public :: ocn_vmix_coefs, &
              ocn_vel_vmix_tend_implicit, &
+             ocn_vertVel_vmix_tend_implicit, &
              ocn_tracer_vmix_tend_implicit, &
              ocn_vmix_init, &
              ocn_vmix_implicit
@@ -138,6 +141,8 @@ contains
       !-----------------------------------------------------------------
 
       err = 0
+
+      if (config_use_two_equation_turbulence_model .and. .not. config_two_equation_mesoscale) return
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -504,6 +509,137 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_vmix_tend_implicit!}}}
+
+!***********************************************************************
+!
+   !  routine ocn_verVel_vmix_tend_implicit
+   !
+   !> \brief   Computes tendencies for implicit vertical momentum vertical mixing
+   !> \author  Luke Van Roekel
+   !> \date    December 2020
+   !> \details
+   !>  This routine computes the tendencies for implicit vertical mixing for
+   !>  vertical momentum using computed coefficients.
+   !
+   !-----------------------------------------------------------------------
+
+   subroutine ocn_vertVel_vmix_tend_implicit(meshPool, dt, vertViscTopOfCell, layerThickness, & !{{{
+                                         verticalVelocity, err)
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool          !< Input: mesh information
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         vertViscTopOfCell !< Input: vertical mixing coefficients
+
+      real (kind=RKIND), intent(in) :: &
+         dt            !< Input: time step
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         layerThickness !< Input: thickness at cell center
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         verticalVelocity             !< Input: velocity
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, N, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
+
+      integer, dimension(:), pointer :: maxLevelCell
+      real(kind=RKIND) :: viscAv
+      integer, dimension(:,:), pointer :: cellsOnEdge
+
+      real (kind=RKIND), dimension(:), allocatable :: A, B, C, velTemp
+
+      err = 0
+
+      if(.not.velVmixOn) return
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+
+      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
+
+      nCells = nCellsArray( 1 )
+
+      allocate(A(nVertLevels+1),B(nVertLevels+1),C(nVertLevels+1),velTemp(nVertLevels+1))
+      A(1) = 0.0_RKIND
+      B(1) = 0.0_RKIND
+      C(1) = 0.0_RKIND
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(viscAv, N, cell1, cell2, A, B, C, velTemp, k)
+      do iCell = 1, nCells
+        N = maxLevelCell(iCell)+1
+        if (N .gt. 0) then
+        A(N) = 0.0_RKIND
+        C(N) = 0.0_RKIND
+
+        ! A is lower diagonal term
+        do k = 2, N-1
+            viscAv = 0.5_RKIND*(vertViscTopOfCell(k-1,iCell) + vertViscTopOfCell(k,iCell))
+            A(k) = dt*viscAv / layerThickness(k-1,iCell) / (0.5_RKIND* &
+                    (layerThickness(k-1,iCell) + layerThickness(k,iCell)))
+!            A(k) = -2.0_RKIND*dt*vertViscTopOfEdge(k,iEdge) &
+!               / (layerThicknessEdge(k-1,iEdge) + layerThicknessEdge(k,iEdge)) &
+!               / layerThicknessEdge(k,iEdge)
+         enddo
+         ! C is upper diagonal term
+         do k = 2, N-1
+           viscAv = 0.5_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))
+           C(k) = dt*viscAv / layerThickness(k,iCell) / (0.5_RKIND* &
+                   (layerThickness(k,iCell) + layerThickness(k-1,iCell)))
+!            A(k) = -2.0_RKIND*dt*vertViscTopOfEdge(k,iEdge) &
+!            C(k) = -2.0_RKIND*dt*vertViscTopOfEdge(k+1,iEdge) &
+!               / (layerThicknessEdge(k,iEdge) + layerThicknessEdge(k+1,iEdge)) &
+!               / layerThicknessEdge(k,iEdge)
+         enddo
+
+         ! B is diagonal term
+         do k = 1, N
+            B(k) = 1.0_RKIND - A(k) - C(k)
+         enddo
+
+         call tridiagonal_solve(A(2:N),B,C(1:N-1),verticalVelocity(:,iCell),velTemp,N)
+
+         verticalVelocity(1:N,iCell) = velTemp(1:N)
+        end if
+      end do
+      !$omp end do
+      !$omp end parallel
+
+      deallocate(A,B,C,velTemp)
+
+   !--------------------------------------------------------------------
+
+ end subroutine ocn_vertVel_vmix_tend_implicit!}}}
 
 !***********************************************************************
 !
@@ -1089,8 +1225,8 @@ contains
 
       integer :: iCell, timeLevel, k, cell1, cell2, iEdge, iTracer, num_tracers, nCells, nEdges, N, Nsurf
       real (kind=RKIND), dimension(:), pointer :: bottomDrag, ssh
-      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness
-      real (kind=RKIND), dimension(:,:), pointer :: tracerGroupSurfaceFlux
+      real (kind=RKIND), dimension(:,:), pointer :: verticalVelocity, normalVelocity, layerThickness
+      real (kind=RKIND), dimension(:,:), pointer :: nonLocalSurfaceTracerFlux, tracerGroupSurfaceFlux
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
       real (kind=RKIND), dimension(:,:,:), allocatable :: nonLocalFluxTend
 
@@ -1111,6 +1247,7 @@ contains
 
       call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
+      call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
       call mpas_pool_get_array(statePool, 'ssh', ssh, timeLevel)
 
@@ -1121,7 +1258,7 @@ contains
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
-      if ( config_use_cvmix ) then
+      if ( config_use_cvmix .or. config_use_two_equation_turbulence_model ) then
 
          call mpas_timer_start('CVMix avg', .false.)
 #ifdef MPAS_OPENACC
@@ -1187,6 +1324,13 @@ contains
       !$acc update host(vertViscTopOfEdge)
 #endif
 
+      nEdges = nEdgesArray(1)
+      do iEdge=1,nEdges
+         do k=1,nVertLevels
+            velocityVmixtend(k,iEdge) = normalVelocity(k,iEdge)
+         end do
+      end do
+
       !
       !  Implicit vertical solve for momentum
       !
@@ -1217,6 +1361,19 @@ contains
       !$acc exit data copyout(normalVelocity)
 #endif
       call mpas_timer_stop('vmix solve momentum')
+      !
+      !  If nonhydrostatic is enabled compute vertical velocity diffusion
+      !
+      if (config_enable_nonhydrostatic_mode) then
+         call ocn_vertVel_vmix_tend_implicit(meshPool, dt, vertViscTopOfCell, layerThickness, &
+                                               verticalVelocity, err)
+      endif
+
+      do iEdge=1,nEdges
+         do k=1,nVertLevels
+            velocityVmixTend(k,iEdge) = (normalVelocity(k,iEdge) - velocityvmixtend(k,iEdge)) / dt
+         end do
+      end do
 
       !
       !  Implicit vertical solve for all tracers

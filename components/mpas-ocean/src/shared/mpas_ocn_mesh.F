@@ -82,6 +82,7 @@ module ocn_mesh
       maxLevelVertexTop, &! max ocean level at top    of each vertex
       maxLevelVertexBot, &! max ocean level at bottom of each vertex
       indexToCellID, &! global ID of each local cell
+      mpasToPetscMap, &! mapping from mpas decomposition to PETSC decomp
       indexToEdgeID, &! global ID of each local edge
       indexToVertexID    ! global ID of each local vertex
 
@@ -146,6 +147,7 @@ module ocn_mesh
    real(kind=RKIND), public, dimension(:, :), pointer :: &
       weightsOnEdge, &! weights on each edge
       kiteAreasOnVertex, &! real (vertexDegree nVertices)
+      boundaryCellMask, &
       edgeTangentVectors, &! tangent unit vector at edge
       edgeNormalVectors, &! normal  unit vector at edge
       localVerticalUnitVectors ! local unit vector iin vertical
@@ -158,8 +160,14 @@ module ocn_mesh
    real(kind=RKIND), public, dimension(:, :), allocatable :: &
       edgeAreaFractionOfCell
 
-   !}}}
+   real(kind=RKIND), public, dimension(:,:), pointer :: &
+      boundaryNormalAngle, &
+      distanceToBoundary
 
+!   integer, public, dimension(:,:), pointer :: &
+!      boundaryCellMask
+
+    !}}}
    !----------------------------------------------------------------------------
    !
    ! Public member functions
@@ -490,6 +498,12 @@ contains
                                boundaryVertexTmp)
       call mpas_pool_get_array(meshPool, 'boundaryCell', &
                                boundaryCellTmp)
+         call mpas_pool_get_array(meshPool, 'mpasToPetscMap', &
+                                  mpasToPetscMap)
+         call mpas_pool_get_array(meshPool, 'distanceToBoundary', distanceToBoundary)
+         call mpas_pool_get_array(meshPool, 'boundaryCellMask', boundaryCellMask)
+         call mpas_pool_get_array(meshPool, 'boundaryNormalAngle', boundaryNormalAngle)
+
 
       allocate ( &
             edgeMask(nVertLevels, nEdgesAll+1), &
@@ -601,6 +615,7 @@ contains
          !$acc                   maxLevelVertexTop,        &
          !$acc                   maxLevelVertexBot,        &
          !$acc                   indexToCellID,            &
+         !$acc                   mpasToPetcMap,            &
          !$acc                   indexToEdgeID,            &
          !$acc                   indexToVertexID,          &
          !$acc                   edgesOnEdge,              &
@@ -658,7 +673,11 @@ contains
          !$acc                   edgeNormalVectors,        &
          !$acc                   localVerticalUnitVectors, &
          !$acc                   cellTangentPlane,         &
-         !$acc                   coeffs_reconstruct)
+         !$acc                   coeffs_reconstruct        &
+         !$acc                   boundaryNormalAngle,      &
+         !$acc                   distanceToBoundary,       &
+         !$acc                   boundaryCellMask)
+
 
 !-------------------------------------------------------------------------------
 
@@ -731,6 +750,7 @@ contains
       !$acc                  maxLevelVertexTop, &
       !$acc                  maxLevelVertexBot, &
       !$acc                  indexToCellID,     &
+      !$acc                  mpasToPetscMap,    &
       !$acc                  indexToEdgeID,     &
       !$acc                  indexToVertexID,   &
       !$acc                  edgesOnEdge,       &
@@ -788,7 +808,9 @@ contains
       !$acc                  edgeNormalVectors, &
       !$acc                  localVerticalUnitVectors, &
       !$acc                  cellTangentPlane,  &
-      !$acc                  coeffs_reconstruct)
+      !$acc                  coeffs_reconstruct, &
+      !$acc                  boundaryNormalAngle, &
+      !$acc                  distanceToBoundary)
 
       ! Reset all scalars to zero
       onSphere  = .false.
@@ -822,6 +844,7 @@ contains
                maxLevelVertexTop, &
                maxLevelVertexBot, &
                indexToCellID, &
+               mpasToPetscMap, &
                indexToEdgeID, &
                indexToVertexID, &
                edgesOnEdge, &
@@ -870,7 +893,10 @@ contains
                edgeNormalVectors, &
                localVerticalUnitVectors, &
                cellTangentPlane, &
-               coeffs_reconstruct)
+               coeffs_reconstruct, &
+               boundaryNormalAngle, &
+               boundaryCellMask, &
+               distanceToBoundary)
 
 #ifdef MPAS_OPENACC
       !$acc exit data delete(edgeAreaFractionOfCell)
@@ -1162,6 +1188,7 @@ contains
       !$acc               maxLevelVertexTop,        &
       !$acc               maxLevelVertexBot,        &
       !$acc               indexToCellID,            &
+      !$acc               mpasToPetscMap,           &
       !$acc               indexToEdgeID,            &
       !$acc               indexToVertexID,          &
       !$acc               edgesOnEdge,              &
@@ -1219,7 +1246,10 @@ contains
       !$acc               edgeNormalVectors,        &
       !$acc               localVerticalUnitVectors, &
       !$acc               cellTangentPlane,         &
-      !$acc               coeffs_reconstruct)
+      !$acc               coeffs_reconstruct,       &
+      !$acc               boundaryNormalAngle,      &
+      !$acc               boundaryCellMask,         &
+      !$acc               distanceToBoundary)
 
 !-------------------------------------------------------------------------------
 

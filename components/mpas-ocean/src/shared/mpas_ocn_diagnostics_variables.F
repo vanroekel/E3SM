@@ -121,6 +121,7 @@ module ocn_diagnostics_variables
    real(kind=RKIND), dimension(:,:), pointer :: k33
    real(kind=RKIND), dimension(:), pointer   :: gmBolusKappa
    real(kind=RKIND), dimension(:), pointer   :: cGMphaseSpeed
+   real(kind=RKIND), dimension(:,:), pointer :: mesoEddyDiffusivity
    real(kind=RKIND), dimension(:,:,:), pointer :: slopeTriadUp, slopeTriadDown
 
    integer, dimension(:), pointer :: indMLD
@@ -134,6 +135,17 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:), pointer :: wettingVelocity
    type (field2DReal), pointer :: wettingVelocityField
 
+   real (kind=RKIND), dimension(:,:), pointer :: &
+      velocityVmixtend, &
+      velocityHmixtend, &
+      velocityCoriolisTend, &
+      velocityVadvTend, &
+      velocityForcingTend, &
+      velocityPGFtend
+
+   real (kind=RKIND), dimension(:,:), pointer :: Sm, Sh
+   real (kind=RKIND), dimension(:,:,:), pointer :: ugrad, vgrad, wgrad
+   real (kind=RKIND), dimension(:,:,:), pointer :: tgrad, sgrad
    real (kind=RKIND), dimension(:,:), pointer :: vertDiffTopOfCell
    real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
    integer, dimension(:,:), pointer :: rediLimiterCount
@@ -192,6 +204,11 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:), pointer :: SIvec_t0,SIvec_t1 ,SIvec_q0 ,SIvec_q1 ,SIvec_qh0
    real (kind=RKIND), dimension(:), pointer :: SIvec_w0,SIvec_w1 ,SIvec_wh0,SIvec_wh1,SIvec_y0
    real (kind=RKIND), dimension(:), pointer :: SIvec_z0,SIvec_z1 ,SIvec_zh0,SIvec_zh1
+   real (kind=RKIND), dimension(:,:), pointer :: dynamicViscosity, uStar, yPlus
+   real (kind=RKIND), dimension(:,:), pointer :: buoyancyProduction, shearProduction
+   real (kind=RKIND), dimension(:,:), pointer :: tkeAdvTend, tkeTransTend, tkeDissTend
+
+   real (kind=RKIND), dimension(:,:), pointer :: nhPressureCorrection
 
    !--------------------------------------------------------------------
    !
@@ -253,6 +270,8 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'rediLimiterCount', &
                    rediLimiterCount)
 
+         call mpas_pool_get_array(diagnosticsPool, 'mesoEddyDiffusivity', &
+                   mesoEddyDiffusivity)
          call mpas_pool_get_array(diagnosticsPool, 'gmBolusKappa',  &
                    gmBolusKappa)
          call mpas_pool_get_array(diagnosticsPool, 'gmKappaScaling', &
@@ -591,6 +610,31 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'indMLD', indMLD)
       call mpas_pool_get_array(diagnosticsPool, 'surfacePressure', &
                 surfacePressure)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityForcingTend', velocityForcingTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityPGFtend', velocityPGFtend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityVadvTend', velocityVadvTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityHmixTend', velocityHmixTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityVmixTend', velocityVmixTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityCoriolisTend', velocityCoriolisTend)
+
+      call mpas_pool_get_array(diagnosticsPool, 'yPlus', yPlus)
+      call mpas_pool_get_array(diagnosticsPool, 'uStar', uStar)
+      call mpas_pool_get_array(diagnosticsPool, 'dynamicViscosity', dynamicViscosity)
+      call mpas_pool_get_array(diagnosticsPool, 'buoyancyProduction', buoyancyProduction)
+      call mpas_pool_get_array(diagnosticsPool, 'shearProduction', shearProduction)
+      call mpas_pool_get_array(diagnosticsPool, 'tkeAdvTend', tkeAdvTend)
+      call mpas_pool_get_array(diagnosticsPool, 'tkeDissTend', tkeDissTend)
+      call mpas_pool_get_array(diagnosticsPool, 'tkeTransTend', tkeTransTend)
+      call mpas_pool_get_array(diagnosticsPool, 'ugrad', ugrad)
+      call mpas_pool_get_array(diagnosticsPool, 'vgrad', vgrad)
+      call mpas_pool_get_array(diagnosticsPool, 'wgrad', wgrad)
+      call mpas_pool_get_array(diagnosticsPool, 'tgrad', tgrad)
+      call mpas_pool_get_array(diagnosticsPool, 'sgrad', sgrad)
+      call mpas_pool_get_array(diagnosticsPool, 'Sm', Sm)
+      call mpas_pool_get_array(diagnosticsPool, 'Sh', Sh)
+
+      call mpas_pool_get_array(diagnosticsPool, 'nhPressureCorrection', nhPressureCorrection)
+
 
       ! Semi-implicit Array Pointer retrievals
       if (trim(config_time_integrator) == 'split_implicit') then
@@ -736,7 +780,26 @@ contains
          !$acc                   transportVelocityMeridional,     &
          !$acc                   penetrativeTemperatureFluxOBL,   &
          !$acc                   indexSurfaceVelocityMeridional,  &
-         !$acc                   normalizedRelativeVorticityCell  &
+         !$acc                   normalizedRelativeVorticityCell, &
+         !$acc                   velocityPGFtend,                 &
+         !$acc                   velocityForcingTend,             &
+         !$acc                   velocityVadvTend,                &
+         !$acc                   velocityHmixTend,                &
+         !$acc                   velocityVmixTend,                &
+         !$acc                   velocityCoriolisTend,            &
+         !$acc                   yPlus,                           &
+         !$acc                   uStar,                           &
+         !$acc                   dynamicViscosity,                &
+         !$acc                   buoyancyProduction,              &
+         !$acc                   shearProduction,                 &
+         !$acc                   tkeTransTend,                    &
+         !$acc                   tkeAdvTend,                      &
+         !$acc                   tkeDissTend,                     &
+         !$acc                   ugrad,                           &
+         !$acc                   vgrad,                           &
+         !$acc                   wgrad,                           &
+         !$acc                   Sm,                              &
+         !$acc                   Sh,                              &
          !$acc                   )
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
@@ -748,6 +811,7 @@ contains
          !$acc enter data create(                   &
          !$acc                   RediKappa,         &
          !$acc                   gmBolusKappa,      &
+         !$acc                   mesoEddyDiffusivity, &
          !$acc                   gmKappaScaling,    &
          !$acc                   RediKappaScaling,  &
          !$acc                   rediLimiterCount,  &
@@ -976,7 +1040,26 @@ contains
          !$acc                   transportVelocityMeridional,     &
          !$acc                   penetrativeTemperatureFluxOBL,   &
          !$acc                   indexSurfaceVelocityMeridional,  &
-         !$acc                   normalizedRelativeVorticityCell  &
+         !$acc                   normalizedRelativeVorticityCell, &
+         !$acc                   velocityPGFtend,                 &
+         !$acc                   velocityForcingTend,             &
+         !$acc                   velocityVadvTend,                &
+         !$acc                   velocityHmixTend,                &
+         !$acc                   velocityVmixTend,                &
+         !$acc                   velocityCoriolisTend,            &
+         !$acc                   yPlus,                           &
+         !$acc                   uStar,                           &
+         !$acc                   dynamicViscosity,                &
+         !$acc                   buoyancyProduction,              &
+         !$acc                   shearProduction,                 &
+         !$acc                   tkeAdvTend,                      &
+         !$acc                   tkeDissTend,                     &
+         !$acc                   tkeTransTend,                    &
+         !$acc                   ugrad,                           &
+         !$acc                   vgrad,                           &
+         !$acc                   wgrad,                           &
+         !$acc                   Sm,                              &
+         !$acc                   Sh,                              &
          !$acc                   )
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
@@ -988,6 +1071,7 @@ contains
          !$acc exit data delete(                    &
          !$acc                   RediKappa,         &
          !$acc                   gmBolusKappa,      &
+         !$acc                   mesoEddyDiffusivity, &
          !$acc                   gmKappaScaling,    &
          !$acc                   RediKappaScaling,  &
          !$acc                   rediLimiterCount,  &
@@ -1174,7 +1258,26 @@ contains
                  transportVelocityMeridional,     &
                  penetrativeTemperatureFluxOBL,   &
                  indexSurfaceVelocityMeridional,  &
-                 normalizedRelativeVorticityCell)
+                 normalizedRelativeVorticityCell, &
+                 velocityCoriolisTend,            &
+                 velocityVmixTend,                &
+                 yPlus,                           &
+                 uStar,                           &
+                 ugrad,                           &
+                 vgrad,                           &
+                 wgrad,                           &
+                 Sh,                              &
+                 Sm,                              &
+                 dynamicViscosity,                &
+                 buoyancyProduction,              &
+                 shearProduction,                 &
+                 tkeAdvTend,                      &
+                 tkeDissTend,                     &
+                 tkeTransTend,                    &
+                 velocityHmixTend,                &
+                 velocityVadvTend,                &
+                 velocityPGFtend,                 &
+                 velocityForcingTend)
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
          nullify(wettingVelocity)
@@ -1182,6 +1285,7 @@ contains
       if (config_use_GM.or.config_use_Redi) then
          nullify(RediKappa,         &
                  gmBolusKappa,      &
+                 mesoEddyDiffusivity, &
                  gmKappaScaling,    &
                  RediKappaScaling,  &
                  rediLimiterCount,  &
@@ -1260,6 +1364,9 @@ contains
               surfaceFluxAttenuationCoefficientRunoff)
 
     end subroutine ocn_diagnostics_variables_destroy!}}}
+
+
+!***********************************************************************
 
 end module ocn_diagnostics_variables
 

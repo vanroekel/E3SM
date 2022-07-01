@@ -33,17 +33,20 @@ module ocn_time_integration_split
 
    use ocn_config
    use ocn_mesh
+   use ocn_two_equation_model
    use ocn_tendency
    use ocn_diagnostics_variables
    use ocn_diagnostics
    use ocn_gm
 
+   use ocn_compute_nonhydrostatic_pressure
    use ocn_equation_of_state
    use ocn_vmix
    use ocn_vertical_advection
    use ocn_vertical_remap
    use ocn_time_average_coupled
 
+   use ocn_vel_noise
    use ocn_effective_density_in_land_ice
    use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
@@ -135,6 +138,8 @@ module ocn_time_integration_split
       ! Local variables
       !-----------------------------------------------------------------
 
+      type (dm_info) :: dminfo 
+
       type (block_type), pointer :: &
          block ! structure with subdomain data
 
@@ -216,7 +221,15 @@ module ocn_time_integration_split
          highFreqThicknessNew,        &! high frq thick at new     time
          lowFreqDivergenceCur,        &! low frq div    at current time
          lowFreqDivergenceNew,        &! low frq div    at new     time
-         tracerGroupIdealAgeMask       ! mask for resetting surface ideal age
+         tracerGroupIdealAgeMask,     &! mask for resetting surface ideal age
+         verticalVelocityCur,         &! vertical velocity at current time
+         verticalVelocityNew,         &! vertical velocity at new time
+         nonhydrostaticPressure,      &! nonhydro pressure at new time
+         nonhydrostaticPressureOld,   &! nonhdyro pressure at current time
+         tkeNew,                      &! tke at new time
+         tkeCur,                      &! tke at current time
+         glsPsiNew,                   &! glsPsi at new time
+         glsPsiCur                     ! glsPsi at current time
 
       type (field1DReal), pointer :: &
          effectiveDensityField         ! field pointer for halo update
@@ -248,7 +261,10 @@ module ocn_time_integration_split
          normalVelocityTend,    &! normal velocity tendency
          highFreqThicknessTend, &! thickness tendency for high-freq iter
          lowFreqDivergenceTend, &! thickness tendency for low freq
-         layerThicknessTend      ! main thickness tendency
+         layerThicknessTend,    &! main thickness tendency
+         verticalVelocityTend,  &! vertical velocity tendency
+         tendglsPsi,        &! glsPsi tendency
+         tendTKE                 ! tke tendency
 
       real (kind=RKIND), dimension(:,:,:), pointer :: &
          tracersGroupTend,      &! tendencies for tracer groups
@@ -326,6 +342,20 @@ module ocn_time_integration_split
                                              tracersTendPool)
 
       !*** Retrieve state variables at two time levels
+      if(config_enable_nonhydrostatic_mode) then
+         call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityCur, 1)
+         call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityNew, 2)
+         call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressure, 2)
+      end if
+      if(config_use_two_equation_turbulence_model) then
+         call mpas_pool_get_array(statePool, 'tke', tkeNew, 2)
+         call mpas_pool_get_array(statePool, 'tke', tkeCur, 1)
+         call mpas_pool_get_array(statePool, 'glsPsi', glsPsiNew, 2)
+         call mpas_pool_get_array(statePool, 'glsPsi', glsPsiCur, 1)
+         call mpas_pool_get_array(tendPool, 'tendTKE', tendTKE)
+         call mpas_pool_get_array(tendPool, 'tendglsPsi', tendglsPsi)
+      end if
+
 
       call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', &
                                            normalBaroclinicVelocityCur, 1)
@@ -555,6 +585,42 @@ module ocn_time_integration_split
 #endif
       endif
 
+      if(config_enable_nonhydrostatic_mode) then
+         !$omp parallel
+         !$omp do schedule(runtime) private(k)
+         do iCell = 1, nCellsAll
+            do k = 2, maxLevelCell(iCell)
+               verticalVelocityNew(k,iCell) = verticalVelocityCur(k,iCell)
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+      end if
+
+      if(config_use_two_equation_turbulence_model) then
+         !$omp parallel
+         !$omp do schedule(runtime) private(k)
+         do iCell = 1, nCellsAll
+            do k = 2, maxLevelCell(iCell)
+               tkeNew(k,iCell) = tkeCur(k,iCell)
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+         if(.not. config_LES_mode) then
+            !$omp parallel
+            !$omp do schedule(runtime) private(k)
+            do iCell = 1, nCellsAll
+               do k = 2, maxLevelCell(iCell)
+                  glsPsiNew(k,iCell) = glsPsiCur(k,iCell)
+               end do
+            end do
+            !$omp end do
+            !$omp end parallel
+         end if
+      end if
+
       call mpas_timer_stop("se prep")
 
       call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
@@ -678,6 +744,11 @@ module ocn_time_integration_split
          call mpas_timer_start("se bcl vel")
          call mpas_timer_start('se bcl vel tend')
 
+         call mpas_pool_get_array(statePool, 'normalVelocity', &
+                           normalVelocityCur, stage1_tend_time)
+         call mpas_pool_get_array(statePool, 'verticalVelocity', &
+                           verticalVelocityCur, stage1_tend_time)
+
          ! compute vertAleTransportTop.  Use u (rather than &
          ! normalTransportVelocity) for momentum advection.
          ! Use the most recent time level available.
@@ -685,13 +756,19 @@ module ocn_time_integration_split
          if (associated(highFreqThicknessNew)) then
             call ocn_vert_transport_velocity_top(meshPool, &
                  verticalMeshPool, layerThicknessCur, &
-                 layerThickEdgeFlux, normalVelocityCur, sshCur, dt, &
-                 vertAleTransportTop, err, highFreqThicknessNew)
+                 layerThickEdgeFlux, normalVelocityCur, &
+                 verticalVelocityCur, sshCur, dt, &
+                 vertAleTransportTop, nhPressureCorrection, &
+                 err, highFreqThicknessNew)
+#ifdef MPAS_OPENACC
+            !$acc exit data delete(highFreqThicknessNew)
+#endif
          else
             call ocn_vert_transport_velocity_top(meshPool, &
                  verticalMeshPool, layerThicknessCur, &
-                 layerThickEdgeFlux, normalVelocityCur, sshCur, dt, &
-                 vertAleTransportTop, err)
+                 layerThickEdgeFlux, normalVelocityCur, &
+                 verticalVelocityCur, sshCur, dt, &
+                 vertAleTransportTop, nhPressureCorrection, err)
          endif
 
 #ifdef MPAS_OPENACC
@@ -1648,16 +1725,19 @@ module ocn_time_integration_split
 #endif
             call ocn_vert_transport_velocity_top(meshPool, &
                  verticalMeshPool, layerThicknessCur, &
-                 layerThickEdgeFlux, normalTransportVelocity, sshCur, &
-                 dt, vertAleTransportTop, err, highFreqThicknessNew)
+                 layerThickEdgeFlux, normalTransportVelocity, &
+                 verticalVelocityCur, sshCur, &
+                 dt, vertAleTransportTop, nhPressureCorrection, &
+                 err, highFreqThicknessNew)
 #ifdef MPAS_OPENACC
             !$acc exit data delete(highFreqThicknessNew)
 #endif
          else
             call ocn_vert_transport_velocity_top(meshPool, &
                  verticalMeshPool, layerThicknessCur, &
-                 layerThickEdgeFlux, normalTransportVelocity, sshCur, &
-                 dt, vertAleTransportTop, err)
+                 layerThickEdgeFlux, normalTransportVelocity, &
+                 verticalVelocityCur, sshCur, &
+                 dt, vertAleTransportTop, nhPressureCorrection, err)
          endif
 #ifdef MPAS_OPENACC
          !$acc exit data delete(layerThicknessCur, sshCur)
@@ -1677,6 +1757,7 @@ module ocn_time_integration_split
          call mpas_timer_stop("se halo thickness")
 
          call mpas_timer_start('se tracer tend', .false.)
+
          call ocn_tend_tracer(tendPool, statePool, forcingPool, &
                               meshPool, swForcingPool, &
                               dt, activeTracersOnly, 2)
@@ -1753,8 +1834,43 @@ module ocn_time_integration_split
             end if
          end do
          call mpas_timer_stop("se halo tracers")
+         if(config_enable_nonhydrostatic_mode) call ocn_tend_vvel(tendPool, statePool, &
+                          forcingPool, meshPool, 2, dt)
+
+
+         if(config_use_two_equation_turbulence_model) then
+            call mpas_pool_get_array(tracersPool, 'activeTracers', tracersGroupNew, 2)
+            call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityNew, 2)!
+            call ocn_compute_KPP_input_fields(statePool, forcingPool, meshPool, 2)
+
+            call ocn_compute_two_equation_tendency(tendTKE, tendglsPsi, tkeNew, glsPsiNew, velocityZonal, &
+                       velocityMeridional, normalVelocityNew, verticalVelocityNew, layerThicknessNew, &
+                       tracersGroupNew, dt, err)
+         end if
+
 
          call mpas_timer_start('se loop fini')
+         call mpas_pool_get_array(tracersPool, 'activeTracers', &
+                                                tracersGroupCur, 1)
+         call mpas_pool_get_array(tracersPool, 'activeTracers', &
+                                                tracersGroupNew, 2)
+         call mpas_pool_get_array(statePool,   'normalVelocity', &
+                                                normalVelocityCur, 1)
+         call mpas_pool_get_array(tracersTendPool,'activeTracersTend', &
+                                                   activeTracersTend)
+         if(config_enable_nonhydrostatic_mode) then
+            call mpas_pool_get_array(statePool, 'verticalVelocity', &
+                                                verticalVelocityCur, 1)
+            call mpas_pool_get_array(statePool, 'verticalVelocity', &
+                                                verticalVelocityNew, 2)
+            call mpas_pool_get_array(tendPool, 'verticalVelocityTend', &
+                                                verticalVelocityTend)
+         end if
+
+         if(config_use_two_equation_turbulence_model) then
+            call mpas_pool_get_array(tendPool, 'tendTKE', tendTKE)
+            call mpas_pool_get_array(tendPool, 'tendglsPsi', tendglsPsi)
+         end if
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          !  If iterating, reset variables for next iteration
@@ -1812,6 +1928,46 @@ module ocn_time_integration_split
             !$acc update device(layerThicknessNew)
             !$acc update device(activeTracersNew)
 #endif
+
+            if(config_enable_nonhydrostatic_mode) then
+              !$omp parallel
+              !$omp do schedule(runtime) private(k, temp_h)
+              do iCell = 1, nCells
+                 do k = 2, maxLevelCell(iCell)
+                    temp_h = verticalVelocityCur(k,iCell) + dt * verticalVelocityTend(k,iCell)
+                    verticalVelocityNew(k,iCell) = 0.5_RKIND*(verticalVelocityCur(k,iCell) + temp_h)
+                 end do
+              end do
+              !$omp end do
+              !$omp end parallel
+            end if
+
+            if(config_use_two_equation_turbulence_model) then
+               !$omp parallel
+               !$omp do schedule(runtime) private(k, temp_h)
+               do iCell = 1, nCells
+                  do k = 1, maxLevelCell(iCell)
+                     temp_h = tkeCur(k,iCell) + dt * tendTKE(k,iCell)
+                     tkeNew(k,iCell) = max(0.0_RKIND, 0.5_RKIND*(tkeCur(k,iCell) + temp_h))
+                  end do
+               end do
+               !$omp end do
+               !$omp end parallel
+
+               if (.not. config_LES_mode) then
+                  !$omp parallel
+                  !$omp do schedule(runtime) private(k, temp_h)
+                  do iCell = 1, nCells
+                     do k = 1, maxLevelCell(iCell)
+                        temp_h = glsPsiCur(k,iCell) + dt * tendglsPsi(k,iCell)
+                        glsPsiNew(k,iCell) = max(0.0_RKIND, 0.5_RKIND*(glsPsiCur(k,iCell) + temp_h))
+                     end do
+                  end do
+                  !$omp end do
+                  !$omp end parallel
+               end if
+
+            end if
 
             if (config_use_freq_filtered_thickness) then
 
@@ -1929,6 +2085,42 @@ module ocn_time_integration_split
             !$omp end parallel
 #endif
 
+            if(config_enable_nonhydrostatic_mode) then
+                  !$omp parallel
+                  !$omp do schedule(runtime) private(k)
+                  do iCell = 1, nCells
+                     do k = 1, maxLevelCell(iCell)
+                        verticalVelocityNew(k,iCell) = verticalVelocityCur(k,iCell) + dt * verticalVelocityTend(k,iCell)
+                     end do
+                  end do
+                  !$omp end do 
+                  !$omp end parallel
+               end if
+               if(config_use_two_equation_turbulence_model) then
+                  !$omp parallel
+                  !$omp do schedule(runtime) private(k)
+                  do iCell = 1, nCells
+                     do k = 1, maxLevelCell(iCell)
+                        tkeNew(k,iCell) = max(0.0_RKIND, tkeCur(k,iCell) + dt * tendTKE(k,iCell))
+                     end do
+                  end do
+                  !$omp end do
+                  !$omp end parallel
+
+                  if (.not. config_LES_mode) then
+                     !$omp parallel
+                     !$omp do schedule(runtime) private(k)
+                     do iCell = 1, nCells
+                        do k = 1, maxLevelCell(iCell)
+                           glsPsiNew(k,iCell) = max(0.0_RKIND, glsPsiCur(k,iCell) + dt * tendglsPsi(k,iCell))
+                        end do
+                     end do
+                     !$omp end do
+                     !$omp end parallel
+                  end if
+
+               end if
+ 
             if (config_compute_active_tracer_budgets) then
 
 #ifdef MPAS_OPENACC
@@ -2379,6 +2571,9 @@ module ocn_time_integration_split
       endif
       !$acc exit data delete(layerThicknessNew, normalVelocityNew)
 #endif
+      if (config_use_two_equation_turbulence_model) then
+           call ocn_compute_two_equation_diff(tkeNew, glsPsiNew, layerThicknessNew, dt, err)
+      end if
 
       ! Compute normalGMBolusVelocity; it will be added to the
       ! baroclinic modes in Stage 2 above.
@@ -2395,6 +2590,23 @@ module ocn_time_integration_split
       ! stage 3 are only conducted on tendencies, not on the velocity
       ! and tracer fields.  So this update is required to communicate
       ! the change due to implicit vertical mixing across the boundary.
+
+      if(config_enable_nonhydrostatic_mode) then
+         call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, &
+              verticalVelocityNew, layerThicknessNew, layerThickEdge, &
+              nonHydrostaticPressure, dminfo % comm, dt)
+
+         call mpas_timer_start('se NHpressure tend halo pressure')
+         call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=2)
+         call mpas_timer_stop('se NHpressure tend halo pressure')
+
+         call ocn_nonhydrostatic_pressure_update_velocity(normalVelocityNew, &
+              verticalVelocityNew, layerThicknessNew, layerThickEdge, &
+              nonhydrostaticPressure, nonhydrostaticPressureOld, &
+              nhPressureCorrection, dt)
+         call ocn_vel_add_noise(normalVelocityNew,dt,err)
+
+      end if
 
       call mpas_timer_start('se vmix halos')
 

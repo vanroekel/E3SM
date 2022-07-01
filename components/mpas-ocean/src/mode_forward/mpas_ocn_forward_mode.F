@@ -43,10 +43,16 @@ module ocn_forward_mode
    use ocn_test
    use ocn_mesh
 
+   use ocn_two_equation_model
    use ocn_thick_hadv
    use ocn_thick_vadv
    use ocn_thick_ale
    use ocn_thick_surface_flux
+
+   use ocn_vvel_pgrad
+   use ocn_vvel_coriolis
+   use ocn_vvel_advection
+   use ocn_vvel_hmix_del2
 
    use ocn_vel_pressure_grad
    use ocn_vel_vadv
@@ -75,11 +81,13 @@ module ocn_forward_mode
    use ocn_tracer_CFC
    use ocn_tracer_surface_restoring
    use ocn_gm
+   use ocn_compute_nonhydrostatic_pressure
 
    use ocn_high_freq_thickness_hmix_del2
 
    use ocn_equation_of_state
 
+   use ocn_vel_noise
    use ocn_vmix
    use ocn_vmix_gotm, only: ocn_vmix_gotm_finalize
 
@@ -274,8 +282,6 @@ module ocn_forward_mode
       !-----------------------------------------------------------------
 
       ! fill the ocean mesh structure
-      call ocn_meshCreate(domain)
-
       !-----------------------------------------------------------------
       ! Initialize submodules and fields that are required by others
       ! or that have dependencies that require specific ordering.
@@ -301,6 +307,23 @@ module ocn_forward_mode
 
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
       call mpas_get_timeInterval(timeStep, dt=dt)
+      ! fill the ocean mesh structure
+      call ocn_meshCreate(domain)
+
+      if(config_enable_nonhydrostatic_mode) then
+        call ocn_vvel_advection_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vvel_coriolis_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vvel_pgf_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vvel_hmix_del2_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_nonhydrostatic_solver_init(domain % dminfo % comm, err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vel_noise_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+      endif
 
       call ocn_init_routines_block(block, dt, ierr)
 
@@ -323,6 +346,15 @@ module ocn_forward_mode
 
       ! Update any mesh fields that may have been modified during init
       call ocn_meshUpdateFields(domain)
+
+      ! Update any mesh fields that may have been modified during init
+      call ocn_meshUpdateFields(domain)
+
+      if(config_use_two_equation_turbulence_model) then
+        call ocn_two_equation_init(domain, err_tmp)
+        ierr = ior(ierr, err_tmp)
+      end if
+
 
       if (config_conduct_tests) then
          call mpas_timer_start("test suite")
@@ -478,7 +510,6 @@ module ocn_forward_mode
       endif
 
    !--------------------------------------------------------------------
-
    end function ocn_forward_mode_init!}}}
 
 !***********************************************************************
@@ -824,6 +855,10 @@ module ocn_forward_mode
       call mpas_destroy_clock(domain % clock, ierr)
 
       call mpas_decomp_destroy_decomp_list(domain % decompositions)
+
+      if(config_enable_nonhydrostatic_mode .and. .not. config_enable_vertMomentum_disable_nonHydro) THEN
+         call ocn_nonhydrostatic_solver_finalize()
+      end if
 
    end function ocn_forward_mode_finalize!}}}
 
