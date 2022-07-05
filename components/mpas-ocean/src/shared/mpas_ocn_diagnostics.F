@@ -1776,6 +1776,7 @@ contains
             ! Compute v (tangential) velocities
             do i = 1, nEdgesOnEdge(iEdge)
                eoe = edgesOnEdge(i,iEdge)
+               weightsOnEdge_temp = weightsOnEdge(i, iEdge)
              if(abs(weightsOnEdge_temp) < 1e-10_RKIND) weightsOnEdge_temp = 0.0_RKIND
                do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
                   tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
@@ -1924,8 +1925,6 @@ contains
 #endif 
       end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      deallocate(div_hu,div_huTransport,div_huGMBolus) 
 
    end subroutine ocn_diagnostic_solve_vortVel!}}}
 

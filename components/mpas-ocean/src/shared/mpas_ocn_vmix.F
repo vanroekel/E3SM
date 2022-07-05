@@ -1370,7 +1370,7 @@ contains
                                                verticalVelocity, err)
       endif
 
-      do iEdge=1,nEdges
+      do iEdge=1,nEdgesOwned
          do k=1,nVertLevels
             velocityVmixTend(k,iEdge) = (normalVelocity(k,iEdge) - velocityvmixtend(k,iEdge)) / dt
          end do
