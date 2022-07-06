@@ -122,7 +122,7 @@ contains
         ssh,  seaIcePressure, atmosphericPressure
       real (kind=RKIND), dimension(:,:), pointer :: &
         layerThickness, layerThicknessLag, normalVelocity, & 
-        vertVelocityNonhydro, nonhydrostaticPressure
+        vertVelocityNonhydro
 
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
 
@@ -159,7 +159,6 @@ contains
       indexSalinity    = indexSalinityPtr
       call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
 
-      call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressure, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydro, timeLevel)
