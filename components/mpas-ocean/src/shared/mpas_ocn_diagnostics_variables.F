@@ -140,14 +140,6 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:), pointer :: wettingVelocity
    type (field2DReal), pointer :: wettingVelocityField
 
-   real (kind=RKIND), dimension(:,:), pointer :: &
-      velocityVmixTend, &
-      velocityHmixTend, &
-      velocityCoriolisTend, &
-      velocityVadvTend, &
-      velocityForcingTend, &
-      velocityPGFtend
-
    real (kind=RKIND), dimension(:,:), pointer :: vertDiffTopOfCell
    real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
    integer, dimension(:,:), pointer :: rediLimiterCount
@@ -645,12 +637,6 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'dThreshMLD', dThreshMLD)
       call mpas_pool_get_array(diagnosticsPool, 'surfacePressure', &
                 surfacePressure)
-      call mpas_pool_get_array(diagnosticsPool, 'velocityForcingTend', velocityForcingTend)
-      call mpas_pool_get_array(diagnosticsPool, 'velocityPGFtend', velocityPGFtend)
-      call mpas_pool_get_array(diagnosticsPool, 'velocityVadvTend', velocityVadvTend)
-      call mpas_pool_get_array(diagnosticsPool, 'velocityHmixTend', velocityHmixTend)
-      call mpas_pool_get_array(diagnosticsPool, 'velocityVmixTend', velocityVmixTend)
-      call mpas_pool_get_array(diagnosticsPool, 'velocityCoriolisTend', velocityCoriolisTend)
 
       call mpas_pool_get_array(diagnosticsPool, 'nhPressureCorrection', nhPressureCorrection)
 
@@ -795,12 +781,6 @@ contains
          !$acc                   penetrativeTemperatureFluxOBL,   &
          !$acc                   indexSurfaceVelocityMeridional,  &
          !$acc                   normalizedRelativeVorticityCell, &
-         !$acc                   velocityPGFtend,                 &
-         !$acc                   velocityForcingTend,             &
-         !$acc                   velocityVadvTend,                &
-         !$acc                   velocityHmixTend,                &
-         !$acc                   velocityVmixTend,                &
-         !$acc                   velocityCoriolisTend,            &
          !$acc                   nhPressureCorrection             &
          !$acc                   ) 
       end if
@@ -1044,12 +1024,6 @@ contains
          !$acc                   penetrativeTemperatureFluxOBL,   &
          !$acc                   indexSurfaceVelocityMeridional,  &
          !$acc                   normalizedRelativeVorticityCell, &
-         !$acc                   velocityPGFtend,                 &
-         !$acc                   velocityForcingTend,             &
-         !$acc                   velocityVadvTend,                &
-         !$acc                   velocityHmixTend,                &
-         !$acc                   velocityVmixTend,                &
-         !$acc                   velocityCoriolisTend,            &
          !$acc                   nhPressureCorrection             &
          !$acc                   )
       end if
@@ -1251,13 +1225,7 @@ contains
                  penetrativeTemperatureFluxOBL,   &
                  indexSurfaceVelocityMeridional,  &
                  normalizedRelativeVorticityCell, &
-                 nhPressureCorrection,            &
-                 velocityCoriolisTend,            &
-                 velocityVmixTend,                &
-                 velocityHmixTend,                &
-                 velocityVadvTend,                &
-                 velocityPGFtend,                 &
-                 velocityForcingTend)
+                 nhPressureCorrection)
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
          nullify(wettingVelocity)
