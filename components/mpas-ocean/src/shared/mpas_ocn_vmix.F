@@ -1125,7 +1125,7 @@ contains
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
-      if ( config_use_cvmix ) then
+      if ( config_use_cvmix .or. config_use_vmix_tke ) then
 
          call mpas_timer_start('CVMix avg', .false.)
 #ifdef MPAS_OPENACC

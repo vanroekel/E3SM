@@ -55,7 +55,7 @@ module ocn_vmix_tke
 
    real(kind=RKIND),dimension(:,:),allocatable :: lup, ldo, niwFactor
    real(kind=RKIND) :: ck, ceps, emin0, emin, alpha, lmin0, lmin
-   real(kind=RKIND) :: nu0, kappa0, kappaC, gam
+   real(kind=RKIND) :: nu0, kappa0, kappaC, gam, alpha_conv, tkeEnhance
 
    contains
 !***********************************************************************
@@ -71,12 +71,14 @@ module ocn_vmix_tke
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_tke_compute_coeffs(tke)
+   subroutine ocn_vmix_tke_compute_coeffs(tke,compute_convect)
 
      real(kind=RKIND),dimension(:,:),intent(in) :: tke
 
+     logical,intent(in) :: compute_convect
+
      integer :: iCell, k, nCells
-     real(kind=RKIND) :: lk, Pr
+     real(kind=RKIND) :: lk, Pr, tkeVal
 
      nCells = nCellsHalo(2)
 
@@ -98,11 +100,28 @@ module ocn_vmix_tke
               Pr = 10.0_RKIND
            end if
 
-           vertViscTopOfCell(k,iCell) = ck*lk*sqrt(tke(k,iCell))
-           vertDiffTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) / Pr
+          ! if(BruntVaisalaFreqTop(k,iCell) < 0.0_RKIND) then
+          !    vertViscTopOfCell(k,iCell) = kappaC
+          !    vertDiffTopOfCell(k,iCell) = kappaC
+          ! else
+              tkeVal = max(tke(k,iCell),emin)
+              vertViscTopOfCell(k,iCell) = ck*lk*sqrt(tkeVal)
+              vertDiffTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) / Pr
+          ! end if
         end do
      end do
 
+     if(compute_convect) then
+     do iCell=1,nCells
+        do k=minLevelCell(iCell)+1,maxLevelCell(iCell)
+           if(BruntVaisalaFreqTop(k,iCell)<0.0_RKIND) then
+              vertViscTopOfCell(k,iCell) = kappaC
+              vertDiffTopOfCell(k,iCell) = kappaC
+           end if
+        end do
+     end do
+
+   end if
    end subroutine ocn_vmix_tke_compute_coeffs
 
 !***********************************************************************
@@ -208,18 +227,21 @@ module ocn_vmix_tke
       nu0 = config_vmix_tke_nu_bkg
       kappa0 = config_vmix_tke_kappa_bkg
       kappaC = config_vmix_tke_kappa_conv
+      tkeEnhance = config_vmix_tke_transport_enhancement_factor
+      alpha_conv = config_vmix_tke_sfc_convective_scaling
+      efold = config_vmix_tke_niw_efold_depth
 
-      !add in the efolding length for NIW mixing FIXME -- later add in tunable capability
+      !For now simply have a fixed in space efolding depth for simplicity 
       do iCell=1,nCellsOwned
-         if(latCell(iCell) < -0.6981317_RKIND) then
-            efold = 30.0_RKIND
-         else if(latCell(icell) >= -0.6981317_RKIND .and. latCell(iCell) <= 0.0_RKIND) then
-            efold = -25.0_RKIND/0.6981317_RKIND*latCell(iCell) + 5.0_RKIND
-         else if(latCell(iCell) > 0.0_RKIND .and. latCell(iCell) <= 0.2617993878_RKIND) then
-            efold = 5.0_RKIND/0.2617993878_RKIND*latCell(iCell) + 5.0_RKIND
-         else
-            efold = 10.0_RKIND
-         end if
+!         if(latCell(iCell) < -0.6981317_RKIND) then
+!            efold = 30.0_RKIND
+!         else if(latCell(icell) >= -0.6981317_RKIND .and. latCell(iCell) <= 0.0_RKIND) then
+!            efold = -25.0_RKIND/0.6981317_RKIND*latCell(iCell) + 5.0_RKIND
+!         else if(latCell(iCell) > 0.0_RKIND .and. latCell(iCell) <= 0.2617993878_RKIND) then
+!            efold = 5.0_RKIND/0.2617993878_RKIND*latCell(iCell) + 5.0_RKIND
+!         else
+!            efold = 10.0_RKIND
+!         end if
          do k=minLevelCell(iCell),maxLevelCell(iCell)
             niwFactor(k,iCell) = gam*exp(zTop(k,iCell) / efold)
          end do
@@ -292,12 +314,14 @@ module ocn_vmix_tke
       allocate(bTemp(nVertLevels+1), C(nVertLevels+1), rTemp(nVertLevels+1))
 
       call ocn_vmix_tke_compute_length(tkeOld,layerThickness,ssh,windStressZonal,windStressMeridional)
-      call ocn_vmix_tke_compute_coeffs(tkeOld)
+      call ocn_vmix_tke_compute_coeffs(tkeOld,.false.)
 
-      sfcTKE = (15.8_RKIND*alpha)**(2.0_RKIND/3.0_RKIND)/2.0_RKIND
+      sfcTKE = (15.8_RKIND*alpha)**(2.0_RKIND/3.0_RKIND)/(rho_sw*2.0_RKIND)
+
       nCells = nCellsOwned
       do iCell=1,nCells
          k=minLevelCell(iCell)
+         sfcTKE = sfcTKE + alpha_conv*(0.4_RKIND*abs(surfaceBuoyancyForcing(iCell))*dThreshMLD(iCell))**(2.0/3.0)
          stressMag = sqrt(windStressZonal(iCell)**2.0 + windStressMeridional(iCell)**2.0)
          tkeNew(k,iCell) = max(emin0, sfcTKE*stressMag)
 
@@ -313,7 +337,7 @@ module ocn_vmix_tke
             length = sqrt(ldo(k,iCell)*lup(k,iCell))
             dissipation = -ceps*tkeOld(k,iCell)**1.5_RKIND / length
             tkeNew(k,iCell) = max(emin, tkeOld(k,iCell) + dt*(shearProduction + buoyancyProduction + &
-                                                              dissipation + tkeNew(1,iCell)*niwFactor(k,iCell)))
+                                                              dissipation))
          end do
       end do
 
@@ -326,25 +350,34 @@ module ocn_vmix_tke
          bTemp(Nsurf) = 1.0_RKIND
          rTemp(Nsurf) = tkeNew(Nsurf,iCell)
 
+         vertViscTopOfCell(Nsurf,iCell) = ck*min(lup(Nsurf,iCell),ldo(Nsurf,iCell))*sqrt(tkeNew(Nsurf,iCell))
          do k=Nsurf+1,N-1
-            nuMid = 0.5_RKIND*(vertViscTopOfCell(k-1,iCell) + vertViscTopOfCell(k,iCell))
-            A = -nuMid/(0.5_RKIND*layerThickness(k-1,iCell)*(layerThickness(k-1,iCell)+layerThickness(k,iCell)))
+            nuMid = tkeEnhance*0.5_RKIND*(vertViscTopOfCell(k-1,iCell) + vertViscTopOfCell(k,iCell))
+            A = -dt*nuMid/(0.5_RKIND*layerThickness(k-1,iCell)*(layerThickness(k-1,iCell)+layerThickness(k,iCell)))
             m = A/bTemp(k-1)
-            nuMid = 0.5_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))
-            C(k) = -nuMid / (0.5_RKIND*layerThickness(k-1,iCell)*(layerThickness(k-1,iCell) + &
+            nuMid = tkeEnhance*0.5_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))
+            C(k) = -dt*nuMid / (0.5_RKIND*layerThickness(k-1,iCell)*(layerThickness(k-1,iCell) + &
                                                                   layerThickness(k,iCell)))
             bTemp(k) = 1.0_RKIND - A - C(k) - m*C(k-1)
 
             rTemp(k) = tkeNew(k,iCell) - m*rTemp(k-1)
          end do
 
+         vertViscTopOfCell(Nsurf,iCell) = 0.0_RKIND
          do k= N-1, Nsurf+1,-1
             tkeNew(k,iCell) = (rTemp(k) - C(k)*tkeNew(k+1,iCell)) / bTemp(k)
          end do
       end do
 
+      do iCell=1,nCells
+         sfcTKE = tkeNew(minLevelCell(iCell),iCell)
+         do k=minLevelCell(iCell)+1,maxLevelCell(iCell)
+            tkeNew(k,iCell) = tkeNew(k,iCell) + sfcTKE*niwFactor(k,iCell)
+         end do
+      end do
+
       call ocn_vmix_tke_compute_length(tkeNew,layerThickness,ssh,windStressZonal,windStressMeridional)
-      call ocn_vmix_tke_compute_coeffs(tkeNew)
+      call ocn_vmix_tke_compute_coeffs(tkeNew,.true.)
 
       call mpas_timer_stop('vmix tke compute loop')
    end subroutine ocn_vmix_tke_compute

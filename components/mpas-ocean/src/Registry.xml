@@ -495,9 +495,13 @@
 					description="minimum length scale in the interior"
 					possible_values="positive reals"
 		/>
-	    <nml_option name="config_vmix_tke_niw_gamma" type="real" default_value="0.05" units="m"
+	    <nml_option name="config_vmix_tke_niw_gamma" type="real" default_value="0.05" units="unitless"
 					description="near inertial wave breaking TKE efficiency scaling"
 					possible_values="numbers between 0 and 1"
+		/>
+	    <nml_option name="config_vmix_tke_niw_efold_depth" type="real" default_value="30.0" units="m"
+					description="e-folding depth for the NIW mixing parameterization"
+					possible_values="positive real numbers"
 		/>
 	    <nml_option name="config_vmix_tke_wb_alpha" type="real" default_value="67.83" units="m"
 					description="surface wave breaking coefficient"
@@ -522,6 +526,14 @@
 	    <nml_option name="config_vmix_tke_kappa_conv" type="real" default_value="10.0" units="m^2 s^-1"
 					description="convective diffusivity in the TKE scheme"
 					possible_values="positive reals"
+		/>
+	    <nml_option name="config_vmix_tke_transport_enhancement_factor" type="real" default_value="1.0" units="unitless"
+					description="enhancement of tke transport diffusivity"
+					possible_values="positive values between about 1 and 30"
+		/>
+	    <nml_option name="config_vmix_tke_sfc_convective_scaling" type="real" default_value="3.0" units="unitless"
+					description="factor multiplying the convective velocity in the tke surface boundary condition"
+					possible_values="positve values"
 		/>
 	</nml_record>
 	<nml_record name="cvmix" mode="forward">
