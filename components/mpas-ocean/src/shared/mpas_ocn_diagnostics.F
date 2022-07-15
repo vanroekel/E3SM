@@ -4025,18 +4025,13 @@ contains
       ! Initialize choice for computing thickness at edges for fluxes
       if (trim(config_thickness_flux_type) == 'centered') then
          thickEdgeFluxChoice = thickEdgeFluxCenter
+      elseif (trim(config_thickness_flux_type) == 'upwind') then
+         thickEdgeFluxChoice = thickEdgeFluxUpwind
       else
-         if (config_use_wetting_drying .and. &
-             (trim(config_thickness_flux_type) /= 'centered')) then
-            if ( trim(config_thickness_flux_type) == 'upwind') then
-               thickEdgeFluxChoice = thickEdgeFluxUpwind
-            end if
-         else
-            thickEdgeFluxChoice = thickEdgeFluxUnknown
-            call mpas_log_write('Thickness flux option of ' //&
-                 & trim(config_thickness_flux_type) // &
-                 & 'is not known', MPAS_LOG_CRIT)
-         end if
+         thickEdgeFluxChoice = thickEdgeFluxUnknown
+         call mpas_log_write('Thickness flux option of ' //&
+              & trim(config_thickness_flux_type) // &
+              & 'is not known', MPAS_LOG_CRIT)
       end if
 
       call ocn_diagnostics_variables_init(domain, jenkinsOn, &

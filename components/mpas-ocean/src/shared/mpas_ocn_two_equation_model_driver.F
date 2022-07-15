@@ -363,12 +363,14 @@ contains
            do k=2,maxLevelCell(iCell)
               !compute length scale
               !define the viscosity
+              tkeAvg = 0.5_RKIND*(tke(k,iCell) + tke(k-1,iCell))
+
               length_grid = sqrt(dcAv * 0.5_RKIND*(layerThickness(k-1,iCell) + layerThickness(k,iCell)))
-              length_stable = 0.76_RKIND*sqrt(tke(k,iCell))/ &
+              length_stable = 0.76_RKIND*sqrt(tkeAvg)/ &
                               (sqrt(max(BruntVaisalaFreqTop(k,iCell),0.0_RKIND)) + &
                                                              1.0E-15_RKIND)
               length = min(length_grid, length_stable)
-              vertViscTopOfCell(k,iCell) = smagorinsky_coefficient*length*sqrt(tke(k,iCell))
+              vertViscTopOfCell(k,iCell) = smagorinsky_coefficient*length*sqrt(tkeAvg)
               vertDiffTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) !Assume turbulent Pr of 1
            end do
         end do
