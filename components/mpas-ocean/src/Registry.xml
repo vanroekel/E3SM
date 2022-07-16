@@ -564,7 +564,10 @@
                                         description="Initial nut value to define glsPsi"
                                         possible_values="Any positive real value. Default value: nut/nu=1 => nut=1.25e-6"
                 />
-
+				<nml_option name="config_ustar_factor" type="real" default_value="1.0" units="unitless"
+										description="factor on 'wall function' for when sublayer not resolved"
+										possible_values="positive reals"
+				/>
 	</nml_record>
 	<nml_record name="cvmix" mode="forward">
 		<nml_option name="config_use_cvmix" type="logical" default_value=".true." units="NA"

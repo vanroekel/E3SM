@@ -173,16 +173,18 @@ contains
                if(boundaryCellMask(k,iCell) == 1) then
                   do j=1,nEdgesOnCell(iCell)
                      iEdge = edgesOnCell(j,iCell)
-                     if(maxLevelEdgeTop(iEdge)==0) then
-                     cell1 = cellsOnEdge(1,iEdge)
-                     cell2 = cellsOnEdge(2,iEdge)
-                     eddyDiff2 = 0.25_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))*(feps/fkin**2)
-                     eddyDiff2 = eddyDiff2+0.5_RKIND*(dynamicViscosity(k,iCell) + dynamicViscosity(k+1,iCell))/rho_sw
-                     tke_turb_flux = -tke(k,iCell) !Assumes k=0 in boundary condition
-                     ! div(h \kappa_2 \nabla \phi) at cell center
-                     flux = eddyDiff2 * layerThickness(k, iCell) * tke_turb_flux * dvEdge(iEdge)/dcEdge(iEdge)
 
-                     tkeTend(k, iCell) = tkeTend(k, iCell) + flux * invAreaCell
+                     if(dcEdge(iEdge)*2.0_RKIND < yPlus(k,iCell)) then
+                       !viscous sub layer is resolved
+                       eddyDiff2 = 0.25_RKIND*(vertViscTopOfCell(k,iCell) + &
+                                               vertViscTopOfCell(k+1,iCell))*(feps/fkin**2)
+                       eddyDiff2 = eddyDiff2+0.5_RKIND*(dynamicViscosity(k,iCell) + &
+                                             dynamicViscosity(k+1,iCell))/rho_sw
+                       tke_turb_flux = -tke(k,iCell) !Assumes k=0 in boundary condition
+                       flux = eddyDiff2 * layerThickness(k, iCell) * tke_turb_flux * dvEdge(iEdge)/dcEdge(iEdge)
+                       tkeTend(k, iCell) = tkeTend(k, iCell) + flux * invAreaCell
+                     else
+                       tkeTend(k,iCell) = tkeTend(k,iCell) + config_ustar_factor*ustar(k,iCell)
                      end if
                   end do !nEdges loop
                end if !end cell mask if
