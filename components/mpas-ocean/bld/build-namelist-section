@@ -172,12 +172,15 @@ add_default($nl, 'config_vmix_tke_emin_int');
 add_default($nl, 'config_vmix_tke_lenmin_sfc');
 add_default($nl, 'config_vmix_tke_lenmin_int');
 add_default($nl, 'config_vmix_tke_niw_gamma');
+add_default($nl, 'config_vmix_tke_niw_efold_depth');
 add_default($nl, 'config_vmix_tke_wb_alpha');
 add_default($nl, 'config_vmix_tke_ck');
 add_default($nl, 'config_vmix_tke_ce');
 add_default($nl, 'config_vmix_tke_nu_bkg');
 add_default($nl, 'config_vmix_tke_kappa_bkg');
 add_default($nl, 'config_vmix_tke_kappa_conv');
+add_default($nl, 'config_vmix_tke_transport_enhancement_factor');
+add_default($nl, 'config_vmix_tke_sfc_convective_scaling');
 
 #########################
 # Namelist group: cvmix #

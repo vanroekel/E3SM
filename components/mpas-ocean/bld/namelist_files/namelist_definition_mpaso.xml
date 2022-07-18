@@ -763,7 +763,7 @@ Default: Defined in namelist_defaults.xml
 
 <entry id="config_use_vmix_tke" type="logical"
 	category="vmix_tke" group="vmix_tke">
-If true use the mixing model based on Gaspar 1990, as described in Calvert and Siddorn (2013) -- https://library.metoffice.gov.uk/Portal/Default/en-GB/
+If true use the mixing model based on Gaspar 1990, as described in Calvert and Siddorn (2013)
 
 Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
@@ -806,6 +806,14 @@ Default: Defined in namelist_defaults.xml
 near inertial wave breaking TKE efficiency scaling
 
 Valid values: numbers between 0 and 1
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_niw_efold_depth" type="real"
+	category="vmix_tke" group="vmix_tke">
+e-folding depth for the NIW mixing parameterization
+
+Valid values: positive real numbers
 Default: Defined in namelist_defaults.xml
 </entry>
 
@@ -854,6 +862,22 @@ Default: Defined in namelist_defaults.xml
 convective diffusivity in the TKE scheme
 
 Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_transport_enhancement_factor" type="real"
+	category="vmix_tke" group="vmix_tke">
+enhancement of tke transport diffusivity
+
+Valid values: positive values between about 1 and 30
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_vmix_tke_sfc_convective_scaling" type="real"
+	category="vmix_tke" group="vmix_tke">
+factor multiplying the convective velocity in the tke surface boundary condition
+
+Valid values: positve values
 Default: Defined in namelist_defaults.xml
 </entry>
 

@@ -476,7 +476,7 @@
 	</nml_record>
 	<nml_record name="vmix_tke" mode="forward">
 	    <nml_option name="config_use_vmix_tke" type="logical" default_value=".false." units="NA"
-					description="If true use the mixing model based on Gaspar 1990, as described in Calvert and Siddorn (2013) -- https://library.metoffice.gov.uk/Portal/Default/en-GB/DownloadImageFile.ashx?objectId=1103&ownerType=0&ownerId=207517"
+					description="If true use the mixing model based on Gaspar 1990, as described in Calvert and Siddorn (2013)"
 					possible_values=".true. or .false."
 		/>
 	    <nml_option name="config_vmix_tke_emin_sfc" type="real" default_value="1.0E-4" units="m^2 s^2"

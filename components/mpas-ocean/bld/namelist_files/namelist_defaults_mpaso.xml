@@ -216,12 +216,15 @@
 <config_vmix_tke_lenmin_sfc>0.04</config_vmix_tke_lenmin_sfc>
 <config_vmix_tke_lenmin_int>0.01</config_vmix_tke_lenmin_int>
 <config_vmix_tke_niw_gamma>0.05</config_vmix_tke_niw_gamma>
+<config_vmix_tke_niw_efold_depth>30.0</config_vmix_tke_niw_efold_depth>
 <config_vmix_tke_wb_alpha>67.83</config_vmix_tke_wb_alpha>
 <config_vmix_tke_ck>0.1</config_vmix_tke_ck>
 <config_vmix_tke_ce>0.7</config_vmix_tke_ce>
 <config_vmix_tke_nu_bkg>1.2e-4</config_vmix_tke_nu_bkg>
 <config_vmix_tke_kappa_bkg>1.2e-5</config_vmix_tke_kappa_bkg>
 <config_vmix_tke_kappa_conv>10.0</config_vmix_tke_kappa_conv>
+<config_vmix_tke_transport_enhancement_factor>1.0</config_vmix_tke_transport_enhancement_factor>
+<config_vmix_tke_sfc_convective_scaling>3.0</config_vmix_tke_sfc_convective_scaling>
 
 <!-- cvmix -->
 <config_use_cvmix>.true.</config_use_cvmix>
