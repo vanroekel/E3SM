@@ -716,7 +716,7 @@ contains
                                                                      *layerThickEdgeMean(k, iEdge)) - BruntVaisalaFreqTopEdge
                tridiagC(k - 1) = 2.0_RKIND*cGMphaseSpeed(iEdge)**2/layerThickEdgeMean(k, iEdge) &
                                  /(layerThickEdgeMean(k - 1, iEdge) + layerThickEdgeMean(k, iEdge))
-               rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gradBuoyEddy(k,iEdge) 
+               rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw*gradBuoyEddy(k,iEdge) 
 
                ! Second to next to the last rows
                do k = minLevelEdgeBot(iEdge) + 2, maxLevelEdgeTop(iEdge) - 1
@@ -728,7 +728,7 @@ contains
                                                                         *layerThickEdgeMean(k, iEdge)) - BruntVaisalaFreqTopEdge
                   tridiagC(k - 1) = 2.0_RKIND*cGMphaseSpeed(iEdge)**2/layerThickEdgeMean(k, iEdge) &
                                     /(layerThickEdgeMean(k - 1, iEdge) + layerThickEdgeMean(k, iEdge))
-                  rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gradBuoyEddy(k,iEdge)
+                  rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw*gradBuoyEddy(k,iEdge)
                end do
 
                ! Last row
@@ -739,7 +739,7 @@ contains
                                  /(layerThickEdgeMean(k - 1, iEdge) + layerThickEdgeMean(k, iEdge))
                tridiagB(k - 1) = -2.0_RKIND*cGMphaseSpeed(iEdge)**2/(layerThickEdgeMean(k - 1, iEdge) &
                                                                      *layerThickEdgeMean(k, iEdge)) - BruntVaisalaFreqTopEdge
-               rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gradBuoyEddy(k,iEdge)
+               rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw*gradBuoyEddy(k,iEdge)
                ! Total number of rows
                N = maxLevelEdgeTop(iEdge) - minLevelEdgeBot(iEdge)
 

@@ -103,7 +103,17 @@ contains
       !
       !-----------------------------------------------------------------
 
+      logical, pointer :: dThresholdFlag, mldON
       err = 0
+
+      call mpas_pool_get_config(domain%configs, 'config_AM_mixedLayerDepths_Dthreshold', dThresholdFlag)
+      call mpas_pool_get_config(domain%configs, 'config_AM_mixedLayerDepths_enable', mldON)
+
+      if (.not. mldON .and. .not. dThresholdFlag) THEN
+         call mpas_log_write("ML Heat Budget AM requires config_AM_mixedLayerDepths_enable and " &
+                             //"config_AM_mixedLayerDepths_Dthreshold to both be true", MPAS_LOG_CRIT)
+         err = 1
+      endif
 
    end subroutine ocn_init_mixed_layer_heat_budget !}}}
 
@@ -153,7 +163,6 @@ contains
       !-----------------------------------------------------------------
 
       type(mpas_pool_type), pointer :: mixedLayerHeatBudgetAMPool
-      type(mpas_pool_type), pointer :: mixedLayerDepthsAMPool
       type(dm_info) :: dminfo
       type(block_type), pointer :: block
       type(mpas_pool_type), pointer :: statePool
@@ -174,8 +183,8 @@ contains
           activeTracerNonLocalMLTend, activeTracerHorMixMLTend, activeTracerVertMixMLTend, &
           activeTracerHorAdvectionMLTend, activeTracerVertAdvectionMLTend, activeTracersML, &
           layerThickness, activeTracersTendML
-      real(kind=RKIND), dimension(:), pointer :: bruntVaisalaFreqML
-      real(kind=RKIND) :: depth, difference, dThreshMLDInv
+      real(kind=RKIND), dimension(:), pointer ::  bruntVaisalaFreqML
+      real(kind=RKIND) :: depth, difference
       err = 0
 
       dminfo = domain%dminfo
@@ -185,7 +194,6 @@ contains
          call mpas_pool_get_subpool(block%structs, 'state', statePool)
          call mpas_pool_get_subpool(block%structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block%structs, 'mixedLayerHeatBudgetAM', mixedLayerHeatBudgetAMPool)
-         call mpas_pool_get_subpool(block%structs, 'mixedLayerDepthsAM', mixedLayerDepthsAMPool)
          call mpas_pool_get_subpool(block%structs, 'tend', tendPool)
          call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
          call mpas_pool_get_subpool(tendPool, 'tracersTend', tracerTendPool)
@@ -263,7 +271,6 @@ contains
             !add partial thickness of last layer to get to MLD
             depth = depth - layerThickness(k, iCell)
             difference = dThreshMLD(iCell) - depth
-            dThreshMLDInv = 1.0_RKIND / (dThreshMLD(iCell) + 1.0E-14_RKIND)
             do iTracer = 1, num_tracers
                activeTracerHorAdvectionMLTend(iTracer, iCell) = activeTracerHorAdvectionMLTend(iTracer, iCell) + &
                                                                activeTracerHorizontalAdvectionTendency(iTracer, k, iCell)*difference
@@ -286,17 +293,18 @@ contains
                activeTracersTendML(iTracer, iCell) = activeTracersTendML(iTracer, iCell) + tracerTend(iTracer,k,iCell)* &
                                                      difference / layerThickness(k,iCell) 
 
-               activeTracersML(iTracer, iCell) = activeTracersML(iTracer, iCell)*dThreshMLDInv
-               activeTracersTendML(iTracer, iCell) = activeTracersTendML(iTracer, iCell)*dThreshMLDInv
-               activeTracerHorAdvectionMLTend(iTracer, iCell) = activeTracerHorAdvectionMLTend(iTracer, iCell)*dThreshMLDInv
-               activeTracerVertAdvectionMLTend(iTracer, iCell) = activeTracerVertAdvectionMLTend(iTracer, iCell)*dThreshMLDInv
-               activeTracerHorMixMLTend(iTracer, iCell) = activeTracerHorMixMLTend(iTracer, iCell)*dThreshMLDInv
-               activeTracerVertMixMLTend(iTracer, iCell) = activeTracerVertMixMLTend(iTracer, iCell)*dThreshMLDInv
-               activeTracerNonLocalMLTend(iTracer, iCell) = activeTracerNonLocalMLTend(iTracer, iCell)*dThreshMLDInv
-               activeTracerForcingMLTend(iTracer, iCell) = activeTracerForcingMLTend(iTracer, iCell)*dThreshMLDInv
+               activeTracersML(iTracer, iCell) = activeTracersML(iTracer, iCell)/dThreshMLD(iCell)
+               activeTracersTendML(iTracer, iCell) = activeTracersTendML(iTracer, iCell)/dThreshMLD(iCell)
+               activeTracerHorAdvectionMLTend(iTracer, iCell) = activeTracerHorAdvectionMLTend(iTracer, iCell)/dThreshMLD(iCell)
+               activeTracerVertAdvectionMLTend(iTracer, iCell) = activeTracerVertAdvectionMLTend(iTracer, iCell) &
+                                                                 / dThreshMLD(iCell)
+               activeTracerHorMixMLTend(iTracer, iCell) = activeTracerHorMixMLTend(iTracer, iCell)/dThreshMLD(iCell)
+               activeTracerVertMixMLTend(iTracer, iCell) = activeTracerVertMixMLTend(iTracer, iCell)/dThreshMLD(iCell)
+               activeTracerNonLocalMLTend(iTracer, iCell) = activeTracerNonLocalMLTend(iTracer, iCell)/dThreshMLD(iCell)
+               activeTracerForcingMLTend(iTracer, iCell) = activeTracerForcingMLTend(iTracer, iCell)/dThreshMLD(iCell)
             end do
             bruntVaisalaFreqML(iCell) = bruntVaisalaFreqML(iCell) + BruntVaisalaFreqTop(k, iCell)*difference
-            bruntVaisalaFreqML(iCell) = bruntVaisalaFreqML(iCell)*dThreshMLDInv
+            bruntVaisalaFreqML(iCell) = bruntVaisalaFreqML(iCell)/dThreshMLD(iCell)
          end do
 
          block => block%next
