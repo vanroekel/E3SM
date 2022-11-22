@@ -18,6 +18,7 @@ module agi_intr
   use perf_mod,     only: t_startf, t_stopf
   use mpishorthand
   use cam_history_support, only: fillvalue
+  use ppgrid        only: pver, pcols
 
   implicit none
 
@@ -31,7 +32,8 @@ module agi_intr
   public :: agi_register,  & ! add silver iodide to pbuf
             agi_readnl,    & ! read namelist related to silver iodide
             agi_init_cnst, & ! initialize a constant point source of silver iodide
-            agi_emiss_data   ! read emission from data with times.
+            agi_emiss_data, &   ! read emission from data with times.
+            agi_pointsource
 
   integer :: agi_idx
 
@@ -44,6 +46,7 @@ module agi_intr
   real(r8) :: agi_lon = huge(1.0_r8)
   real(r8) :: agi_emis_rate = huge(1.0_r8) ! emission of AgI at a point source in kg/s
   character(len=*) :: agi_emis_data_file = 'agi_emission.bin'
+  real(r8),parameter :: rad_to_deg = 180.0/pi
 
   contains
 
@@ -58,8 +61,8 @@ module agi_intr
     integer :: unitn, ierr
 
     namelist /agi_nl/ agi_enable, agi_point_source_emis, agi_data_emis,  &
-                      agi_microphysics, agi_lat, agi_lon, agi_emis_rate, &
-                      agi_emis_data_file
+                      agi_microphysics, agi_lat, agi_lon, agi_height, &
+                      agi_thickness, agi_emis_rate, agi_emis_data_file
 
     if (masterproc) then
        unitn = getunit()
@@ -91,6 +94,8 @@ module agi_intr
     call mpibcast(agi_microphysics,      1, mpilog, 0, mpicom)
     call mpibcast(agi_lat,               1, mpir8,  0, mpicom)
     call mpibcast(agi_lon,               1, mpir8,  0, mpicom)
+    call mpibcast(agi_height,            1, mpir8,  0, mpicom)
+    call mpibcast(agi_thickness,         1, mpir8,  0, mpicom)
     call mpibcast(agi_emis_rate,         1, mpir8,  0, mpicom)
     call mpibcast(agi_emis_data_file,    128, mpichar, 0, mpicom)
 #endif
@@ -109,4 +114,41 @@ module agi_intr
 
 !==============================================================================================
 
+  subroutine agi_pointsource(state)
+
+    use ppgrid only: pver, pcols
+
+    type(physics_state), intent(in)    :: state
+    real(r8), pointer, dimension(:,:) :: agi
+    real(r8), parameter :: rtd = 180.0_r8 / pi
+    integer :: ncol, lchnk, agi_indx, itim_old
+    real(r8) :: agiTemp
+    use rgrid,          only: nlon
+  real(r8) :: pdel(plon,plev)           ! Pressure depth of layer
+  real(r8) :: pint(plon,plevp)          ! Pressure at interfaces
+  real(r8) :: pmid(plon,plev)           ! Pressure at midpoint
+
+    ncol = state%ncol
+    lchnk = state%ncol
+
+    itim_old = pbuf_old_tim_idx() !gets time index 
+
+    do k = 1, pver
+       z3(:ncol,k) = state%zm(:ncol,k) + state%phis(:ncol)*rga
+    end do
+
+    call plevs0(nlon(lat), plon, plev, ps(1,lat,n3), pint, pmid, pdel)
+	agi_indx = pbuf_get_index('AgI')
+    agi = pbug_get_field(pbuf, agi_indx, agi, start=(/1,1,itim_old/), kount=(/pcols,pver,1/))
+    !find points to release AgI
+    do icol = 1, ncol
+       do k = 1, pver
+          agi(icol,k) = 0.0_r8
+          if(abs(state%lon(icol)*rtd - agi_lon) < 0.5_r8 .and. abs(state%lat(icol)*rtd - agi_lat) < 0.5_r8 &
+             .and. abs(stat%zm(icol, k) - agi_height) < agi_thickness) then
+             agiMass = agi_emis_rate* !need conversion of mass rate to number concentration
+! use mass of dry air and then ideal gass law at a given pressure to get number conc
+
+
+  end subroutine agi_pointsource
 
