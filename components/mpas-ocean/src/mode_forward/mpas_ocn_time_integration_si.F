@@ -2767,9 +2767,9 @@ module ocn_time_integration_si
                               dt, activeTracersOnly, 2)
 
 
-!            if(config_enable_nonhydrostatic_mode) then 
-!               call ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, 2, dt)
-!            endif
+            if(config_enable_nonhydrostatic_mode) then 
+               call ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, 2, dt)
+            endif
 
             if(config_use_two_equation_turbulence_model) then
                call mpas_pool_get_array(tendPool, 'tendTKE', tendTKE)
@@ -2822,7 +2822,7 @@ module ocn_time_integration_si
                call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityCur, 1)
                call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityNew, 2)
                call mpas_pool_get_array(tendPool, 'verticalVelocityTend', verticalVelocityTend)
-               call mpas_dmpar_field_halo_exch(domain,'verticalVelocityTend')
+!               call mpas_dmpar_field_halo_exch(domain,'verticalVelocityTend')
             end if
 
             if(config_use_two_equation_turbulence_model) then
@@ -2864,7 +2864,7 @@ module ocn_time_integration_si
                   do iCell = 1, nCellsAll
                      do k = 1, maxLevelCell(iCell)
                         temp_h = tkeCur(k,ICell) + dt * float(int(tendTKE(k,iCell)*10**15 + 0.5_RKIND))/10**15
-                        tkeNew(k,iCell) = max(0.0_RKIND, 0.5_RKIND*(tkeCur(k,iCell) + temp_h))
+                        tkeNew(k,iCell) = max(1.0E-12_RKIND, 0.5_RKIND*(tkeCur(k,iCell) + temp_h))
                      end do
                   end do
                   !$omp end do
@@ -3087,7 +3087,7 @@ module ocn_time_integration_si
                   !$omp do schedule(runtime) private(k)
                   do iCell=1,nCellsAll
                      do k=1,maxLevelCell(iCell)
-                        tkeNew(k,iCell) = max(0.0_RKIND, tkeCur(k,iCell) + dt*tendTKE(k,iCell))
+                        tkeNew(k,iCell) = max(1.0E-12_RKIND, tkeCur(k,iCell) + dt*tendTKE(k,iCell))
                      end do
                   end do
                   !$omp end do
@@ -3444,7 +3444,7 @@ module ocn_time_integration_si
             call mpas_dmpar_field_halo_exch(domain, 'normalVelocity',timeLevel=1)
             call mpas_timer_stop('se NHpressure tend halo pressure')
 
-            call mpas_dmpar_field_halo_exch(domain, 'layerThickEdge')
+            call mpas_dmpar_field_halo_exch(domain, 'layerThicknessEdgeFlux')
             call ocn_nonhydrostatic_pressure_update_velocity(normalVelocityNew, verticalVelocityNew, &
               layerThicknessNew, layerThickEdgeFlux, nonhydrostaticPressure, nonhydrostaticPressureOld, &
               nhPressureCorrection, dt)

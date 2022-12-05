@@ -208,7 +208,9 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:), pointer :: SIvec_z0,SIvec_z1 ,SIvec_zh0,SIvec_zh1
    real (kind=RKIND), dimension(:,:), pointer :: dynamicViscosity, uStar, yPlus
    real (kind=RKIND), dimension(:,:), pointer :: buoyancyProduction, shearProduction
+   real (kind=RKIND), dimension(:,:), pointer :: turbLength
    real (kind=RKIND), dimension(:,:), pointer :: tkeAdvTend, tkeTransTend, tkeDissTend
+   real (kind=RKIND), dimension(:,:), pointer :: glsAdvTend, glsTransTend, glsDissTend
 
    real (kind=RKIND), dimension(:,:), pointer :: nhPressureCorrection
 
@@ -627,10 +629,14 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'uStar', uStar)
       call mpas_pool_get_array(diagnosticsPool, 'dynamicViscosity', dynamicViscosity)
       call mpas_pool_get_array(diagnosticsPool, 'buoyancyProduction', buoyancyProduction)
+      call mpas_pool_get_array(diagnosticsPool, 'turbLength', turbLength)
       call mpas_pool_get_array(diagnosticsPool, 'shearProduction', shearProduction)
       call mpas_pool_get_array(diagnosticsPool, 'tkeAdvTend', tkeAdvTend)
       call mpas_pool_get_array(diagnosticsPool, 'tkeDissTend', tkeDissTend)
       call mpas_pool_get_array(diagnosticsPool, 'tkeTransTend', tkeTransTend)
+      call mpas_pool_get_array(diagnosticsPool, 'glsAdvTend', glsAdvTend)
+      call mpas_pool_get_array(diagnosticsPool, 'glsDissTend', glsDissTend)
+      call mpas_pool_get_array(diagnosticsPool, 'glsTransTend', glsTransTend)
       call mpas_pool_get_array(diagnosticsPool, 'ugrad', ugrad)
       call mpas_pool_get_array(diagnosticsPool, 'vgrad', vgrad)
       call mpas_pool_get_array(diagnosticsPool, 'wgrad', wgrad)
@@ -799,10 +805,14 @@ contains
          !$acc                   uStar,                           &
          !$acc                   dynamicViscosity,                &
          !$acc                   buoyancyProduction,              &
+         !$acc                   turbLength,                      &
          !$acc                   shearProduction,                 &
          !$acc                   tkeTransTend,                    &
          !$acc                   tkeAdvTend,                      &
          !$acc                   tkeDissTend,                     &
+         !$acc                   glsTransTend,                    &
+         !$acc                   glsAdvTend,                      &
+         !$acc                   glsDissTend,                     &
          !$acc                   ugrad,                           &
          !$acc                   vgrad,                           &
          !$acc                   wgrad,                           &
@@ -1061,10 +1071,14 @@ contains
          !$acc                   uStar,                           &
          !$acc                   dynamicViscosity,                &
          !$acc                   buoyancyProduction,              &
+         !$acc                   turbLength,                      &
          !$acc                   shearProduction,                 &
          !$acc                   tkeAdvTend,                      &
          !$acc                   tkeDissTend,                     &
          !$acc                   tkeTransTend,                    &
+         !$acc                   glsAdvTend,                      &
+         !$acc                   glsDissTend,                     &
+         !$acc                   glsTransTend,                    &
          !$acc                   ugrad,                           &
          !$acc                   vgrad,                           &
          !$acc                   wgrad,                           &
@@ -1282,10 +1296,14 @@ contains
                  Sm,                              &
                  dynamicViscosity,                &
                  buoyancyProduction,              &
+                 turbLength,                      & 
                  shearProduction,                 &
                  tkeAdvTend,                      &
                  tkeDissTend,                     &
                  tkeTransTend,                    &
+                 glsAdvTend,                      &
+                 glsDissTend,                     &
+                 glsTransTend,                    &
                  velocityHmixTend,                &
                  velocityVadvTend,                &
                  velocityPGFtend,                 &

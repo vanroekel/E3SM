@@ -50,7 +50,9 @@ module ocn_tke_glsPsi_transport
    public :: ocn_tke_transport_horizontal_compute, &
              ocn_tke_transport_vertical_compute,   &
              ocn_glsPsi_transport_horizontal_compute, &
-             ocn_glsPsi_transport_vertical_compute
+             ocn_glsPsi_transport_vertical_compute, &
+             ocn_tke_transport_vertical_compute_expl, &
+             ocn_glsPsi_transport_vertical_compute_expl
 
    !--------------------------------------------------------------------
    !
@@ -132,7 +134,7 @@ contains
       !$omp do schedule(runtime) &
       !$omp private(invAreaCell, i, iEdge, cell1, cell2, r_tmp, k, &
       !$omp         tke_turb_flux, flux)
-      do iCell = 1, nCellsOwned
+      do iCell = 1, nCellsAll
         invAreaCell = 1.0_RKIND / areaCell(iCell)
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
@@ -167,8 +169,8 @@ contains
          call mpas_log_write('BCs not yet implemented for k-eps scheme, choose a different model',MPAS_LOG_CRIT)
       else
          !Go through find boundary cell = 1 and add -tke(icell)*eddyDiff2*....
-
-         do iCell=1,nCellsOwned
+         !fixme should also put in a flag for cases without walls
+         do iCell=1,nCellsAll
             do k=1,maxLevelCell(iCell)
                if(boundaryCellMask(k,iCell) == 1) then
                   do j=1,nEdgesOnCell(iCell)
@@ -200,6 +202,64 @@ contains
 
 !***********************************************************************
 !
+!  routine ocn_tke_transport_vertical_compute_expl
+!
+!> \brief   Explicit version of Compute vertical component of parameterized tke transport
+!> \author  Luke Van Roekel
+!> \date    July 2021
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  Laplacian horizontal velocity mixing in the ocean.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_tke_transport_vertical_compute_expl(tke,tkeTend,layerThickness,sigma_k,fkin,feps)
+
+      real(kind=RKIND), dimension(:,:), intent(inout) :: tkeTend
+      real(kind=RKIND), dimension(:,:), intent(in) :: tke, layerThickness
+      integer :: iCell, k, N
+      real (kind=RKIND), intent(in) :: sigma_k, fkin, feps
+      real (kind=RKIND) :: bcValue, nu1, nu2, ltAv1, ltAv2
+      call mpas_timer_start("tke explicit vertical turbulent transport")
+
+      !$omp parallel
+      !$omp schedule(runtime) private(N, ltAv1, ltAv2, bcValue, k)
+      do iCell=1,nCellsAll
+         N = maxLevelCell(iCell)
+         k = 1
+         !First layer flux is one sided but could add boundary condition here
+         bcValue = 0.0_RKIND
+         ltAv1 = 0.0_RKIND
+         ltAv2 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k+1,iCell))
+         nu1 = vertViscTopOfCell(k,iCell)/sigma_k*feps/fkin**2
+         nu2 = vertViscTopOfCell(k+1,iCell)/sigma_k*feps/fkin**2
+         tkeTend(k,iCell) = tkeTend(k,iCell) + (bcValue - nu2*(tke(k,iCell) - &
+                               tke(k+1,iCell))/ltAv2) / layerThickness(k,iCell)
+
+         do k = 2, N-1
+            ltAv1 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k-1,iCell))
+            ltAv2 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k+1,iCell))
+            nu1 = vertViscTopOfCell(k,iCell)/sigma_k*feps/fkin**2
+            nu2 = vertViscTopOfCell(k+1,iCell)/sigma_k*feps/fkin**2
+            tkeTend(k,iCell) = tkeTend(k,iCell) + (nu1*(tke(k-1,iCell) - &
+                                  tke(k,iCell))/ltAv1 - nu2*(tke(k,iCell) - &
+                                  tke(k+1,iCell))/ltAv2) / layerThickness(k,iCell)
+         end do
+
+         k = N
+         ! One sided flux at bottom as well
+         ltAv1 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k-1,iCell))
+         ltAv2 = 0.0_RKIND
+         nu1 = vertViscTopOfCell(k,iCell)/sigma_k*feps/fkin**2
+         tkeTend(k,iCell) = tkeTend(k,iCell) + (nu1*(tke(k-1,iCell) - &
+                               tke(k,iCell))/ltAv1) / layerThickness(k,iCell)
+      end do
+      call mpas_timer_stop("tke explicit vertical turbulent transport")
+
+   end subroutine ocn_tke_transport_vertical_compute_expl
+
+!***********************************************************************
+!
 !  routine ocn_tke_transport_vertical_compute
 !
 !> \brief   Compute vertical component of parameterized tke transport
@@ -219,7 +279,7 @@ contains
       integer :: iCell, k, N
       real (kind=RKIND), dimension(nVertLevels) :: A,B,C,tkeTmp,rhs
       real (kind=RKIND), intent(in) :: sigma_k, fkin, feps
-
+      real (kind=RKIND) :: ltSum
       call mpas_timer_start("tke vertical turbulent transport")
 
       !$omp parallel
@@ -251,6 +311,14 @@ contains
 
          tke(1:N,iCell) = tkeTmp(1:N)
          tke(N+1:nVertLevels,iCell) = 0.0_RKIND
+
+         !artificially update first layer tke based on boundary condition
+!         ltSum = 0.0_RKIND
+!         do k = 1, indMLD(iCell)
+!            ltSum = ltSum + layerThickness(k,iCell)
+!         end do
+!         tke(1,iCell) = tke(1,iCell) + dt*0.05_RKIND*(0.4_RKIND*ltSum*gravity*2e-4_RKIND* &
+!                            100.0_RKIND/3996000._RKIND)**(2./3.)/layerThickness(1,iCell)
       end do
       !$omp end do
       !$omp end parallel
@@ -325,7 +393,7 @@ contains
       !$omp do schedule(runtime) &
       !$omp private(invAreaCell, i, iEdge, cell1, cell2, r_tmp, k, &
       !$omp         glsPsi_turb_flux, flux)
-      do iCell = 1, nCellsOwned
+      do iCell = 1, nCellsAll
         invAreaCell = 1.0_RKIND / areaCell(iCell)
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
@@ -360,8 +428,8 @@ contains
          call mpas_log_write('BCs not yet implemented for k-eps scheme, choose a different model',MPAS_LOG_CRIT)
       else if(config_two_equation_model_choice == 'omega') then
          !Go through find boundary cell = 1 and add -tke(icell)*eddyDiff2*....
-
-         do iCell=1,nCellsOwned
+!LPV Fixme should wrap in a flag for no solid boundaries
+         do iCell=1,nCellsAll
             do k=1,maxLevelCell(iCell)
                if(boundaryCellMask(k,iCell) == 1) then
                   iEdge = edgesOnCell(1,iCell) !FIXME - change to average of edges
@@ -437,6 +505,65 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_glsPsi_transport_horizontal_compute
+
+!***********************************************************************
+!
+!  routine ocn_glsPsi_transport_vertical_compute_expl
+!
+!> \brief   Explicit version of Compute vertical component of parameterized glsPsi transport
+!> \author  Luke Van Roekel
+!> \date    July 2021
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  Laplacian horizontal velocity mixing in the ocean.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_glsPsi_transport_vertical_compute_expl(glsPsi,glsPsiTend,layerThickness,sigma_k,fkin,feps)
+
+      real(kind=RKIND), dimension(:,:), intent(inout) :: glsPsiTend
+      real(kind=RKIND), dimension(:,:), intent(in) :: glsPsi, layerThickness
+      integer :: iCell, k, N
+      real (kind=RKIND), intent(in) :: sigma_k, fkin, feps
+      real (kind=RKIND) :: bcValue, nu1, nu2, ltAv1, ltAv2
+      call mpas_timer_start("glsPsi explicit vertical turbulent transport")
+
+      !$omp parallel
+      !$omp schedule(runtime) private(N, ltAv1, ltAv2, bcValue, k)
+      do iCell=1,nCellsAll
+         N = maxLevelCell(iCell)
+         k = 1
+         !First layer flux is one sided but could add boundary condition here
+         bcValue = 0.0_RKIND
+         ltAv1 = 0.0_RKIND
+         ltAv2 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k+1,iCell))
+         nu1 = vertViscTopOfCell(k,iCell)/sigma_k*feps/fkin**2
+         nu2 = vertViscTopOfCell(k+1,iCell)/sigma_k*feps/fkin**2
+         glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + (bcValue - nu2*(glsPsi(k,iCell) - &
+                               glsPsi(k+1,iCell))/ltAv2) / layerThickness(k,iCell)
+
+         do k = 2, N-1
+            ltAv1 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k-1,iCell))
+            ltAv2 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k+1,iCell))
+            nu1 = vertViscTopOfCell(k,iCell)/sigma_k*feps/fkin**2
+            nu2 = vertViscTopOfCell(k+1,iCell)/sigma_k*feps/fkin**2
+            glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + (nu1*(glsPsi(k-1,iCell) - &
+                                  glsPsi(k,iCell))/ltAv1 - nu2*(glsPsi(k,iCell) - &
+                                  glsPsi(k+1,iCell))/ltAv2) / layerThickness(k,iCell)
+         end do
+
+         k = N
+         ! One sided flux at bottom as well
+         ltAv1 = 0.5_RKIND*(layerThickness(k,iCell) + layerThickness(k-1,iCell))
+         ltAv2 = 0.0_RKIND
+         nu1 = vertViscTopOfCell(k,iCell)/sigma_k*feps/fkin**2
+         glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + (nu1*(glsPsi(k-1,iCell) - &
+                               glsPsi(k,iCell))/ltAv1) / layerThickness(k,iCell)
+      end do
+      call mpas_timer_stop("glsPsi explicit vertical turbulent transport")
+
+   end subroutine ocn_glsPsi_transport_vertical_compute_expl
+
 
 !***********************************************************************
 !

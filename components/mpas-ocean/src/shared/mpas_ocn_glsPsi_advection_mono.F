@@ -741,7 +741,7 @@ module ocn_glsPsi_advection_mono
         !$omp do schedule(runtime) private(k)
         do iCell=1,nCells
            do k=1,maxLevelCell(iCell)
-              tend(k,iCell) = tend(k,iCell) / (hProv(k,iCell)*areaCell(iCell))
+              tend(k,iCell) = tend(k,iCell) * hNewInv(k,iCell)
            end do
         end do
         !$omp end do

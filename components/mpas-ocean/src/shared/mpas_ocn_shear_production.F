@@ -74,7 +74,8 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_shear_production_compute(tkeTend, glsPsiTend, tke, glsPsi, &
-                  c_psi1, surfaceFrictionVelocity, c_mu, err)
+                  c_psi1, surfaceFrictionVelocity, c_mu, psiOverK, &
+                  turbLength, smagorinsky_coefficient, err)
       !-----------------------------------------------------------------
       !
       ! input/output variables
@@ -85,12 +86,12 @@ contains
          tkeTend,glsPsiTend          !< Input/Output:  tendencies
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         tke, glsPsi          !< Input: tke and psi variable at current timestep 
+         tke, glsPsi, psiOverK, turbLength          !< Input: tke and psi variable at current timestep 
 
       real (kind=RKIND), dimension(:), intent(in) :: &
          surfaceFrictionVelocity 
 
-      real (kind=RKIND), intent(in) :: c_psi1, c_mu
+      real (kind=RKIND), intent(in) :: c_psi1, c_mu, smagorinsky_coefficient
 
       !-----------------------------------------------------------------
       !
@@ -122,41 +123,34 @@ contains
       !$omp private(k, c_psi2, viscMid, shearProduction)
       do iCell = 1, nCellsOwned
          k = 1
-         viscMid = 0.5_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))
+         viscMid = vertViscTopOfCell(k+1,iCell) !assume visc equal across top cell
          shearProduction(k,iCell) = 2.0_RKIND*(viscMid*ugrad(1,k,iCell) - tke(k,iCell)/3.0_RKIND)* &
-                                    ugrad(1,k,iCell) + viscMid*(ugrad(2,k,iCell) + vgrad(1,k,iCell))* &
-                                    ugrad(2,k,iCell) + viscMid*(ugrad(3,k,iCell) + wgrad(1,k,iCell))* &
-                                    ugrad(3,k,iCell) + viscMid*(ugrad(2,k,iCell) + vgrad(1,k,iCell))* &
-                                    vgrad(1,k,iCell) + 2.0_RKIND*(viscMid*vgrad(2,k,iCell) -          &
+                                    ugrad(1,k,iCell) + viscMid*(ugrad(2,k,iCell) + vgrad(1,k,iCell))**2 &
+                                    + viscMid*(ugrad(3,k,iCell) + wgrad(1,k,iCell))**2 &
+                                     + 2.0_RKIND*(viscMid*vgrad(2,k,iCell) -          &
                                     tke(k,iCell)/3.0_RKIND)*vgrad(2,k,iCell) + viscMid*(vgrad(3,k,iCell) + &
-                                    wgrad(2,k,iCell))*vgrad(3,k,iCell) + viscMid*(ugrad(3,k,iCell) +  &
-                                    wgrad(1,k,iCell))*wgrad(1,k,iCell) + viscMid*(vgrad(3,k,iCell) +  &
-                                    wgrad(2,k,iCell))*wgrad(2,k,iCell) + 2.0_RKIND*(viscMid*wgrad(3,k,iCell) - &
-                                    tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) + &!FSP - surfaceFrictionVelocity to be added
-!!                                  tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) + &
-                                    surfaceFrictionVelocity(iCell)**2.0! * rho_sw / c_mu
+                                    wgrad(2,k,iCell))**2 + 2.0_RKIND*(viscMid*wgrad(3,k,iCell) - &
+                                    tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) !+ &!FSP - surfaceFrictionVelocity to be added
 
-         tkeTend(k,iCell) = tkeTend(k,iCell) + shearProduction(k,iCell)
-         glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + glsPsi(k,iCell)/(tke(k,iCell) + 1.0E-15_RKIND) &
-                               *c_psi1*shearProduction(k,iCell)
+         tkeTend(k,iCell) = tkeTend(k,iCell) + max(0.0_RKIND,shearProduction(k,iCell))
+         glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + psiOverK(k,iCell) &
+                               *c_psi1*max(0.0_RKIND,shearProduction(k,iCell))
 
 
          do k=2,maxLevelCell(iCell)
             viscMid = 0.5_RKIND*(vertViscTopOfCell(k,iCell) + vertViscTopOfCell(k+1,iCell))
+!            viscMid = smagorinsky_coefficient*turbLength(k,iCell)*sqrt(tke(k,iCell))
             shearProduction(k,iCell) = 2.0_RKIND*(viscMid*ugrad(1,k,iCell) - tke(k,iCell)/3.0_RKIND)* &
-                                       ugrad(1,k,iCell) + viscMid*(ugrad(2,k,iCell) + vgrad(1,k,iCell))* &
-                                       ugrad(2,k,iCell) + viscMid*(ugrad(3,k,iCell) + wgrad(1,k,iCell))* &
-                                       ugrad(3,k,iCell) + viscMid*(ugrad(2,k,iCell) + vgrad(1,k,iCell))* &
-                                       vgrad(1,k,iCell) + 2.0_RKIND*(viscMid*vgrad(2,k,iCell) -          &
-                                       tke(k,iCell)/3.0_RKIND)*vgrad(2,k,iCell) + viscMid*(vgrad(3,k,iCell) + &
-                                       wgrad(2,k,iCell))*vgrad(3,k,iCell) + viscMid*(ugrad(3,k,iCell) +  &
-                                       wgrad(1,k,iCell))*wgrad(1,k,iCell) + viscMid*(vgrad(3,k,iCell) +  &
-                                       wgrad(2,k,iCell))*wgrad(2,k,iCell) + 2.0_RKIND*(viscMid*wgrad(3,k,iCell) - &
-                                       tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell)
+                                    ugrad(1,k,iCell) + viscMid*(ugrad(2,k,iCell) + vgrad(1,k,iCell))**2 &
+                                    + viscMid*(ugrad(3,k,iCell) + wgrad(1,k,iCell))**2 &
+                                     + 2.0_RKIND*(viscMid*vgrad(2,k,iCell) -          &
+                                    tke(k,iCell)/3.0_RKIND)*vgrad(2,k,iCell) + viscMid*(vgrad(3,k,iCell) + &
+                                    wgrad(2,k,iCell))**2 + 2.0_RKIND*(viscMid*wgrad(3,k,iCell) - &
+                                    tke(k,iCell)/3.0_RKIND)*wgrad(3,k,iCell) !+ &!FSP - surfaceFrictionVelocity to be added
 
-            tkeTend(k,iCell) = tkeTend(k,iCell) + shearProduction(k,iCell)
-            glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + glsPsi(k,iCell)/(tke(k,iCell) + 1.0E-15_RKIND) &
-                                  *c_psi1*shearProduction(k,iCell)
+            tkeTend(k,iCell) = tkeTend(k,iCell) + max(0.0_RKIND,shearProduction(k,iCell))
+            glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + psiOverK(k,iCell) &
+                                  *c_psi1*max(0.0_RKIND,shearProduction(k,iCell))
          end do 
          !TODO - need a bottom drag term here.
       end do

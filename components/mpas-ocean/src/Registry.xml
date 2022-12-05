@@ -501,6 +501,22 @@
 					description="flag to determine whether or not to check for monotonicity in advection"
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_two_equation_eps_min" type="real" default_value="1.0e-15" units="m^2 s^-3"
+					description="artificial lower limit on dissipation"
+					possible_values="small real numbers"
+		/>
+	    <nml_option name="config_two_equation_length_min" type="real" default_value="0.1" units="m"
+					description="artificial length scale minimum"
+					possible_values="small real numbers"
+		/>
+		<nml_option name="config_two_equation_tke_min" type="real" default_value="1e-25" units="m^2 s^-2"
+					description="artificial tke minimum"
+					possible_values="small real numbers"
+		/>
+		<nml_option name="config_two_equation_psi_min" type="real" default_value="1e-25" 
+					description="artificial glsPsi minimum"
+					possible_values="small real numbers"
+		/>
 		<nml_option name="config_LES_mode" type="logical" default_value=".false." units="unitless"
 					description="logical to enable LES mode, requires config_use_two_equation_model='.true.'"
 					possible_values=".true. or .false."
@@ -3209,12 +3225,24 @@
                          description="Turbulence kinetic energy production by shear processes"
                          packages="forwardMode;analysisMode"
                 />
-			  <var name="tkeAdvTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
-						 description="turbulence kinetic energy tendency from advection"
+			  <var name="turbLength" type="real" dimensions="nVertLevels nCells Time" units="m"
+						 description="length scale or turbulent mixing"
+						 packages="forwardMode;analysisMode"
+			  />
+			  <var name="glsAdvTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="glsPsi tendency from advection"
 						 packages="forwardMode;analysisMode"
 						 />
-			  <var name="tkeTransportTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
-						 description="turbulence kinetic energy tendency from transport"
+			  <var name="glsDissTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="glsPsi tend from dissipation"
+						 packages="forwardMode;analysisMode"
+						 />
+			  <var name="glsTransTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="glsPsi tend from transport"
+						 packages="forwardMode;analysisMode"
+						 />
+			  <var name="tkeAdvTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"
+						 description="turbulence kinetic energy tendency from advection"
 						 packages="forwardMode;analysisMode"
 						 />
 			  <var name="tkeDissTend" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-3}"

@@ -738,7 +738,7 @@ module ocn_tke_advection_mono
         !$omp do schedule(runtime) private(k)
         do iCell=1,nCells
            do k=1,maxLevelCell(iCell)
-              tend(k,iCell) = tend(k,iCell) / (areaCell(iCell)*hProv(k,iCell))
+              tend(k,iCell) = tend(k,iCell) * hNewInv(k,iCell)
            end do
         end do
         !$omp end do

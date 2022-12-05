@@ -135,9 +135,10 @@ contains
             dissipation = c_mu**(3.0+c_p/c_n)*tke(k,iCell)**(1.5+c_m/c_n)* &
                                         glsPsi(k,iCell)**(-1.0/c_n)
             tau = 2.0_RKIND*tke(k,iCell)/(dissipation + 1.0E-15_RKIND)
-            bvfMid = 0.5_RKIND*(bruntVaisalaFreqTop(k,iCell) +              &
-                                bruntVaisalaFreqTop(k+1,iCell))
-            riMid = 0.5_RKIND*(RiTopOfCell(k,iCell) + RiTopOfCell(k+1,iCell))
+            bvfMid = max(0.0_RKIND, 0.5_RKIND*(bruntVaisalaFreqTop(k,iCell) +              &
+                                bruntVaisalaFreqTop(k+1,iCell)))
+            riMid = max(0.0_RKIND, 0.5_RKIND*(RiTopOfCell(k,iCell) +  &
+                        RiTopOfCell(k+1,iCell)))
             D = d0 + d1*tau**2.0*bvfMid + d2*tau**2.0* &
                 bvfMid / (1.0E-15_RKIND + riMid) &
                 + d3*tau**4.0*bvfMid**2.0 + d4*tau**4.0* &
@@ -150,6 +151,9 @@ contains
             Sh(k,iCell) = (s4 + s5*tau**2.0*bvfMid + &
                           s6*tau**2.0*bvfMid /       &
                           (1.0E-15_RKIND + riMid)) / (D + 1.0E-15_RKIND)
+            Sm(k,iCell) = c_mu*(1.0_RKIND + 10.0_RKIND*riMid)**0.5/ &
+                            (1.0_RKIND + 3.33_RKIND*riMid)**1.5
+            Sh(k,iCell) = Sm(k,iCell)              
         end do
         Sm(maxLevelCell(iCell),iCell) = Sm(maxLevelCell(iCell)-1,iCell)
         Sh(maxLevelCell(iCell),iCell) = Sh(maxLevelCell(iCell)-1,iCell)
