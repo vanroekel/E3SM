@@ -108,7 +108,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k, i, iCell
+      integer :: cell1, cell2, iEdge, k, i, iCell
 
       real (kind=RKIND) :: flux, invAreaCell
 
@@ -138,11 +138,29 @@ contains
 #endif
       do iCell = 1, nCellsOwned
         invAreaCell = 1.0_RKIND / areaCell(iCell)
+        !if I'm cell1 normalVel points out from me
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
+          cell1 = cellsOnEdge(1, iEdge)
+          cell2 = cellsOnEdge(2, iEdge)
+!          if(iCell == cell1) then
+!             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+!                flux = max(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell1) + &
+!                       min(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell2)
+!                tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
+!             end do
+!          else if(iCell == cell2) then
+!             do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+!                flux = max(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell1) + &
+!                       min(0.0_RKIND,normalVelocity(k,iEdge))*dvEdge(iEdge)*layerThickness(k,cell2)
+!                tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
+!             end do
+!          end if
+
           do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
             flux = normalVelocity(k, iEdge) * dvEdge(iEdge) * layerThickEdgeFlux(k, iEdge)
             tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
+
           end do
         end do
       end do

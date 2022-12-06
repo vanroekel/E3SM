@@ -75,7 +75,8 @@ contains
 
    subroutine ocn_tracer_hmix_Redi_tend(meshPool, layerThickness, layerThickEdgeMean, zMid, tracers, &
                                         RediKappa, dt, isActiveTracer, slopeTriadUp, slopeTriadDown, &
-                                        RediKappaSfcTaper, RediKappaScaling, rediLimiterCount, tend, err)!{{{
+                                        RediKappaSfcTaper, RediKappaScaling, rediLimiterCount,       &
+                                        mesoEddyDiffusivity, edgeAreaFractionOfCell, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -93,7 +94,9 @@ contains
          zMid, &!< Input: Z coordinate at the center of a cell
          RediKappaSfcTaper, &!< Input: vertical structure of GM/Redi limiter
          RediKappaScaling, &
-         layerThickness
+         layerThickness, &
+         mesoEddyDiffusivity, &
+         edgeAreaFractionOfCell
 
       real(kind=RKIND), dimension(:, :, :), intent(in) :: &
          slopeTriadUp, slopeTriadDown, &
@@ -165,7 +168,7 @@ contains
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'cellsOnCell', cellsOnCell)
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
-
+      
       nCells = nCellsArray(size(nCellsArray))
       nEdges = nEdgesArray(size(nEdgesArray))
 
@@ -185,15 +188,16 @@ contains
       ! For static RediKappa, it is set on init and remains unchanged.
 
       nCells = nCellsArray(2)
+
       !$omp parallel
-      !$omp do schedule(runtime) private(i, iEdge)
+      !$omp do schedule(runtime) private(k, i, iEdge)
       do iCell = 1,nCells
         rediKappaCell(iCell) = 0.0_RKIND
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
-          rediKappaCell(iCell) = rediKappaCell(iCell) + 0.25_RKIND*RediKappa(iEdge) * dvEdge(iEdge) * dcEdge(iEdge)
+          rediKappaCell(iCell) = rediKappaCell(iCell) + edgeAreaFractionOfCell(i,iCell)* &
+                                               RediKappa(iEdge)
         enddo
-        rediKappaCell(iCell) = rediKappaCell(iCell) / areaCell(iCell)
       enddo
       !$omp end do
       !$omp end parallel
@@ -551,7 +555,7 @@ contains
             ! read RediKappa in from input
             call mpas_log_write("config_Redi_closure = 'data'. "// &
                                 "Make sure that the variable RediKappa is read in from an input file.")
-         else
+          else if (.not. config_Redi_closure == 'equalGM') then
             call mpas_log_write('Invalid choice of config_Redi_closure.', MPAS_LOG_CRIT)
             err = 1
             call mpas_dmpar_finalize(domain%dminfo)
@@ -591,6 +595,22 @@ contains
             end do ! iEdge
             !$omp end do
             !$omp end parallel
+            if (config_Redi_closure == 'equalGM') then !use RediKappa as the horizontal scaling
+               !$omp parallel
+               !$omp do schedule(runtime)
+               do iEdge=1,nEdges
+                  if (dcEdge(iEdge) <= config_Redi_horizontal_ramp_min) then
+                     RediKappa(iEdge) = 0.0_RKIND
+                  else if (dcEdge(iEdge) >= config_Redi_horizontal_ramp_max) then
+                     RediKappa(iEdge) = 1.0_RKIND
+                  else
+                     RediKappa(iEdge) = 1.0_RKIND*(dcEdge(iEdge) - config_Redi_horizontal_ramp_min) / &
+                                        (config_Redi_horizontal_ramp_max - config_Redi_horizontal_ramp_min)
+                  end if
+               end do
+               !$omp end do
+               !$omp end parallel
+            end if
          else
             call mpas_log_write('Invalid choice of config_Redi_horizontal_taper.', MPAS_LOG_CRIT)
             err = 1

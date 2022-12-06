@@ -92,7 +92,7 @@ libMARBL:
 
 libgotm:
 	if [ -e gotm/.git ]; then \
-		if [ -e gotm/build/Makefile ]; then \
+	  	if [ -e gotm/build/Makefil ]; then \
 			(cd gotm/build; make) \
 		else \
 			(cd gotm/build; cmake ../src $(GOTM_CMAKE_FLAGS); make) \

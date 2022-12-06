@@ -68,7 +68,6 @@ module ocn_vvel_advection
    subroutine ocn_vvel_advection_tend(meshPool, vertVelocityNonhydro, normalThicknessFlux,       &
                                         layerThickness, vertAleTransportTop, dt,          &
                                         tend)!{{{
-
       implicit none
 
       !*** Input/Output parameters

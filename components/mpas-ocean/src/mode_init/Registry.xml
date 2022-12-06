@@ -19,6 +19,7 @@
 #include "Registry_cosine_bell.xml"
 #include "Registry_mixed_layer_eddy.xml"
 #include "Registry_test_sht.xml"
+#include "Registry_deep_convection.xml"
 // #include "Registry_TEMPLATE.xml"
 
 

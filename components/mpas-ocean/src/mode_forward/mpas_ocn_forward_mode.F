@@ -43,6 +43,7 @@ module ocn_forward_mode
    use ocn_test
    use ocn_mesh
 
+   use ocn_two_equation_model
    use ocn_thick_hadv
    use ocn_thick_vadv
    use ocn_thick_ale
@@ -86,6 +87,7 @@ module ocn_forward_mode
 
    use ocn_equation_of_state
 
+   use ocn_vel_noise
    use ocn_vmix
    use ocn_vmix_gotm, only: ocn_vmix_gotm_finalize
 
@@ -97,6 +99,8 @@ module ocn_forward_mode
 
    use ocn_constants
    use ocn_config
+
+   use ocn_ke_triskcv
 
    implicit none
    private
@@ -179,6 +183,8 @@ module ocn_forward_mode
       ! Initialize variables needed for all
       !-----------------------------------------------------------------
       ierr = 0
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
 
       ! Setup ocean config pool
       call ocn_config_init(domain % configs)
@@ -280,8 +286,6 @@ module ocn_forward_mode
       !-----------------------------------------------------------------
 
       ! fill the ocean mesh structure
-      call ocn_meshCreate(domain)
-
       !-----------------------------------------------------------------
       ! Initialize submodules and fields that are required by others
       ! or that have dependencies that require specific ordering.
@@ -307,6 +311,23 @@ module ocn_forward_mode
 
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
       call mpas_get_timeInterval(timeStep, dt=dt)
+      ! fill the ocean mesh structure
+      call ocn_meshCreate(domain)
+
+      if(config_enable_nonhydrostatic_mode) then
+        call ocn_vvel_advection_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vvel_coriolis_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vvel_pgf_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vvel_hmix_del2_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_nonhydrostatic_solver_init(domain % dminfo % comm, err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vel_noise_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
+      endif
 
       if(config_enable_nonhydrostatic_mode) then
         call ocn_vvel_advection_init(err_tmp)
@@ -322,6 +343,12 @@ module ocn_forward_mode
       endif
 
       call ocn_init_routines_block(block, dt, ierr)
+
+      if (config_triskCV) then 
+         ! Compute weightsOnEdge_lsqr needed in TRiSK-CV for the computation of
+         ! the tangential velocity used in the new kinetic energy
+         call Wlsqr(domain)
+      end if
 
       if(ierr.eq.1) then
           call mpas_log_write('An error was encountered in ocn_init_routines_block', MPAS_LOG_CRIT)
@@ -342,6 +369,15 @@ module ocn_forward_mode
 
       ! Update any mesh fields that may have been modified during init
       call ocn_meshUpdateFields(domain)
+
+      ! Update any mesh fields that may have been modified during init
+      call ocn_meshUpdateFields(domain)
+
+      if(config_use_two_equation_turbulence_model) then
+        call ocn_two_equation_init(domain, err_tmp)
+        ierr = ior(ierr, err_tmp)
+      end if
+
 
       if (config_conduct_tests) then
          call mpas_timer_start("test suite")
@@ -497,7 +533,6 @@ module ocn_forward_mode
       endif
 
    !--------------------------------------------------------------------
-
    end function ocn_forward_mode_init!}}}
 
 !***********************************************************************

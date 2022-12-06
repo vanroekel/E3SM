@@ -22,6 +22,7 @@
 module ocn_vel_hadv_coriolis
 
    use mpas_timer
+   use mpas_constants
    use ocn_constants
    use ocn_mesh
    use ocn_config
@@ -118,7 +119,8 @@ contains
       real (kind=RKIND) :: &
          avgVorticity, &! vorticity averaged across edge
          invLength,    &! temp variable for 1/dcedge
-         edgeWeight     ! weight for summing over edges
+         edgeWeight,   &! weight for summing over edges
+         wav
 
       real (kind=RKIND), dimension(:,:), allocatable :: &
          qArr,         &! temporary vorticity array
@@ -196,7 +198,7 @@ contains
       !$omp do schedule(runtime) &
       !$omp    private(k, j, eoe, edgeWeight, avgVorticity, kmin, kmax)
 #endif
-      do iEdge = 1, nEdgesOwned
+      do iEdge = 1, nEdgesAll
          kmin = minLevelEdgeBot(iEdge)
          kmax = maxLevelEdgeTop(iEdge)
 

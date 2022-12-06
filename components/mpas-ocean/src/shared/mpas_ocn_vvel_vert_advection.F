@@ -50,7 +50,6 @@ module ocn_vvel_vert_advection
 !>  NOTE this is only active for non-hydrostatic mode
 !
 !-----------------------------------------------------------------------
-   
    subroutine ocn_vvel_vert_advection_tend(vertVelocityNonhydro, layerThickness, dt, &
       vertAleTransportTop, tend)!{{{
 
@@ -125,7 +124,6 @@ module ocn_vvel_vert_advection
       err = 0 ! set error code to success
 
       ! don't have actual choices for vvel advection here, unlike tracers
-
    end subroutine ocn_vvel_vert_advection_init!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||

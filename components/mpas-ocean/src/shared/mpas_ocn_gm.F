@@ -642,6 +642,7 @@ contains
              else !for really shallow columns use min bolus kappa
                 gmBolusKappa(iEdge) = config_GM_spatially_variable_min_kappa
              end if
+             mesoEddyDiffusivity(:,iEdge) = gmBolusKappa(iEdge)
            end do
            !$omp end do
            !$omp end parallel
@@ -1085,7 +1086,8 @@ contains
             end do
             !$omp end do
             !$omp end parallel
-         else
+         else if (.not. config_GM_closure == 'twoEquation' .and. &
+                  .not. config_GM_closure == 'twoequation') then
             call mpas_log_write('Invalid choice of config_GM_closure.', MPAS_LOG_CRIT)
             err = 1
             call mpas_dmpar_finalize(domain%dminfo)

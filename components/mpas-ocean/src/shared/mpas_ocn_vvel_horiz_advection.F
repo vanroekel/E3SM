@@ -122,7 +122,6 @@ module ocn_vvel_horiz_advection
       end do
       !$omp end do
       !$omp end parallel
-     
       ! eval. tendencies as div(u*h*w) / (A*h)
       !$omp parallel
       !$omp do schedule(runtime) &
@@ -169,13 +168,12 @@ module ocn_vvel_horiz_advection
       implicit none
 
       !*** input parameters 
-
       !*** output parameters
 
       integer, intent(out) :: err !< [out] Error Flag
 
       err = 0 ! set error code to success
-     
+
       ! don't have actual choices for vvel advection here, unlike tracers       
 
    end subroutine ocn_vvel_horiz_advection_init!}}}

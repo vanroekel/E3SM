@@ -138,7 +138,8 @@ contains
       real (kind=RKIND), dimension(:,:), pointer, contiguous :: &
          tendThick,        &! accumulated layer thickness tendency
          fractionAbsorbed, &! fraction of sfc flux absorbed
-         fractionAbsorbedRunoff ! fraction of runoff flux absorbed
+         fractionAbsorbedRunoff, & ! fraction of runoff flux absorbed
+         layerThickness
 
       !-----------------------------------------------------------------
       ! local variables
@@ -313,6 +314,7 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, &
    !$omp parallel
    !$omp do schedule(runtime) & 
    !$omp private(k)
+   !$omp do schedule(runtime) private(k)
    do iEdge = 1, nEdges
       do k = 1, nVertLevels
          normalThicknessFlux(k, iEdge) = normalTransportVelocity(k, iEdge) * layerThickEdgeFlux(k, iEdge)
@@ -359,7 +361,6 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, &
    !
    call ocn_vvel_hmix_del2_tend(layerThickEdgeFlux, vertVelocityNonhydro, &
         tend_vertVelocityNonhydro, err)
-
 
    call mpas_timer_stop("ocn_tend_vvel")
    deallocate(normalThicknessFlux)
@@ -465,7 +466,6 @@ end subroutine ocn_tend_vvel!}}}
                                              activeTracers, timeLevel)
       call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', &
                                              nonhydrostaticPressure, timeLevel)
-
       call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
                                                  indexTemperature)
       call mpas_pool_get_dimension(tracersPool, 'index_salinity', &
@@ -537,17 +537,37 @@ end subroutine ocn_tend_vvel!}}}
       ! Add top drag to surface stress
       call ocn_surface_land_ice_fluxes_vel( &
                                        sfcStress, sfcStressMag, err)
+     do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            !!PRINT*,tendVel(k,iEdge) !FSP-DEBUG
+            velocityCoriolisTend(k,iEdge) = tendVel(k,iEdge)
+         end do
+      end do
 
       ! Add nonlinear Coriolis term and horizontal advection of
       ! momentum, formulated as grad of kinetic energy
       call ocn_vel_hadv_coriolis_tend(normRelVortEdge, &
                                       normPlanetVortEdge, &
                                       layerThickEdgeFlux, normalVelocity, &
-                                      kineticEnergyCell, tendVel, err)
+                                      kineticEnergyCell,  &
+                                      tendVel, err)
+      do iEdge = 1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityCoriolisTend(k,iEdge) = tendVel(k,iEdge) - velocityCoriolisTend(k,iEdge)
+            !!PRINT*,'Check 1: ',velocityCoriolisTend(k,iEdge) !FSP-DEBUG
+            velocityVadvTend(k,iEdge) = tendVel(k,iEdge)
+         end do
+      end do
 
       ! Add vertical advection term -w du/dz
       call ocn_vel_vadv_tend(normalVelocity, layerThickEdgeFlux, &
                              vertAleTransportTop, tendVel, err)
+      do iEdge = 1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityVadvTend(k,iEdge) = tendVel(k,iEdge) - velocityVadvTend(k,iEdge)
+            velocityPGFTend(k,iEdge) = tendVel(k,iEdge)
+         end do
+      end do
 
       ! Add pressure gradient
       call ocn_vel_pressure_grad_tend(ssh, nonhydrostaticPressure, &
@@ -556,7 +576,13 @@ end subroutine ocn_tend_vvel!}}}
                                density, potentialDensity, &
                                indxTemp, indxSalt, activeTracers, &
                                thermExpCoeff, salineContractCoeff, &
-                               tendVel, err)
+                               dynamicViscosity, &  !FSP
+                               layerThickEdgeMean, tendVel, err)
+      do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityPGFtend(k,iEdge) = tendVel(k,iEdge) - velocityPGFtend(k,iEdge)
+         end do
+      end do
 
       ! Compute ssh additions due to self-attraction and loading
       if(mpas_is_alarm_ringing(domain % clock, 'salComputeAlarm', ierr=err)) then 
@@ -574,14 +600,32 @@ end subroutine ocn_tend_vvel!}}}
         ! for split explicit, tidal forcing is added in barotropic subcycles
         call ocn_vel_tidal_potential_tend(ssh,surfacePressure, tendVel, err)
       endif
+      do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityHmixtend(k,iEdge) = tendVel(k,iEdge)
+            velocityForcingtend(k,iEdge) = tendVel(k,iEdge)
+         end do
+      end do
 
-      ! Add horizontal mixing
-      call ocn_vel_hmix_tend(divergence, relativeVorticity, tendVel,err)
+
+    ! Add horizontal mixing
+      call ocn_vel_hmix_tend(divergence, relativeVorticity, viscosity, tendVel,err)
+      do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityHmixtend(k,iEdge) = tendVel(k,iEdge) - velocityHmixtend(k,iEdge)
+            velocityForcingtend(k,iEdge) = tendVel(k,iEdge)
+         end do
+      end do
 
       ! Add forcing and bottom drag
       call ocn_vel_forcing_tend(normalVelocity, sfcFlxAttCoeff, &
                                 sfcStress, kineticEnergyCell, &
                                 layerThickEdgeMean, tendVel, err)
+      do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityForcingTend(k,iEdge) = tendVel(k,iEdge) - velocityForcingTend(k,iEdge)
+         end do
+      end do
 
       ! vertical mixing treated implicitly in a later routine
       ! adjust total velocity tendency based on wetting/drying
@@ -1273,7 +1317,8 @@ end subroutine ocn_tend_vvel!}}}
                                    RediKappa, slopeTriadUp, &
                                    slopeTriadDown, dt, isActiveTracer, &
                                    RediKappaSfcTaper, RediKappaScaling,&
-                                   rediLimiterCount, tracerGroupTend, err)
+                                   rediLimiterCount, mesoEddyDiffusivity, &
+                                   edgeAreaFractionOfCell, tracerGroupTend, err)
 
          if (computeBudgets) then
             ! Finish budget calculation by subtracting before, after

@@ -511,6 +511,7 @@ add_default($nl, 'config_transport_tests_flow_id');
 
 add_default($nl, 'config_dt');
 add_default($nl, 'config_time_integrator');
+add_default($nl, 'config_triskCV');
 
 ########################
 # Namelist group: hmix #
@@ -529,6 +530,8 @@ add_default($nl, 'config_apvm_scale_factor');
 add_default($nl, 'config_use_mom_del2');
 add_default($nl, 'config_mom_del2');
 add_default($nl, 'config_use_tracer_del2');
+add_default($nl, 'config_use_vertMom_del2');
+add_default($nl, 'config_vertMom_del2');
 add_default($nl, 'config_tracer_del2');
 
 #############################
@@ -601,6 +604,33 @@ add_default($nl, 'config_Rayleigh_damping_coeff');
 add_default($nl, 'config_Rayleigh_damping_depth_variable');
 add_default($nl, 'config_Rayleigh_bottom_friction');
 add_default($nl, 'config_Rayleigh_bottom_damping_coeff');
+
+####################################
+# Namelist group: twoEquationModel #
+####################################
+
+add_default($nl, 'config_use_two_equation_turbulence_model');
+add_default($nl, 'config_two_equation_mesoscale');
+add_default($nl, 'config_two_equation_hor_adv_order');
+add_default($nl, 'config_two_equation_coef_3rd_order');
+add_default($nl, 'config_two_equation_vert_adv_order');
+add_default($nl, 'config_two_equation_check_monotonicity');
+add_default($nl, 'config_LES_mode');
+add_default($nl, 'smagorinsky_coefficient');
+add_default($nl, 'config_two_equation_model_choice');
+add_default($nl, 'config_user_c_mu');
+add_default($nl, 'config_user_sigma_k');
+add_default($nl, 'config_user_sigma_psi');
+add_default($nl, 'config_user_c_psi1');
+add_default($nl, 'config_user_c_psi2');
+add_default($nl, 'config_user_c_psi3');
+add_default($nl, 'config_user_c_p');
+add_default($nl, 'config_user_c_m');
+add_default($nl, 'config_user_c_n');
+add_default($nl, 'fkin_value');
+add_default($nl, 'feps_value');
+add_default($nl, 'config_tke_ini');
+add_default($nl, 'config_nut_ini');
 
 #########################
 # Namelist group: cvmix #
@@ -773,6 +803,9 @@ add_default($nl, 'config_vert_remap_order');
 add_default($nl, 'config_vert_remap_interval');
 add_default($nl, 'config_vert_tracer_adv_flux_order');
 add_default($nl, 'config_horiz_tracer_adv_order');
+add_default($nl, 'config_vert_vvel_adv_order');
+add_default($nl, 'config_horiz_vvel_adv_order');
+add_default($nl, 'config_vvel_advection_use_vector_invariant_form');
 add_default($nl, 'config_coef_3rd_order');
 add_default($nl, 'config_flux_limiter');
 add_default($nl, 'config_remap_limiter');
@@ -803,12 +836,22 @@ add_default($nl, 'config_density0');
 
 add_default($nl, 'config_enable_nonhydrostatic_mode');
 add_default($nl, 'config_nonhydrostatic_solve_surface_boundary_condition');
+<<<<<<< HEAD
+=======
+add_default($nl, 'config_enable_vertMomentum_disable_nonHydro');
+>>>>>>> a5dc27cddc859f5475465d7556052bdad86a8dbc
 add_default($nl, 'config_nonhydrostatic_remove_rhs_mean');
 add_default($nl, 'config_nonhydrostatic_preconditioner');
 add_default($nl, 'config_nonhydrostatic_solver_type');
 add_default($nl, 'config_petsc_rtol');
 add_default($nl, 'config_petsc_atol');
 add_default($nl, 'config_petsc_maxit');
+<<<<<<< HEAD
+=======
+add_default($nl, 'config_use_constant_forced_pgf');
+add_default($nl, 'config_reTau');
+add_default($nl, 'config_halfHeightChannel');
+>>>>>>> a5dc27cddc859f5475465d7556052bdad86a8dbc
 
 #####################################
 # Namelist group: pressure_gradient #
@@ -899,6 +942,7 @@ add_default($nl, 'config_dzdk_positive');
 #####################################################
 
 add_default($nl, 'config_use_freq_filtered_thickness');
+add_default($nl, 'config_disable_ALE');
 add_default($nl, 'config_thickness_filter_timescale');
 add_default($nl, 'config_use_highFreqThick_restore');
 add_default($nl, 'config_highFreqThick_restore_time');
@@ -923,6 +967,10 @@ add_default($nl, 'config_disable_thick_vadv');
 add_default($nl, 'config_disable_thick_sflux');
 add_default($nl, 'config_disable_vel_all_tend');
 add_default($nl, 'config_disable_vel_coriolis');
+add_default($nl, 'config_disable_vvel_all_tend');
+add_default($nl, 'config_disable_high_order_vvel_horiz_advection');
+add_default($nl, 'config_disable_vvel_coriolis');
+add_default($nl, 'config_disable_vvel_adv');
 add_default($nl, 'config_disable_vel_pgrad');
 add_default($nl, 'config_disable_vel_hmix');
 add_default($nl, 'config_disable_vel_surface_stress');
@@ -1696,6 +1744,7 @@ my @groups = qw(run_modes
                 redi_isopycnal_mixing
                 gm_eddy_parameterization
                 rayleigh_damping
+                twoequationmodel
                 cvmix
                 gotm
                 forcing

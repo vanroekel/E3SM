@@ -10,6 +10,7 @@
 !  ocn_vmix
 !
 !> \brief MPAS ocean vertical mixing driver
+! need to be careful with the viscosity and the tridiag solve
 !> \author Mark Petersen
 !> \date   September 2011
 !> \details
@@ -26,6 +27,7 @@ module ocn_vmix
    use mpas_pool_routines
    use mpas_timer
    use ocn_mesh
+   use ocn_diagnostics_variables
 
    use mpas_constants
    use ocn_constants
@@ -50,6 +52,8 @@ module ocn_vmix
    ! Public member functions
    !
    !--------------------------------------------------------------------
+
+   private :: tridiagonal_solve
 
    public :: ocn_vmix_coefs, &
              ocn_vel_vmix_tend_implicit, &
@@ -139,6 +143,8 @@ contains
       !-----------------------------------------------------------------
 
       err = 0
+
+      if (config_use_two_equation_turbulence_model .and. .not. config_two_equation_mesoscale) return
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -650,7 +656,6 @@ contains
    !--------------------------------------------------------------------
 
  end subroutine ocn_vertVel_vmix_tend_implicit!}}}
-
 
 !***********************************************************************
 !
@@ -1269,7 +1274,7 @@ contains
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
-      if ( config_use_cvmix ) then
+      if ( config_use_cvmix .or. config_use_two_equation_turbulence_model ) then
 
          call mpas_timer_start('CVMix avg', .false.)
 #ifdef MPAS_OPENACC
@@ -1335,6 +1340,12 @@ contains
       !$acc update host(vertViscTopOfEdge)
 #endif
 
+      do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityVmixtend(k,iEdge) = normalVelocity(k,iEdge)
+         end do
+      end do
+
       !
       !  Implicit vertical solve for momentum
       !
@@ -1371,7 +1382,13 @@ contains
       if (config_enable_nonhydrostatic_mode) then
          call ocn_vertVel_vmix_tend_implicit(meshPool, dt, vertViscTopOfCell, layerThickness, &
                                                vertVelocityNonhydro, err)
-      endif 
+      endif
+
+      do iEdge=1,nEdgesOwned
+         do k=1,nVertLevels
+            velocityVmixTend(k,iEdge) = (normalVelocity(k,iEdge) - velocityvmixtend(k,iEdge)) / dt
+         end do
+      end do
 
       !
       !  Implicit vertical solve for all tracers
@@ -1543,7 +1560,68 @@ contains
    end subroutine ocn_vmix_init!}}}
 
 !***********************************************************************
+!***********************************************************************
+!
+!  routine tridiagonal_solve
+!
+!> \brief   Solve the matrix equation Ax=r for x, where A is tridiagonal.
+!> \author  Mark Petersen
+!> \date    September 2011
+!> \details
+!>  Solve the matrix equation Ax=r for x, where A is tridiagonal.
+!>  A is an nxn matrix, with:
+!>  a sub-diagonal, filled from 1:n-1 (a(1) appears on row 2)
+!>  b diagonal, filled from 1:n
+!>  c sup-diagonal, filled from 1:n-1  (c(1) apears on row 1)
+!
+!-----------------------------------------------------------------------
+   subroutine tridiagonal_solve(a,b,c,r,x,n) !{{{
 
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      integer,intent(in) :: n
+      real (KIND=RKIND), dimension(n), intent(in) :: a,b,c,r
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (KIND=RKIND), dimension(n), intent(out) :: x
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      real (KIND=RKIND), dimension(n) :: bTemp,rTemp
+      real (KIND=RKIND) :: m
+      integer i
+
+      ! Use work variables for b and r
+      bTemp(1) = b(1)
+      rTemp(1) = r(1)
+
+      ! First pass: set the coefficients
+      do i = 2,n
+         m = a(i-1)/bTemp(i-1)
+         bTemp(i) = b(i) - m*c(i-1)
+         rTemp(i) = r(i) - m*rTemp(i-1)
+      end do
+
+      x(n) = rTemp(n)/bTemp(n)
+       ! Second pass: back-substition
+      do i = n-1, 1, -1
+         x(i) = (rTemp(i) - c(i)*x(i+1))/bTemp(i)
+      end do
+
+   end subroutine tridiagonal_solve !}}}
 end module ocn_vmix
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
