@@ -118,7 +118,7 @@ contains
           end do
           dcAv = dcAv / (1.0E-15_RKIND + nEdgesOnCell(iCell))
           do k=minLevelCell(iCell),maxLevelCell(iCell)
-              length_grid = sqrt(dcAv * 0.5_RKIND*(layerThickness(k-1,iCell) + layerThickness(k,iCell)))
+              length_grid = sqrt(dcAv * layerThickness(k,iCell))
               length_stable = 0.76_RKIND*sqrt(tke(k,iCell))/ &
                               (sqrt(max(BruntVaisalaFreqTop(k,iCell),0.0_RKIND)) + &
                                                              1.0E-15_RKIND)

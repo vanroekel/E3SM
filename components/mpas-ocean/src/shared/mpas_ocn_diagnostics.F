@@ -1118,7 +1118,8 @@ contains
       nCells = nCellsAll
       nVertices = nVerticesAll
       nEdges = nEdgesAll
-      apvm_scale_factor = config_apvm_scale_factor;
+      apvm_scale_factor = config_apvm_scale_factor
+      aust_scale_factor = config_aust_scale_factor
 
       ! Diagnostics required for the Anticipated Potential Vorticity Method (apvm).
       if (config_apvm_scale_factor>1e-10 .or. config_aust_scale_factor>1e-10) then
