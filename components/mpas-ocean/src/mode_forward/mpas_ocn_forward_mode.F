@@ -329,19 +329,6 @@ module ocn_forward_mode
         ierr = ior(ierr, err_tmp)
       endif
 
-      if(config_enable_nonhydrostatic_mode) then
-        call ocn_vvel_advection_init(err_tmp)
-        ierr = ior(ierr, err_tmp)
-        call ocn_vvel_coriolis_init(err_tmp)
-        ierr = ior(ierr, err_tmp)
-        call ocn_vvel_pgf_init(err_tmp)
-        ierr = ior(ierr, err_tmp)
-        call ocn_vvel_hmix_del2_init(err_tmp)
-        ierr = ior(ierr, err_tmp)
-        call ocn_nonhydrostatic_solver_init(domain % dminfo % comm, err_tmp)
-        ierr = ior(ierr, err_tmp)
-      endif
-
       call ocn_init_routines_block(block, dt, ierr)
 
       if (config_triskCV) then 

@@ -672,17 +672,16 @@ contains
 
       case (pGradTypeConstForced)
 
+      if (config_use_constant_pgf_cflow) then  !For channel flow
+
 #ifdef MPAS_OPENACC
          !$acc parallel loop &
          !$acc    present(angleEdge,maxLevelEdgeTop, tend, edgeMask) &
          !$acc    private(pGrad, k)
 #else
          !$omp parallel
-         !$omp do schedule(runtime) &
-         !$omp    private(pGrad, k)
+         !$omp do schedule(runtime) private(pGrad, k)
 #endif
-         !Pressure gradient for channel flow (FSP) 
-         if (config_use_constant_pgf_cflow) then  !For channel flow
             do iEdge=1,nEdgesOwned
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
@@ -693,30 +692,18 @@ contains
                   tend(k,iEdge) = tend(k,iEdge) + 1e-12_RKIND*cos(angleEdge(iEdge)) !edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cos(angleEdge(iEdge)) 
                enddo
              enddo
-                   !print*,'forcing:',real(tend(:,1))
- !        else
- !           do iEdge=1,nEdgesOwned
- !              ! compute the pressure gradient to be applied at the edge
- !              pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
-!
-!               do k=minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
-!                  tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
-!               end do
-!            end do
-         endif
-
-
-
 #ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
 #endif
+      end if
 
       case default
 
          !*** error already trapped during init
 
       end select ! pGradType
+         if (config_use_constant_pgf_cflow) then  !For channel flow
 #ifdef MPAS_OPENACC
          !$acc parallel loop &
          !$acc    present(angleEdge,maxLevelEdgeTop, tend, edgeMask) &
@@ -726,8 +713,6 @@ contains
          !$omp do schedule(runtime) &
          !$omp    private(pGrad, k)
 #endif
-         !Pressure gradient for channel flow (FSP) 
-         if (config_use_constant_pgf_cflow) then  !For channel flow
             do iEdge=1,nEdgesOwned
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
@@ -740,9 +725,22 @@ contains
                   tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * (config_reTau**2) * dynViscEdge**2 / ( (config_halfHeightChannel**3)*rho_sw)*cosAngle 
                enddo
              enddo
-                   !print*,'forcing:',real(tend(:,1))
+#ifndef MPAS_OPENACC
+         !$omp end do
+         !$omp end parallel
+#endif
+                  !print*,'forcing:',real(tend(:,1))
          elseif(config_use_constant_forced_pgf) then
-            do iEdge=1,nEdgesOwned
+#ifdef MPAS_OPENACC
+         !$acc parallel loop &
+         !$acc    present(angleEdge,maxLevelEdgeTop, tend, edgeMask) &
+         !$acc    private(pGrad, k)
+#else
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(pGrad, k)
+#endif
+           do iEdge=1,nEdgesOwned
                ! compute the pressure gradient to be applied at the edge
                pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
 
@@ -750,15 +748,11 @@ contains
                   tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
                end do
             end do
-         endif
-
-
-
 #ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
 #endif
-
+      end if
 
       if(config_enable_nonhydrostatic_mode) then
          !$omp parallel

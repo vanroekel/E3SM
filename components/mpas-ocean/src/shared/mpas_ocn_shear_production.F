@@ -120,7 +120,7 @@ contains
 
       !$omp parallel
       !$omp do schedule(runtime) &
-      !$omp private(k, c_psi2, viscMid, shearProduction)
+      !$omp private(k, viscMid)
       do iCell = 1, nCellsOwned
          k = 1
          viscMid = vertViscTopOfCell(k+1,iCell) !assume visc equal across top cell

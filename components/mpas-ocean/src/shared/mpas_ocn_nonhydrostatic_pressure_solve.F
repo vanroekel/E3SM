@@ -620,7 +620,6 @@ module ocn_compute_nonhydrostatic_pressure
 
     call MatGetLocalSize(Amat,locRow,locCol,petsc_err)
 
-    print*, m, globalM, locRow, locCol
 
     call VecCreate(mpi_comm, b, petsc_err)
     if(petsc_err .ne. 0) then
@@ -728,6 +727,7 @@ module ocn_compute_nonhydrostatic_pressure
 
 #ifdef USE_PETSC
     !stuff for PETSC_finalize from the scatter routine
+    deallocate(destIndex,origIndex)
     call ISDestroy(origIS, petsc_err)
     call ISDestroy(destIS, petsc_err)
     call VecScatterDestroy(scatter, petsc_err)

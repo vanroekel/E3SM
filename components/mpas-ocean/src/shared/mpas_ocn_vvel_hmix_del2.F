@@ -141,7 +141,7 @@ contains
       if(config_use_two_equation_turbulence_model) then
          ! Put viscosity into an array
          !$omp parallel
-         !$omp schedule(runtime) private(k,i,iEdge,cell1,cell2)
+         !$omp do schedule(runtime) private(k,i,iEdge,cell1,cell2)
          do iCell = 1, nCells
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
@@ -157,7 +157,7 @@ contains
          !$omp end parallel
       else !constant del2
          !$omp parallel
-         !$omp schedule(runtime) private(k)
+         !$omp do schedule(runtime) private(k)
          do iEdge=1,nEdges
             do k=1,maxLevelEdgeTop(iEdge)
                eddyViscArr(k,iEdge) = meshScalingDel2(iEdge)*eddyVisc2

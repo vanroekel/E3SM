@@ -1859,12 +1859,12 @@ module ocn_time_integration_si
          call ocn_tend_tracer(tendPool, statePool, forcingPool, &
                               meshPool, swForcingPool, &
                               dt, activeTracersOnly, 2)
+         call mpas_timer_stop('si tracer tend')
 
          if(config_enable_nonhydrostatic_mode) then
             call ocn_tend_vvel(tendPool, statePool, & 
                           forcingPool, meshPool, 2, dt)
          end if
-         call mpas_timer_stop('si tracer tend')
 
             if(config_use_two_equation_turbulence_model) then
                call mpas_pool_get_array(tendPool, 'tendTKE', tendTKE)
@@ -1884,7 +1884,6 @@ module ocn_time_integration_si
                call mpas_dmpar_field_halo_exch(domain,'tendTKE')
                call mpas_dmpar_field_halo_exch(domain,'tendglsPsi')
             end if
-         call mpas_timer_stop('si tracer tend')
          ! update halo for tracer tendencies
          call mpas_timer_start("si halo tracers")
 

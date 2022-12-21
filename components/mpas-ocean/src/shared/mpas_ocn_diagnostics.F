@@ -1181,6 +1181,7 @@ contains
          !$acc    present(minLevelEdgeTop, maxLevelEdgeBot, tangentialVelocity, &
          !$acc            normalVelocity, normalizedRelativeVorticityEdge)
 #else
+         !$omp parallel
          !$omp do schedule(runtime) private(k)
 #endif
             do iEdge = 1,nEdges
@@ -1209,6 +1210,7 @@ contains
          !$acc    present(minLevelEdgeTop, maxLevelEdgeBot, tangentialVelocity, &
          !$acc            normalVelocity, normalizedRelativeVorticityEdge)
 #else
+         !$omp parallel
          !$omp do schedule(runtime) private(k)
 #endif
             do iEdge = 1,nEdges

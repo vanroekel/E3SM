@@ -312,8 +312,6 @@ subroutine ocn_tend_vvel(tendPool, statePool, forcingPool, meshPool, &
    ! transport velocity for the tracer.
    !
    !$omp parallel
-   !$omp do schedule(runtime) & 
-   !$omp private(k)
    !$omp do schedule(runtime) private(k)
    do iEdge = 1, nEdges
       do k = 1, nVertLevels

@@ -223,7 +223,7 @@ contains
       call mpas_timer_start("tke explicit vertical turbulent transport")
 
       !$omp parallel
-      !$omp schedule(runtime) private(N, ltAv1, ltAv2, bcValue, k)
+      !$omp do schedule(runtime) private(N, ltAv1, ltAv2, bcValue, k)
       do iCell=1,nCellsAll
          N = maxLevelCell(iCell)
          k = 1
@@ -254,6 +254,8 @@ contains
          tkeTend(k,iCell) = tkeTend(k,iCell) + (nu1*(tke(k-1,iCell) - &
                                tke(k,iCell))/ltAv1) / layerThickness(k,iCell)
       end do
+      !$omp end do
+      !$omp end parallel
       call mpas_timer_stop("tke explicit vertical turbulent transport")
 
    end subroutine ocn_tke_transport_vertical_compute_expl
@@ -283,7 +285,7 @@ contains
       call mpas_timer_start("tke vertical turbulent transport")
 
       !$omp parallel
-      !$omp schedule(runtime) private(N, A, B, C, rhs, tkeTmp, k)
+      !$omp do schedule(runtime) private(N, A, B, C, rhs, tkeTmp, k)
       do iCell=1,nCellsOwned
          N = maxLevelCell(iCell)
          A(1) = 0.0_RKIND
@@ -529,7 +531,7 @@ contains
       call mpas_timer_start("glsPsi explicit vertical turbulent transport")
 
       !$omp parallel
-      !$omp schedule(runtime) private(N, ltAv1, ltAv2, bcValue, k)
+      !$omp do schedule(runtime) private(N, ltAv1, ltAv2, bcValue, k)
       do iCell=1,nCellsAll
          N = maxLevelCell(iCell)
          k = 1
@@ -560,6 +562,8 @@ contains
          glsPsiTend(k,iCell) = glsPsiTend(k,iCell) + (nu1*(glsPsi(k-1,iCell) - &
                                glsPsi(k,iCell))/ltAv1) / layerThickness(k,iCell)
       end do
+      !$omp end do 
+      !$omp end parallel
       call mpas_timer_stop("glsPsi explicit vertical turbulent transport")
 
    end subroutine ocn_glsPsi_transport_vertical_compute_expl
@@ -590,7 +594,7 @@ contains
       call mpas_timer_start("glsPsi vertical turbulent transport")
 
       !$omp parallel
-      !$omp schedule(runtime) private(N, A, B, C, rhs, dissTmp, k)
+      !$omp do schedule(runtime) private(N, A, B, C, rhs, dissTmp, k)
       do iCell=1,nCellsOwned
          N = maxLevelCell(iCell)
          A(1) = 0.0_RKIND
