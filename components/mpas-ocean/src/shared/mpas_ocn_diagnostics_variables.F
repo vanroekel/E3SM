@@ -140,6 +140,14 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:), pointer :: wettingVelocity
    type (field2DReal), pointer :: wettingVelocityField
 
+   real (kind=RKIND), dimension(:,:), pointer :: &
+      velocityVmixtend, &
+      velocityHmixtend, &
+      velocityCoriolisTend, &
+      velocityVadvTend, &
+      velocityForcingTend, &
+      velocityPGFtend
+
    real (kind=RKIND), dimension(:,:), pointer :: vertDiffTopOfCell
    real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
    integer, dimension(:,:), pointer :: rediLimiterCount
@@ -200,6 +208,8 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:), pointer :: SIvec_t0,SIvec_t1 ,SIvec_q0 ,SIvec_q1 ,SIvec_qh0
    real (kind=RKIND), dimension(:), pointer :: SIvec_w0,SIvec_w1 ,SIvec_wh0,SIvec_wh1,SIvec_y0
    real (kind=RKIND), dimension(:), pointer :: SIvec_z0,SIvec_z1 ,SIvec_zh0,SIvec_zh1
+
+   real (kind=RKIND), dimension(:,:), pointer :: nhPressureCorrection
 
    !--------------------------------------------------------------------
    !
@@ -635,6 +645,14 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'dThreshMLD', dThreshMLD)
       call mpas_pool_get_array(diagnosticsPool, 'surfacePressure', &
                 surfacePressure)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityForcingTend', velocityForcingTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityPGFtend', velocityPGFtend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityVadvTend', velocityVadvTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityHmixTend', velocityHmixTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityVmixTend', velocityVmixTend)
+      call mpas_pool_get_array(diagnosticsPool, 'velocityCoriolisTend', velocityCoriolisTend)
+
+      call mpas_pool_get_array(diagnosticsPool, 'nhPressureCorrection', nhPressureCorrection)
 
       ! Semi-implicit Array Pointer retrievals
       if (trim(config_time_integrator) == 'split_implicit') then
@@ -775,7 +793,15 @@ contains
          !$acc                   normalVelocitySurfaceLayer,      &
          !$acc                   transportVelocityMeridional,     &
          !$acc                   penetrativeTemperatureFluxOBL,   &
-         !$acc                   normalizedRelativeVorticityCell  &
+         !$acc                   indexSurfaceVelocityMeridional,  &
+         !$acc                   normalizedRelativeVorticityCell, &
+         !$acc                   velocityPGFtend,                 &
+         !$acc                   velocityForcingTend,             &
+         !$acc                   velocityVadvTend,                &
+         !$acc                   velocityHmixTend,                &
+         !$acc                   velocityVmixTend,                &
+         !$acc                   velocityCoriolisTend,            &
+         !$acc                   nhPressureCorrection             &
          !$acc                   )
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
@@ -1016,7 +1042,15 @@ contains
          !$acc                   normalVelocitySurfaceLayer,      &
          !$acc                   transportVelocityMeridional,     &
          !$acc                   penetrativeTemperatureFluxOBL,   &
-         !$acc                   normalizedRelativeVorticityCell  &
+         !$acc                   indexSurfaceVelocityMeridional,  &
+         !$acc                   normalizedRelativeVorticityCell, &
+         !$acc                   velocityPGFtend,                 &
+         !$acc                   velocityForcingTend,             &
+         !$acc                   velocityVadvTend,                &
+         !$acc                   velocityHmixTend,                &
+         !$acc                   velocityVmixTend,                &
+         !$acc                   velocityCoriolisTend,            &
+         !$acc                   nhPressureCorrection             &
          !$acc                   )
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
@@ -1215,7 +1249,15 @@ contains
                  normalVelocitySurfaceLayer,      &
                  transportVelocityMeridional,     &
                  penetrativeTemperatureFluxOBL,   &
-                 normalizedRelativeVorticityCell)
+                 indexSurfaceVelocityMeridional,  &
+                 normalizedRelativeVorticityCell, &
+                 nhPressureCorrection,            &
+                 velocityCoriolisTend,            &
+                 velocityVmixTend,                &
+                 velocityHmixTend,                &
+                 velocityVadvTend,                &
+                 velocityPGFtend,                 &
+                 velocityForcingTend)
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
          nullify(wettingVelocity)
