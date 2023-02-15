@@ -2497,10 +2497,6 @@ module ocn_time_integration_split
 
       call mpas_dmpar_field_halo_exch(domain, 'surfaceFrictionVelocity')
 
-      if (config_use_two_equation_turbulence_model) then
-           call ocn_compute_two_equation_diff(tkeNew, glsPsiNew, layerThicknessNew, dt, err)
-      end if
-
       call ocn_vmix_implicit(dt, meshPool, statePool, forcingPool, &
                              scratchPool, err, 2)
 

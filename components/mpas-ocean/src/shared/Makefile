@@ -82,15 +82,7 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_transport_tests.o \
 	   mpas_ocn_vel_self_attraction_loading.o \
 	   mpas_ocn_vertical_advection.o \
-           mpas_ocn_stokes_drift.o \
-           mpas_ocn_two_equation_model_driver.o \
-           mpas_ocn_two_equation_structure_functions.o \
-           mpas_ocn_two_equation_model_driver.o \
-           mpas_ocn_tke_glsPsi_transport.o \
-           mpas_ocn_tke_advection_mono.o \
-           mpas_ocn_glsPsi_advection_mono.o \
-           mpas_ocn_shear_production.o \
-           mpas_ocn_buoyancy_production.o
+           mpas_ocn_stokes_drift.o 
 
 all: $(OBJS)
 

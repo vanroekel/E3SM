@@ -34,7 +34,6 @@ module ocn_time_integration_rk4
    use ocn_diagnostics_variables
    use ocn_gm
    use ocn_submesoscale_eddies
-   use ocn_two_equation_model
 
    use ocn_compute_nonhydrostatic_pressure
    use ocn_equation_of_state
@@ -1022,12 +1021,12 @@ module ocn_time_integration_rk4
 
       ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
       if (associated(highFreqThicknessProvis)) then
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
             layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
             sshCur, rkSubstepWeight, vertAleTransportTop, err, &
             highFreqThicknessProvis)
       else
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
             layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
             sshCur, rkSubstepWeight, vertAleTransportTop, err)
       endif
