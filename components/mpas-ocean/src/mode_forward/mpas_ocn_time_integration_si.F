@@ -466,12 +466,12 @@ module ocn_time_integration_si
                                           highFreqThicknessTend)
       call mpas_pool_get_array(tendPool, 'lowFreqDivergence', &
                                           lowFreqDivergenceTend)
-      call mpas_pool_get_array(tendPool, 'verticalVelocityTend', &
-                                          verticalVelocityTend)
-      call mpas_pool_get_array(statePool, 'verticalVelocity', &
-                                          verticalVelocityNew, 2)
-      call mpas_pool_get_array(statePool, 'verticalVelocity', &
-                                          verticalVelocityCur, 1)
+      call mpas_pool_get_array(tendPool, 'vertVelocityNonhydroTend', &
+                                          vertVelocityNonhydroTend)
+      call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', &
+                                          vertVelocityNonhydroNew, 2)
+      call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', &
+                                          vertVelocityNonhydroCur, 1)
       call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracersNew, 2)
 
       allocate(bottomDepthEdge(nEdgesAll+1))
@@ -1367,9 +1367,6 @@ module ocn_time_integration_si
                   ! No preconditioning
                   SIvec_zh1(1:nPrecVec) = SIvec_z1(1:nPrecVec)
                end if
->>>>>>> b5f80740... added nonhydro to v2
->>>>>>> 43570dd884 (added nonhydro to v2)
-   
                ! Reduction --------------------------------------------------!
    
                call mpas_timer_start("si reduction r0")
