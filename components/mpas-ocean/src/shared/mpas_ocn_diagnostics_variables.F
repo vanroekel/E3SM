@@ -1223,7 +1223,6 @@ contains
                  normalVelocitySurfaceLayer,      &
                  transportVelocityMeridional,     &
                  penetrativeTemperatureFluxOBL,   &
-                 indexSurfaceVelocityMeridional,  &
                  normalizedRelativeVorticityCell, &
                  nhPressureCorrection)
       end if

@@ -157,7 +157,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_time_integrator_si(domain, dt)!{{{
+   subroutine ocn_time_integrator_si(domain, dt)
 
       !-----------------------------------------------------------------
       ! Input variables
@@ -1211,6 +1211,7 @@ module ocn_time_integration_si
             call mpas_timer_start("si halo r0")
             call mpas_dmpar_field_halo_exch(domain, 'SIvec_rh0')
             call mpas_timer_stop("si halo r0")
+  
    
             ! SpMV -------------------------------------------------------!
    
@@ -1225,148 +1226,12 @@ module ocn_time_integration_si
       
                call mpas_timer_start("si halo r0")
                call mpas_dmpar_field_halo_exch(domain, 'SIvec_wh0')
-               call mpas_timer_stop("si halo r0")
-      
+               call mpas_timer_stop("si halo r0") 
                ! SpMV -------------------------------------------------------!
       
-               call si_matvec_mul(SIvec_wh0,SIvec_t0,sshSubcycleCur)
-
-               ! Global sum across CPUs
-               call mpas_timer_start("si reduction r0")
-               call mpas_dmpar_sum_real_array(domain % dminfo, 2,      &
-                                              SIcst_allreduce_local2,  &
-                                              SIcst_allreduce_global2)
-               call mpas_timer_stop ("si reduction r0")
-            endif 
-
-            SIcst_r00r0 = 0.0_RKIND
-            SIcst_r00w0 = 0.0_RKIND
+               call si_matvec_mul(SIvec_wh0,bottomDepthEdge, &
+                                  SIvec_t0,sshSubcycleCur)
    
-            do iCell = 1, nCellsOwned
-               SIcst_r00r0 = SIcst_r00r0 + SIvec_r00(iCell) &
-                                         * SIvec_r0(iCell)
-               SIcst_r00w0 = SIcst_r00w0 + SIvec_r00(iCell) &
-                                         * SIvec_w0(iCell)
-            end do ! iCell
-
-            SIcst_allreduce_local2(1) = SIcst_r00r0
-            SIcst_allreduce_local2(2) = SIcst_r00w0
-   
-            ! Global sum across CPUs
-            call mpas_timer_start("si reduction r0")
-            call mpas_dmpar_sum_real_array(domain % dminfo, 2,      &
-                                           SIcst_allreduce_local2,  &
-                                           SIcst_allreduce_global2)
-            call mpas_timer_stop ("si reduction r0")
-   
-            if ( config_btr_si_partition_match_mode .and. ncpus > 1) then
-               SIcst_allreduce_temp9(:)    = 0.0_RKIND
-               SIcst_allreduce_itemp9(:)   = 0.0_RKIND
-   
-               SIcst_allreduce_itemp9(1:2) = &
-                                    exponent(SIcst_allreduce_global2(:))
-               SIcst_allreduce_temp9(1:2)  = &
-                                    fraction(SIcst_allreduce_global2(:))
-               SIcst_allreduce_temp9(1:2)  = &
-                                    anint(SIcst_allreduce_temp9(1:2) &
-                                           * 1.0e+4_RKIND  ) &
-                                           / 1.0e+4_RKIND
-   
-               SIcst_allreduce_global2(:) =          &
-                          SIcst_allreduce_temp9(1:2) &
-                        * 2.0_RKIND ** (SIcst_allreduce_itemp9(1:2))
-            endif
-   
-            SIcst_r00r0_global = SIcst_allreduce_global2(1)
-            SIcst_r00w0_global = SIcst_allreduce_global2(2)
-
-            SIcst_rho0   = SIcst_r00r0_global
-            SIcst_alpha0 = SIcst_rho0 / SIcst_r00w0_global
-            SIcst_beta0  = 0.0_RKIND
-            SIcst_omega0 = 0.0_RKIND
-   
-            call mpas_timer_stop("si btr residual")
-   
-   
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! Stage 2.3 : Outer iterations 
-            !             - lagged values are sufficiently up to date
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   
-            call mpas_timer_start("si btr iteration")
-   
-            iter = 0
-            resid = (tolerance_outer+100.0)**2.0
-   
-            !-------------------------------------------------------------!
-            do while ( dsqrt(resid) > tolerance_outer )
-            !-------------------------------------------------------------!
-   
-               iter = iter + 1
-   
-               !$omp parallel
-               !$omp do schedule(runtime)
-               do iCell = 1, nPrecVec
-                  SIvec_ph1(iCell) =  SIvec_rh0(iCell) + SIcst_beta0      &
-                                   * (SIvec_ph0(iCell) - SIcst_omega0     &
-                                                       * SIvec_sh0(iCell))
-   
-                  SIvec_s1(iCell)  =  SIvec_w0(iCell)  + SIcst_beta0      &
-                                   * (SIvec_s0(iCell)  - SIcst_omega0     &
-                                                       * SIvec_z0(iCell))
-   
-                  SIvec_sh1(iCell) =  SIvec_wh0(iCell) + SIcst_beta0      &
-                                   * (SIvec_sh0(iCell) - SIcst_omega0     &
-                                                       * SIvec_zh0(iCell))
-   
-                  SIvec_z1(iCell)  =  SIvec_t0(iCell)  + SIcst_beta0      &
-                                   * (SIvec_z0(iCell)  - SIcst_omega0     &
-                                                       * SIvec_v0(iCell))
-   
-                  SIvec_q0(iCell)  =  SIvec_r0(iCell)  - SIcst_alpha0     &
-                                                       * SIvec_s1(iCell)
-   
-                  SIvec_qh0(iCell) =  SIvec_rh0(iCell) - SIcst_alpha0     &
-                                                       * SIvec_sh1(iCell)
-   
-                  SIvec_y0(iCell)  =  SIvec_w0(iCell)  - SIcst_alpha0     &
-                                                       * SIvec_z1(iCell)
-               end do ! iCell
-               !$omp end do
-               !$omp end parallel
-   
-               ! Preconditioning -----------------------------------------!
-   
-               if ( trim(config_btr_si_preconditioner) == 'ras' ) then
-                  ! RAS preconditioning: Use BLAS 
-                  ! for the symmetric matrix-vector multiplication
-#ifdef USE_LAPACK
-                  call DSPMV('U', nPrecVec, 1.0_RKIND, prec_ivmat, &
-                             SIvec_z1(1:nPrecVec), 1, 0.0_RKIND,   &
-                             SIvec_zh1(1:nPrecVec),1)
-#endif
-   
-               elseif ( trim(config_btr_si_preconditioner) == &
-                                                 'block_jacobi' ) then
-                  ! Block-Jacobi preconditioning: Use BLAS 
-                  ! for the symmetric matrix-vector multiplication
-#ifdef USE_LAPACK
-                  call DSPMV('U', nPrecVec, 1.0_RKIND, prec_ivmat, &
-                             SIvec_z1(1:nPrecVec), 1, 0.0_RKIND,   &
-                             SIvec_zh1(1:nPrecVec),1)
-#endif
-   
-               elseif ( trim(config_btr_si_preconditioner) == &
-                                                       'jacobi' ) then
-                  ! Jacobi preconditioning
-                  SIvec_zh1(1:nPrecVec) = SIvec_z1(1:nPrecVec) &
-                                        * prec_ivmat(1:nPrecVec)
-   
-               elseif ( trim(config_btr_si_preconditioner) == &
-                                                         'none' ) then
-                  ! No preconditioning
-                  SIvec_zh1(1:nPrecVec) = SIvec_z1(1:nPrecVec)
-               end if
                ! Reduction --------------------------------------------------!
    
                call mpas_timer_start("si reduction r0")
@@ -1412,7 +1277,7 @@ module ocn_time_integration_si
    
             end if !!!
    
-            call mpas_timer_stop("si btr residual")
+            call mpas_timer_stop("si btr residual") 
    
    
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2185,8 +2050,8 @@ module ocn_time_integration_si
                   !$omp do schedule(runtime) private(k, temp_h)
                   do iCell=1,nCells
                      do k=2,maxLevelCell(iCell)
-                        temp_h = verticalVelocityCur(k,iCell) + dt * verticalVelocityTend(k,iCell)
-                        verticalVelocityNew(k,iCell) = 0.5_RKIND*(verticalVelocityCur(k,iCell) + temp_h)
+                        temp_h = vertVelocityNonhydroCur(k,iCell) + dt * vertVelocityNonhydroTend(k,iCell)
+                        vertVelocityNonhydroNew(k,iCell) = 0.5_RKIND*(vertVelocityNonhydroCur(k,iCell) + temp_h)
                      end do
                   end do
                   !$omp end do
@@ -3085,7 +2950,7 @@ module ocn_time_integration_si
       call mpas_timer_stop('si fini')
       call mpas_timer_stop("si timestep")
 
-   end subroutine ocn_time_integrator_si!}}}
+   end subroutine ocn_time_integrator_si
 
 !***********************************************************************
 !
@@ -3103,7 +2968,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_time_integration_si_init(domain, dt)!{{{
+   subroutine ocn_time_integration_si_init(domain, dt)
 
       !-----------------------------------------------------------------
       ! Input/output variables
@@ -3429,7 +3294,7 @@ module ocn_time_integration_si
 
       self_attraction_and_loading_beta = config_self_attraction_and_loading_beta
 
-   end subroutine ocn_time_integration_si_init!}}}
+   end subroutine ocn_time_integration_si_init
 
 !***********************************************************************
 !
@@ -3444,7 +3309,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_time_integrator_si_preconditioner(domain, dt)!{{{
+   subroutine ocn_time_integrator_si_preconditioner(domain, dt)
 
       !-----------------------------------------------------------------
       ! Input variables
@@ -3718,7 +3583,7 @@ module ocn_time_integration_si
 
       endif ! config_btr_si_preconditioner
 
-   end subroutine ocn_time_integrator_si_preconditioner !}}}
+   end subroutine ocn_time_integrator_si_preconditioner 
 
 !***********************************************************************
 !
@@ -3734,7 +3599,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine si_matvec_mul(SIvec_in,bottomDepthEdge,SIvec_out,ssh) !{{{
+   subroutine si_matvec_mul(SIvec_in,bottomDepthEdge,SIvec_out,ssh) 
 
       real(kind=RKIND),dimension(:),intent(in)  :: &
           SIvec_in,      &! Input SI vector
@@ -3843,7 +3708,7 @@ module ocn_time_integration_si
          ! No preconditioning
          SIvec_out(1:nPrecVec) = SIvec_in(1:nPrecVec)
       end if
-   end subroutine si_precond !}}}
+   end subroutine si_precond 
 
 !***********************************************************************
 !
@@ -3860,7 +3725,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine si_global_reduction(localProd,globalProd,       & !{{{
+   subroutine si_global_reduction(localProd,globalProd,       & 
                              reprodSum1,reprodSum2,           &
                              si_algorithm,nfld,domain,        &
                              SIvec_1,SIvec_2,SIvec_3,SIvec_4, &
@@ -4130,7 +3995,7 @@ module ocn_time_integration_si
 
       endif !!!
    
-   end subroutine si_global_reduction !}}}
+   end subroutine si_global_reduction 
 
 !***********************************************************************
 !
@@ -4147,7 +4012,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine si_solver_scg(domain,sshSolved,ssh,bottomDepthEdge, & !{{{
+   subroutine si_solver_scg(domain,sshSolved,ssh,bottomDepthEdge, & 
                             tolerance,SIcst_alpha0,SIcst_beta0,   &
                             SIcst_gamma0)
 
@@ -4270,7 +4135,7 @@ module ocn_time_integration_si
       end do ! do iter
       !-------------------------------------------------------------!
      
-   end subroutine si_solver_scg !}}}
+   end subroutine si_solver_scg 
 
 !***********************************************************************
 !
@@ -4288,7 +4153,7 @@ module ocn_time_integration_si
 !
 !-----------------------------------------------------------------------
 
-   subroutine si_solver_sbicg(domain,sshSolved,ssh,bottomDepthEdge, & !{{{
+   subroutine si_solver_sbicg(domain,sshSolved,ssh,bottomDepthEdge, & 
                  tolerance,SIcst_alpha0,SIcst_beta0,SIcst_gamma0,   &
                  SIcst_rho0)
 
@@ -4487,7 +4352,7 @@ module ocn_time_integration_si
      end do ! do iter
      !-------------------------------------------------------------!
 
-   end subroutine si_solver_sbicg !}}}
+   end subroutine si_solver_sbicg 
 
 !***********************************************************************
 
