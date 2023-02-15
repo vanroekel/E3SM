@@ -2641,9 +2641,6 @@ contains
       real (kind=RKIND), dimension(:,:), intent(in), optional :: &
          newHighFreqThickness     !< [in] high frequency thickness
 
-      real (kind=RKIND), dimension(:,:), intent(in) :: &
-         nhPressureCorrection
-
       real (kind=RKIND), intent(in) :: &
          dt     !< Input: time step
 

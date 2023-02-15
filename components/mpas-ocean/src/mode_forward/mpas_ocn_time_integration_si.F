@@ -811,11 +811,14 @@ module ocn_time_integration_si
                  verticalMeshPool, layerThicknessCur, &
                  layerThickEdgeFlux, normalVelocityCur, sshCur, dt, &
                  vertAleTransportTop, err, highFreqThicknessNew)
+#ifdef MPAS_OPENACC
+            !$acc exit data delete(highFreqThicknessNew)
+#endif
          else
             call ocn_vert_transport_velocity_top( &
                  verticalMeshPool, layerThicknessCur, &
-                 layerThickEdgeFlux, normalVelocityCur, verticalVelocityCur, &
-                 sshCur, dt, vertAleTransportTop, nhPressureCorrection, err)
+                 layerThickEdgeFlux, normalVelocityCur, &
+                 sshCur, dt, vertAleTransportTop, err)
          endif
 
 #ifdef MPAS_OPENACC
@@ -1989,7 +1992,7 @@ module ocn_time_integration_si
             call ocn_vert_transport_velocity_top( &
                  verticalMeshPool, layerThicknessCur, &
                  layerThickEdgeFlux, normalTransportVelocity, verticalVelocityNew, sshCur, &
-                 dt, vertAleTransportTop, nhPressureCorrection, err, highFreqThicknessNew)
+                 dt, vertAleTransportTop, err, highFreqThicknessNew)
 #ifdef MPAS_OPENACC
             !$acc exit data delete(highFreqThicknessNew)
 #endif
@@ -1997,7 +2000,7 @@ module ocn_time_integration_si
             call ocn_vert_transport_velocity_top( &
                  verticalMeshPool, layerThicknessCur, &
                  layerThickEdgeFlux, normalTransportVelocity, verticalVelocityNew, sshCur, &
-                 dt, vertAleTransportTop, nhPressureCorrection, err)
+                 dt, vertAleTransportTop, err)
          endif
 #ifdef MPAS_OPENACC
          !$acc exit data delete(layerThicknessCur, sshCur)
