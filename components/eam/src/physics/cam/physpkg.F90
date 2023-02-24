@@ -1959,6 +1959,7 @@ subroutine tphysbc (ztodt,               &
     use mo_gas_phase_chemdr,only: map2chm
     use clybry_fam,         only: clybry_fam_adj
     use clubb_intr,      only: clubb_tend_cam
+    use agi_intr,        only: agi_tend
     use sslt_rebin,      only: sslt_rebin_adv
     use tropopause,      only: tropopause_output
     use output_aerocom_aie, only: do_aerocom_ind3, cloud_top_aerocom
@@ -2432,6 +2433,14 @@ if (l_tracer_aero) then
     
 end if
 
+    !===================================================
+    ! Calculate tendency of AgI due to sources and sinks
+    !===================================================
+    call t_startf('agi_tend')
+
+    call agi_tend(state, pbuf, ztodt)
+
+    call t_stopf('agi_tend')
 
     if( microp_scheme == 'RK' ) then
 

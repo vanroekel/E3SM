@@ -779,6 +779,18 @@
 
 <conv_water_frac_limit            > 0.01d0  </conv_water_frac_limit>
 
+<!-- AgI physics options -->
+<agi_enable                  > .false. </agi_enable>
+<agi_point_source_emis       > .true. </agi_point_source_emis>
+<agi_data_emis               > .false. </agi_data_emis>
+<agi_microphysics            > .false. </agi_microphysics>
+<agi_lat                     >  35.8187 </agi_lat>
+<agi_lon                     >  -106.209 </agi_lon>
+<agi_height                  >  0.0 </agi_height>
+<agi_thickness               >  500.0 </agi_thickness>
+<agi_emis_rate               > 5.556e-6 </agi_emis_rate>
+<agi_emis_data_file          > 'latlonAGI.dat' </agi_emis_data_file>
+
 <!-- CLUBB_SGS -->
 <do_clubb_sgs                > .false. </do_clubb_sgs>
 <do_clubb_sgs  clubb_sgs="1" > .true.  </do_clubb_sgs>

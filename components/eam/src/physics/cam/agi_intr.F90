@@ -133,14 +133,41 @@ module agi_intr
 
     integer :: agi_idx, agiq_idx
 
+    call agi_register
+
     ! Register Agi in the physics buffer
 
     agi_idx = pbuf_get_index('AgI')
     agiq_idx = pbuf_get_index('qAgI')
 
-    Add the set_field lines
+    call pbuf_set_field(pbuf2d, agi_idx, 0.0_r8)
+    call pbuf_set_field(pbuf2d, agiq_idx, 0.0_r8)
 
   end subroutine agi_ini
+
+!==============================================================================================
+  subroutine agi_tend(state1, pbuf1, ztodt)
+
+    use ppgrid only: pver, pcols
+    use rgrid only: nlon
+
+    type(physics_state), intent(in) :: state1
+    type(physics_buffer_desc), pointeri, intent(in) :: pbuf1(:)
+    real(r8), intent(in) :: ztodt
+
+    if(.not. agi_enable) return
+
+    if(agi_point_source_emis) then
+      call agi_pointsource(state1, ztodt)
+    elseif(agi_data_emis) then
+      !stub non-call to agi data emis
+    else
+      !do nothing
+    endif
+
+    ! this is probably where the microphysics part comes to add to ice nuclei, still need a PBUF field (FIXME)
+
+  end subroutine agi_tend
 
 !==============================================================================================
 

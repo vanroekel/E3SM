@@ -2831,7 +2831,67 @@ Number of subcolumns in VAMP Generator
 Default: 10
 </entry>
 
+<!-- AgI emission and physics -->
 
+<entry id="agi_enable" type="logical" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+SWITCH for enabling AgI
+Default: FALSE
+</entry>
+
+<entry id="agi_point_source_emis" type="logical" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+SWITCH for enabling AgI point source emission (constant in time), cannot be used with agi_data_emis
+Default: FALSE
+</entry>
+
+<entry id="agi_data_emis" type="logical" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+SWITCH for enabling AgI doing emission from data, cannot be used with agi_point_source_emis
+Default: FALSE
+</entry>
+
+<entry id="agi_microphysics" type="logical" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+SWITCH for enabling AgI connections to MG2 microphysics scheme
+Default: FALSE
+</entry>
+
+<entry id="agi_lat" type="real" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+Latitude position (deg N) of the point source emission of AgI
+Default: 35.8
+</entry>
+
+<entry id="agi_lon" type="real" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+Longitude position (deg E) of the point source emission of AgI
+Default: -118.8
+</entry>
+
+<entry id="agi_height" type="real" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+height of the agi point source
+Default: 0 
+</entry>
+
+<entry id="agi_thickness" type="real" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+vertical extent of the agi point source
+Default: 0 
+</entry>
+
+<entry id="agi_emis_rate" type="real" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+rate of agi emission (kg/s) of the agi point source
+Default: 5.56E-6
+</entry>
+
+<entry id="agi_emis_data_file" type="char*80" category="agi"
+  group="agi_ctl_nl" valid_values="" >
+path to data file for agi emissions
+Default: 'agi_emiss.dat'
+</entry>
 
 <!-- Moist Convection and Microphysics -->
 
