@@ -2438,7 +2438,7 @@ end if
     !===================================================
     call t_startf('agi_tend')
 
-    call agi_tend(state, pbuf, ztodt)
+    call agi_tend(state, ptend, pbuf, ztodt)
 
     call t_stopf('agi_tend')
 

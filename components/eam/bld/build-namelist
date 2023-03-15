@@ -3607,6 +3607,18 @@ else {
   add_default($nl, 'microp_uniform',   'val'=>'.false.');
 }
 
+# AGI control 
+add_default($nl, 'agi_enable');
+add_default($nl, 'agi_point_source_emis');
+add_default($nl, 'agi_data_emis');
+add_default($nl, 'agi_microphysics');
+add_default($nl, 'agi_lat');
+add_default($nl, 'agi_lon');
+add_default($nl, 'agi_height');
+add_default($nl, 'agi_thickness');
+add_default($nl, 'agi_emis_rate');
+add_default($nl, 'agi_emis_data_file');
+
 # CLUBB_SGS
 add_default($nl, 'do_clubb_sgs');
 my $clubb_sgs = $nl->get_value('do_clubb_sgs');
