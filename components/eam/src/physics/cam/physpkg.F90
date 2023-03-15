@@ -316,6 +316,8 @@ subroutine phys_register
     ! Register diagnostics PBUF
     call diag_register()
 
+    call agi_register()
+
     ! Register age of air tracers
     call aoa_tracers_register()
 
@@ -724,6 +726,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use ionosphere,	    only: ionos_init  ! Initialization of ionosphere module (WACCM-X)
     use majorsp_diffusion,  only: mspd_init   ! Initialization of major species diffusion module (WACCM-X)
     use clubb_intr,         only: clubb_ini_cam
+    use agi_intr,           only: agi_ini
     use sslt_rebin,         only: sslt_rebin_init
     use tropopause,         only: tropopause_init
     use solar_data,         only: solar_data_init
@@ -888,6 +891,8 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
        call microp_driver_init(pbuf2d)
        call conv_water_init
     end if
+
+    if (agi_enable) call agi_ini(pbuf2d)
 
     ! initiate CLUBB within CAM
     if (do_clubb_sgs) call clubb_ini_cam(pbuf2d,dp1)
@@ -2436,11 +2441,13 @@ end if
     !===================================================
     ! Calculate tendency of AgI due to sources and sinks
     !===================================================
-    call t_startf('agi_tend')
+    if(agi_enable) then
+       call t_startf('agi_tend')
 
-    call agi_tend(state, ptend, pbuf, ztodt)
+       call agi_tend(state, ptend, pbuf, ztodt)
 
-    call t_stopf('agi_tend')
+       call t_stopf('agi_tend')
+    end if
 
     if( microp_scheme == 'RK' ) then
 

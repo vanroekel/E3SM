@@ -145,8 +145,6 @@ module agi_intr
 
     integer :: agi_idx, agiq_idx
 
-    call agi_register
-
     ! Register Agi in the physics buffer
 
     agi_idx = pbuf_get_index('AgI')
