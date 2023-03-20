@@ -42,6 +42,7 @@ module ocn_time_integration_rk4
    use ocn_wetting_drying
 
    use ocn_vel_noise
+   use ocn_temp_noise
    use ocn_effective_density_in_land_ice
    use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
@@ -1946,7 +1947,7 @@ call mpas_dmpar_field_halo_exch(domain, 'verticalVelocity', timeLevel=2)
       end if
 
       call ocn_vel_add_noise(normalVelocityNew, dt, err)
-
+      call ocn_temperature_add_noise(tracersGroupNew, indexTemperature, dt, err)
    end subroutine ocn_time_integrator_rk4_cleanup
 
 end module ocn_time_integration_rk4

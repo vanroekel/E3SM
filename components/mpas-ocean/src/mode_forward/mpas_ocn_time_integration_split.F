@@ -47,6 +47,7 @@ module ocn_time_integration_split
    use ocn_time_average_coupled
 
    use ocn_vel_noise
+   use ocn_temp_noise
    use ocn_effective_density_in_land_ice
    use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
@@ -241,7 +242,8 @@ module ocn_time_integration_split
 
       integer :: &
          startIndex, endIndex, &! start, end index for tracer groups
-         indexSalinity          ! tracer index for salinity
+         indexSalinity,        &! tracer index for salinity
+         indexTemperature       ! tracer index for temperature
 
       integer :: iTracer, numTracers, numActiveTracers
 
@@ -391,6 +393,9 @@ module ocn_time_integration_split
 
       call mpas_pool_get_dimension_scalar(tracersPool, 'index_salinity', &
                                                         indexSalinity)
+
+      call mpas_pool_get_dimension_scalar(tracersPool, 'index_temperature', &
+                                                        indexTemperature)
 
       !*** Retrieve tendency variables
 
@@ -2285,6 +2290,11 @@ module ocn_time_integration_split
                         !$omp end do
                         !$omp end parallel
 #endif
+                        if(config_enable_nonhydrostatic_mode) then
+                           call ocn_temperature_add_noise(tracersGroupNew, indexTemperature, &
+                                                          dt, err)
+                        end if
+
                      end if
 
                      ! Reset debugTracers to fixed value at the surface

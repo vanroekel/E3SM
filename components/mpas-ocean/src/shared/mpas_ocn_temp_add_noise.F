@@ -9,16 +9,16 @@
 !
 !  ocn_vel_noise
 !
-!> \brief adds noise to normal velocity
+!> \brief adds noise to temperature 
 !> \author Luke Van Roekel
-!> \date   7 June 2022
+!> \date   20 March 2023
 !> \details
 !>  This module contains the routine for adding white  
 !>  noise to LES configurations
 !
 !-----------------------------------------------------------------------
 
-module ocn_vel_noise
+module ocn_temp_noise
 
    use mpas_timer
    use mpas_derived_types
@@ -43,8 +43,8 @@ module ocn_vel_noise
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_vel_add_noise, &
-             ocn_vel_noise_init
+   public :: ocn_temperature_add_noise, &
+             ocn_temperature_noise_init
 
    !--------------------------------------------------------------------
    !
@@ -65,33 +65,35 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_vel_add_noise
+!  routine ocn_temp_add_noise
 !
-!> \brief   Computes a white noise perturbation on normal velocity 
+!> \brief   Computes a white noise perturbation on temperature 
 !> \author  Luke Van Roekel
 !> \date    7 June 2022
 !> \details
-!>  This routine computes the a white noise tendency to apply to normal velocity 
+!>  This routine computes the a white noise tendency to apply to temperature
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_add_noise(normalVelocity, dt, err)!{{{
+   subroutine ocn_temperature_add_noise(tracer, index_temperature, dt, err)
       !-----------------------------------------------------------------
       !
-      ! input/output variables
+      ! input variables
       !
       !-----------------------------------------------------------------
 
       real(kind=RKIND),intent(in) :: dt
 
+      integer,intent(in) :: index_temperature
+
       !-----------------------------------------------------------------
       !
       ! input/output variables
       !
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         normalVelocity    !< Input/Output: velocity tendency
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tracer    !< Input/Output: velocity tendency
 
       !-----------------------------------------------------------------
       !
@@ -107,9 +109,10 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k, nEdges
+      integer :: iCell, k, nCells
 
-      real(kind=RKIND) :: randomPerturbation(2), finalPert(2), cosAng, sinAng
+      real(kind=RKIND) :: randomPerturbation, finalPert
+
       !-----------------------------------------------------------------
       !
       ! call relevant routines for computing tendencies
@@ -128,21 +131,19 @@ contains
 
       call mpas_timer_start("noise tend")
 
-      nEdges = nEdgesAll
+      nCells = nCellsAll
 
       !$omp parallel
       !$omp do schedule(runtime) private(k,randomPerturbation,finalPert,minNoiseLevel,maxNoiseLevel)
-      do iEdge = 1, nEdges
-         minNoiseLevel = max(minLevelEdgeTop(iEdge),config_LES_noise_min_level)
-         maxNoiseLevel = min(maxLevelEdgeTop(iEdge),config_LES_noise_max_level)
+      do iCell = 1, nCells
+         minNoiseLevel = max(minLevelCell(iCell),config_LES_noise_min_level)
+         maxNoiseLevel = min(maxLevelCell(iCell),config_LES_noise_max_level)
 
-         cosAng = cos(angleEdge(iEdge))
-         sinAng = sin(angleEdge(iEdge))
          do k = minNoiseLevel, maxNoiseLevel
            call random_number(randomPerturbation)
            randomPerturbation = 2.0_RKIND * randomPerturbation - 1.0_RKIND
-           finalPert = config_LES_noise_perturbation_magnitude * randomPerturbation
-           normalVelocity(k,iEdge) = normalVelocity(k,iEdge) + cosAng*finalPert(1) + sinAng*finalPert(2)
+           finalPert = config_LES_temp_noise_perturbation_magnitude * randomPerturbation
+           tracer(index_temperature,k,iCell) = tracer(index_temperature,k,iCell) + dt*finalPert 
          end do
       end do
       !$omp end do
@@ -152,22 +153,22 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_vel_add_noise!}}}
+   end subroutine ocn_temperature_add_noise
 
 !***********************************************************************
 !
-!  routine ocn_vel_noise_init
+!  routine ocn_temperature_noise_init
 !
-!> \brief   Initializes ocean normal velocity noise tendency 
+!> \brief   Initializes ocean temperature noise tendency 
 !> \author  Luke Van Roekel
 !> \date    7 June 2022
 !> \details
 !>  This routine initializes quantities related to white noise
-!>  tendency of normal velocity
+!>  tendency of temperature
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_noise_init(err)!{{{
+   subroutine ocn_temperature_noise_init(err)
 
    !--------------------------------------------------------------------
 
@@ -182,21 +183,22 @@ contains
       
       noiseOn = .false.
 
-      if(config_LES_noise_enable) then
+      if(config_LES_temp_noise_enable) then
          noiseOn = .true.
-         maxTime = config_LES_noise_max_time
+         maxTime = config_LES_temp_noise_max_time
          curTime = 0.0_RKIND
+
       end if
 
       err = 0
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_vel_noise_init!}}}
+   end subroutine ocn_temperature_noise_init
 
 !***********************************************************************
 
-end module ocn_vel_noise
+end module ocn_temp_noise
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 ! vim: foldmethod=marker

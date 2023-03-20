@@ -1272,6 +1272,14 @@
 					description="Time in seconds to apply noise"
 					possible_values="positive reals"
 					/>
+		<nml_option name="config_LES_temp_noise_enable" type="logical" default_value=".false." units="unitless"
+                    description="Flag to enable adding noise to temperature"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_LES_temp_noise_max_time" type="real" default_value="0" units="s"
+					description="Time in seconds to apply noise for temperature"
+					possible_values="positive reals"
+					/>
 		<nml_option name="config_LES_noise_min_level" type="integer" default_value="1" units="unitless"
 					description="minimum level to apply noise, must be bigger than minLevelCell"
 					possible_values="positive integers"
@@ -1283,6 +1291,10 @@
 		<nml_option name="config_LES_noise_perturbation_magnitude" type="real" default_value="0.0001" units="unitless"
 					description="magnitude of noise to add to normal velocity"
 					possible_values="small positive integers"
+					/>
+		<nml_option name="config_LES_temp_noise_perturbation_magnitude" type="real" default_value="0.01" units="unitless"
+					description="magnitude of noise to add to temperature"
+					possible_values="small positive reals"
 					/>
 	</nml_record>
 	<nml_record name="nonhydrostatic_pressure">

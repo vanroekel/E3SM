@@ -26,6 +26,7 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_vertical_remap.o \
 	   mpas_ocn_vertical_regrid.o \
 	   mpas_ocn_vel_add_noise.o \
+	   mpas_ocn_temp_add_noise.o \
 		 mpas_ocn_vvel_vert_advection.o \
 		 mpas_ocn_vvel_horiz_advection.o \
 		 mpas_ocn_vvel_coriolis.o \
@@ -117,6 +118,8 @@ mpas_ocn_gm.o:  mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_vari
 mpas_ocn_vel_pressure_grad.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o
 
 mpas_ocn_vel_add_noise.o: mpas_ocn_constants.o mpas_ocn_config.o
+
+mpas_ocn_temp_add_noise.o: mpas_ocn_constants.o mpas_ocn_config.o
 
 mpas_ocn_thick_surface_flux.o: mpas_ocn_forcing.o mpas_ocn_constants.o mpas_ocn_config.o
 
