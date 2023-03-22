@@ -116,7 +116,7 @@ subroutine phys_register
     use shr_kind_mod,       only: r8 => shr_kind_r8
     use spmd_utils,         only: masterproc
     use constituents,       only: pcnst, cnst_add, cnst_chk_dim, cnst_name
-
+    use agi_intr,           only: agi_register
     use cam_control_mod,    only: moist_physics
     use chemistry,          only: chem_register
     use cloud_fraction,     only: cldfrc_register
@@ -892,7 +892,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
        call conv_water_init
     end if
 
-    if (agi_enable) call agi_ini(pbuf2d)
+    call agi_ini(pbuf2d)
 
     ! initiate CLUBB within CAM
     if (do_clubb_sgs) call clubb_ini_cam(pbuf2d,dp1)
@@ -2441,13 +2441,11 @@ end if
     !===================================================
     ! Calculate tendency of AgI due to sources and sinks
     !===================================================
-    if(agi_enable) then
-       call t_startf('agi_tend')
+    call t_startf('agi_tend')
 
-       call agi_tend(state, ptend, pbuf, ztodt)
+    call agi_tend(state, ptend, pbuf, ztodt)
 
-       call t_stopf('agi_tend')
-    end if
+    call t_stopf('agi_tend')
 
     if( microp_scheme == 'RK' ) then
 

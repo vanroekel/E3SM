@@ -246,6 +246,7 @@ contains
    use radiation_data,      only: rad_data_readnl
    use modal_aer_opt,       only: modal_aer_opt_readnl
    use clubb_intr,          only: clubb_readnl
+   use agi_intr,            only: agi_readnl
    use chemistry,           only: chem_readnl
    use lin_strat_chem,      only: linoz_readnl
    use prescribed_volcaero, only: prescribed_volcaero_readnl
@@ -478,6 +479,7 @@ contains
    call microp_driver_readnl(nlfilename)
    call microp_aero_readnl(nlfilename)
    call clubb_readnl(nlfilename)
+   call agi_readnl(nlfilename)
    call subcol_readnl(nlfilename)
    call cldfrc_readnl(nlfilename)
    call cldfrc2m_readnl(nlfilename)

@@ -781,6 +781,7 @@
 
 <!-- AgI physics options -->
 <agi_enable                  > .false. </agi_enable>
+<agi_enable      agi_inc="1" > .true. </agi_enable>
 <agi_point_source_emis       > .true. </agi_point_source_emis>
 <agi_data_emis               > .false. </agi_data_emis>
 <agi_microphysics            > .false. </agi_microphysics>
