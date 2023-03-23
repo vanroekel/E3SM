@@ -526,8 +526,8 @@ contains
        end do
        T(maxLevelCell(iCell)+1) = activeTracers(1,maxLevelCell(iCell),iCell)
        S(maxLevelCell(iCell)+1) = activeTracers(2,maxLevelCell(iCell),iCell)
-       U(maxLevelCell(iCell)+1) = velocityZonal(maxLevelCell(iCell),iCell)
-       V(maxLevelCell(iCell)+1) = velocityMeridional(maxLevelCell(iCell),iCell)
+       U(maxLevelCell(iCell)+1) = U(maxLevelCell(iCell)) !velocityZonal(maxLevelCell(iCell),iCell)
+       V(maxLevelCell(iCell)+1) = V(maxLevelCell(iCell)) !velocityMeridional(maxLevelCell(iCell),iCell)
 
        do k=1,maxLevelCell(iCell)
           ugrad(3,k,iCell) = (U(k) - U(k+1))/layerThickness(k,iCell)
@@ -566,8 +566,8 @@ contains
              end if
           end do !end n edges loop
 
-          do k=2,maxLevelCell(iCell)
-             wgrad(3,k,iCell) = (verticalVelocity(k-1,iCell) - verticalVelocity(k,iCell)) / &
+          do k=1,maxLevelCell(iCell)
+             wgrad(3,k,iCell) = (verticalVelocity(k,iCell) - verticalVelocity(k+1,iCell)) / &
                          ((layerThickness(k,iCell)))
           end do
 
