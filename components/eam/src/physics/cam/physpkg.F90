@@ -2444,6 +2444,7 @@ end if
     call t_startf('agi_tend')
 
     call agi_tend(state, ptend, pbuf, ztodt)
+    call physics_update(state, ptend, ztodt, tend)
 
     call t_stopf('agi_tend')
 

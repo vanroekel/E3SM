@@ -17,6 +17,7 @@ module agi_intr
   use phys_control,  only: phys_getopts
   use physconst,     only: pi
   use cam_logfile,   only: iulog
+  use constituents,   only: pcnst
   use spmd_utils,    only: masterproc
   use perf_mod,      only: t_startf, t_stopf
   use mpishorthand
@@ -44,6 +45,7 @@ module agi_intr
   logical :: agi_point_source_emis = .true. ! if true use a fixed constant in time point source
   logical :: agi_data_emis = .false. ! if true do emission by data file
   logical :: agi_microphysics = .false. ! if true add impact of agi to MG2
+  logical :: lq(pcnst)
   real(r8) :: agi_lat = huge(1.0_r8)
   real(r8) :: agi_lon = huge(1.0_r8)
   real(r8) :: agi_emis_rate = huge(1.0_r8) ! emission of AgI at a point source in kg/s
@@ -130,8 +132,8 @@ module agi_intr
 
     if (.not. agi_enable) return
 
-    call pbuf_add_field('AgI', 'global', dtype_r8, (/pcols,pver/), agi_idx)
-    call pbuf_add_field('qAgI', 'global', dtype_r8, (/pcols,pver/), agiq_idx)
+    call pbuf_add_field('AgI_nadv', 'global', dtype_r8, (/pcols,pver/), agi_idx)
+    call pbuf_add_field('qAgI_nadv', 'global', dtype_r8, (/pcols,pver/), agiq_idx)
     call cnst_add('qAgI',0._r8,0._r8,0._r8,ix_qagi,longname='mixing ratio of AgI',cam_outfld=.false.)
     call cnst_add('AgI',0._r8,0._r8,0._r8,ix_agi,longname='number concentration of AgI', cam_outfld=.false.)
 
@@ -153,9 +155,10 @@ module agi_intr
 
     ! Register Agi in the physics buffer
 
-    agi_idx = pbuf_get_index('AgI')
-    agiq_idx = pbuf_get_index('qAgI')
+    agi_idx = pbuf_get_index('AgI_nadv')
+    agiq_idx = pbuf_get_index('qAgI_nadv')
 
+    lq(1:pcnst) = .true.
 
     call pbuf_set_field(pbuf2d, agi_idx, 0.0_r8)
     call pbuf_set_field(pbuf2d, agiq_idx, 0.0_r8)
@@ -206,7 +209,7 @@ module agi_intr
     use cam_history, only: outfld
     use rgrid,          only: nlon
     use physconst,          only: gravit, rga, rair, cpair, latvap, rearth, pi, cappa
-    use physics_types,          only: physics_state, physics_ptend
+    use physics_types,          only: physics_state, physics_ptend, physics_ptend_init
     use physics_buffer, only: pbuf_old_tim_idx, physics_buffer_desc, pbuf_get_field, pbuf_get_index
     use pmgrid,           only: plev
     use phys_grid,        only : get_area_all_p
@@ -229,6 +232,8 @@ module agi_intr
     ncol = state%ncol
     lchnk = state%lchnk 
 
+    call physics_ptend_init(ptend, state%psetcols, 'agi', lq=lq)
+
     itim_old = pbuf_old_tim_idx() !gets time index 
 
     allocate(area(ncol))
@@ -246,11 +251,14 @@ module agi_intr
 !    agiq_indx = pbuf_get_index('qAgI')
     call pbuf_get_field(pbuf, agiq_idx, agiq, start=(/1,1/), kount=(/pcols,pver/))
     !find points to release AgI
+    
     do icol = 1, ncol
        do k = 1, pver
-          agi(icol,k) = 0.0_r8
-          agiq(icol,k) = 0.0_r8
-          if(abs(state%lon(icol)*rtd - agi_lon) < 0.5_r8 .and. abs(state%lat(icol)*rtd - agi_lat) < 0.5_r8 &
+          agi(icol,k) = state%q(icol,k,ix_agi)
+          agiq(icol,k) = state%q(icol,k,ix_qagi)
+ !         agi(icol,k) = 0.0_r8
+ !         agiq(icol,k) = 0.0_r8
+          if(abs(state%lon(icol)*rtd - agi_lon) < 2.5_r8 .and. abs(state%lat(icol)*rtd - agi_lat) < 2.5_r8 &
              .and. abs(state%zm(icol, k) - agi_height) < agi_thickness) then
 
              !compute mass of atmosphere in a grid cell
@@ -258,12 +266,12 @@ module agi_intr
              densAtmos = state%pmid(icol,k)/shr_const_rdair/state%t(icol,k)
              volAtmos = massAtmos/densAtmos
              mixingratioTend = agi_emis_rate/massAtmos
-             nconcTend = agi_emis_rate/molec_agi*6.022e23/volAtmos
+             nconcTend = agi_emis_rate/molec_agi*6.022e23_r8/volAtmos
 
-             ptend%q(iCol,k,ix_agi) = nconcTend/dt
-             ptend%q(icol,k,ix_qagi) = mixingratioTend/dt
              agi(icol,k) = agi(icol,k) + dt*nconcTend
              agiq(icol,k) = agiq(icol,k) + dt*mixingratioTend
+ ptend%q(icol,k,ix_agi) = nconcTend
+ptend%q(icol,k,ix_qagi) = mixingratioTend
 
            end if
        end do
