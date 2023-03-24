@@ -220,8 +220,8 @@ contains
      end do
 
      !Compute the strain for the remaining terms in the tendency
-     call ocn_compute_strain(velocityZonal, velocityMeridional,  &
-                verticalVelocity, activeTracers, layerThickness, err)
+!     call ocn_compute_strain(velocityZonal, velocityMeridional,  &
+!                verticalVelocity, activeTracers, layerThickness, err)
 
      if(.not. config_LES_Mode) call ocn_compute_two_equation_molecular_viscosity(activeTracers)
 
@@ -540,7 +540,7 @@ contains
 
     ! add w part if requested 
     if(present(verticalVelocity)) then
-       do iCell=1,nCellsOwned
+       do iCell=1,nCellsAll
           wgrad(:,:,iCell) = 0.0_RKIND
 
           do j = 1,nEdgesOnCell(iCell) !for device may be better to move next lines inside k loop
@@ -552,18 +552,12 @@ contains
              coeff2 = coeffs_reconstruct(2,j,iCell)
              eSign = edgeSignOnCell(j,iCell)
              do k=1,maxLevelEdgeTop(iEdge)
-                wgrad(1,k,iCell) = wgrad(1,k,iCell) + coeff1 * eSign * & 
-                             (verticalVelocity(k,cell2) - verticalVelocity(k,cell1)) / dcEdge(iEdge)
-                wgrad(2,k,iCell) = wgrad(2,k,iCell) + coeff2 * eSign * & 
-                             (verticalVelocity(k,cell2) - verticalVelocity(k,cell1)) / dcEdge(iEdge)
+                diff = 0.5_RKIND*(verticalVelocity(k,cell2)+verticalVelocity(k+1,cell2)) - &
+                       0.5_RKIND*(verticalVelocity(k,cell1)+verticalVelocity(k+1,cell1))
+                wgrad(1,k,iCell) = wgrad(1,k,iCell) + coeff1 * eSign * diff / dcEdge(iEdge)
+                wgrad(2,k,iCell) = wgrad(2,k,iCell) + coeff2 * eSign * diff / dcEdge(iEdge)
              end do
 
-             if(maxLevelEdgeTop(iEdge) == 0) then
-                do k=1,maxLevelCell(iCell)
-                  wgrad(1,k,iCell) = wgrad(1,k,iCell) - coeff1*eSign*verticalVelocity(k,iCell)/dcEdge(iEdge)
-                  wgrad(2,k,iCell) = wgrad(2,k,iCell) - coeff2*eSign*verticalVelocity(k,iCell)/dcEdge(iEdge)
-                end do
-             end if
           end do !end n edges loop
 
           do k=1,maxLevelCell(iCell)
