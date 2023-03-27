@@ -453,7 +453,7 @@ contains
 
      integer :: iCell, iEdge, j, k, cell1, cell2
 
-     real(kind=RKIND) :: eSign, coeff1, coeff2, factor
+     real(kind=RKIND) :: eSign, coeff1, coeff2, factor, diff
 
      real(kind=RKIND), dimension(:), allocatable :: T, S, U, V
      ! initialize gradients
