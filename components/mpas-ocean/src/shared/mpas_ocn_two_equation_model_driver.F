@@ -368,7 +368,7 @@ contains
               bvfAvg = 0.5_RKIND*(max(BruntVaisalaFreqTop(k,iCell),0.0_RKIND) + &
                                   max(BruntVaisalaFreqTop(k+1,iCell),0.0_RKIND))
               length_stable = 0.76_RKIND*sqrt(max(tke(k,iCell),0.0_RKIND))/(sqrt(bvfAvg) + 1.0E-15_RKIND)
-              turbLength(k,iCell) = max(0.1_RKIND,min(length_grid,length_stable))
+              turbLength(k,iCell) = max(0.01_RKIND,min(length_grid,length_stable))
               length = 0.5_RKIND*(turbLength(k,iCell) + turbLength(k-1,iCell))
               vertViscTopOfCell(k,iCell) = smagorinsky_coefficient*length*sqrt(tkeAvg) + &
                               dynamicViscosity(k,iCell)/rho_sw
@@ -376,7 +376,12 @@ contains
            end do
 
            k=maxLevelCell(iCell)
-           turbLength(k,iCell) = sqrt(dcAv*layerThickness(k,iCell))
+
+           length_grid = sqrt(dcAv*layerThickness(k,iCell))
+           tkeAvg = 0.5_RKIND*(tke(k-1,iCell) + tke(k,iCell))
+           length_stable = 0.76_RKIND*sqrt(max(tkeAvg,0.0_RKIND))/(sqrt( &
+                          max(0.0_RKIND,BruntVaisalaFreqTop(k,iCell))) + 1e-15)
+           turbLength(k,iCell) = max(0.01_RKIND,min(length_grid,length_stable))
            length = 0.5_RKIND*(turbLength(k,iCell) + turbLength(k-1,iCell))
            tkeAvg = 0.5_RKIND*(tke(k-1,iCell) + tke(k,iCell))
            vertViscTopOfCell(k,iCell) = smagorinsky_coefficient*length*sqrt(tkeAvg) 
