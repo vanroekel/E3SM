@@ -301,7 +301,7 @@ contains
                !only for strongly varying layer thickness
                do k=1,maxLevelEdgeTop(iEdge)
                   tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * invdcEdge * ( &
-                   - density0Inv*( nonhydrostaticPressure(k,cell2) -             &
+                   - ( nonhydrostaticPressure(k,cell2) -             &
                     nonhydrostaticPressure(k,cell1) ) + dqdz(k)*density0Inv*        &
                     (zMid(k,cell2) - zMid(k,cell1)))
                enddo

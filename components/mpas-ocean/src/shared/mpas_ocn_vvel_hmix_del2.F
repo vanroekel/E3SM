@@ -180,9 +180,10 @@ contains
               vvel_turb_flux = verticalVelocity(k, cell2) - verticalVelocity(k, cell1)
 
               ! div(h \kappa_2 \nabla \phi) at cell center
-              flux = 0.5_RKIND*(layerThicknessEdge(k, iEdge) + layerThicknessEdge(k-1,iEdge)) &
-                        * vvel_turb_flux * r_tmp
+              !   flux = 0.5_RKIND*(layerThicknessEdge(k, iEdge) + layerThicknessEdge(k-1,iEdge)) &
+              !          * vvel_turb_flux * r_tmp
 
+              flux = vvel_turb_flux * r_tmp
               tend(k, iCell) = tend(k, iCell) - eddyViscArr(k,iEdge) * edgeSignOnCell(i, iCell) * flux * invAreaCell
           end do
         end do

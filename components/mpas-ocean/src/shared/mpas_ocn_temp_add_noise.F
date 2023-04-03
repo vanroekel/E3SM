@@ -109,9 +109,12 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iCell, k, nCells
+      integer :: iEdge, iCell, k, nCells, nEdges, iNeighbor, edgeCount
 
-      real(kind=RKIND) :: randomPerturbation, finalPert
+      real(kind=RKIND),dimension(:,:),allocatable :: smooth, noise
+
+      real(kind=RKIND) :: randomPerturbation, finalPert, quant, cmask, &
+             areaSum
 
       !-----------------------------------------------------------------
       !
@@ -133,6 +136,8 @@ contains
 
       nCells = nCellsAll
 
+      allocate(noise(nVertLevels,nCells))
+      noise(:,:) = 0.0_RKIND
       !$omp parallel
       !$omp do schedule(runtime) private(k,randomPerturbation,finalPert,minNoiseLevel,maxNoiseLevel)
       do iCell = 1, nCells
@@ -143,11 +148,54 @@ contains
            call random_number(randomPerturbation)
            randomPerturbation = 2.0_RKIND * randomPerturbation - 1.0_RKIND
            finalPert = config_LES_temp_noise_perturbation_magnitude * randomPerturbation
-           tracer(index_temperature,k,iCell) = tracer(index_temperature,k,iCell) + dt*finalPert 
+           noise(k,iCell) = finalPert 
          end do
       end do
       !$omp end do
       !$omp end parallel
+
+      !Smooth the noise field 
+      nCells = nCellsHalo(1)
+
+      allocate(smooth(nVertLevels,nCells))
+      smooth(:,:) = 0.0_RKIND
+      !$omp parallel
+      !$omp do schedule(runtime) private(quant, cmask, k, nEdges, areaSum, edgeCount, iEdge, iNeighbor)
+      do iCell=1,nCells
+         nEdges = nEdgesOnCell(iCell)
+         areaSum = 0.0_RKIND
+         edgeCount = 0
+
+         do iEdge = 1,nEdges
+            iNeighbor = cellsOnCell(iEdge,iCell)
+            cmask = cellMask(minLevelCell(iNeighbor),iNeighbor)
+            quant = cmask*areaCell(iNeighbor)
+            areaSum = areaSum + 2.0_RKIND*quant
+            edgeCount = edgeCount + cmask
+
+            do k = 1,maxLevelCell(iCell)
+               smooth(k,iCell) = smooth(k,iCell) + 2.0_RKIND*quant*noise(k,iNeighbor)
+            end do
+
+            areaSum = areaSum + edgeCount + areaCell(iCell)
+            do k=1,maxLevelCell(iCell)
+               smooth(k,iCell) = smooth(k,iCell) + noise(k,iCell)*edgeCount*areaCell(iCell)
+               smooth(k,iCell) = smooth(k,iCell) / areaSum
+            end do
+        end do
+
+    end do
+    !$omp end do
+
+    !$omp do schedule(runtime) private(k)
+    do iCell = 1,nCells
+       do k=1,maxLevelCell(iCell)
+          tracer(index_temperature,k,iCell) = tracer(index_temperature,k,iCell) + dt*smooth(k,iCell) 
+       end do
+    end do
+    !$omp end do
+    !$omp end parallel
+    deallocate(smooth, noise)
 
       call mpas_timer_stop("noise tend")
 
