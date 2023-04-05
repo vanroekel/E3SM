@@ -2438,16 +2438,6 @@ if (l_tracer_aero) then
     
 end if
 
-    !===================================================
-    ! Calculate tendency of AgI due to sources and sinks
-    !===================================================
-    call t_startf('agi_tend')
-
-    call agi_tend(state, ptend, pbuf, ztodt)
-    call physics_update(state, ptend, ztodt, tend)
-
-    call t_stopf('agi_tend')
-
     if( microp_scheme == 'RK' ) then
 
      if (l_st_mac.or.l_st_mic) then
@@ -2473,6 +2463,13 @@ end if
     elseif( microp_scheme == 'MG' ) then
        ! Start co-substepping of macrophysics and microphysics
        cld_macmic_ztodt = ztodt/cld_macmic_num_steps
+       call t_startf('agi_tend')
+
+       call agi_tend(state, ptend, pbuf, cld_macmic_ztodt)
+       call physics_update(state, ptend, cld_macmic_ztodt, tend)
+
+       call t_stopf('agi_tend')
+
 
        ! Clear precip fields that should accumulate.
        prec_sed_macmic = 0._r8

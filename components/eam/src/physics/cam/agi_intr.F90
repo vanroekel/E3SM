@@ -262,7 +262,7 @@ module agi_intr
              .and. abs(state%zm(icol, k) - agi_height) < agi_thickness) then
 
              !compute mass of atmosphere in a grid cell
-             massAtmos = 1.0_r8/shr_const_g*state%pdel(icol,k)
+             massAtmos = 1.0_r8/shr_const_g*state%pdel(icol,k)*area(icol)
              densAtmos = state%pmid(icol,k)/shr_const_rdair/state%t(icol,k)
              volAtmos = massAtmos/densAtmos
              mixingratioTend = agi_emis_rate/massAtmos
@@ -270,8 +270,8 @@ module agi_intr
 
              agi(icol,k) = agi(icol,k) + dt*nconcTend
              agiq(icol,k) = agiq(icol,k) + dt*mixingratioTend
- ptend%q(icol,k,ix_agi) = nconcTend
-ptend%q(icol,k,ix_qagi) = mixingratioTend
+             ptend%q(icol,k,ix_agi) = nconcTend
+             ptend%q(icol,k,ix_qagi) = mixingratioTend
 
            end if
        end do
