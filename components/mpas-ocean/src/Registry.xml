@@ -1280,6 +1280,10 @@
 					description="Time in seconds to apply noise for temperature"
 					possible_values="positive reals"
 					/>
+		<nml_option name="config_LES_noise_max_kinetic_energy" type="real" default_value="1e-2" units="m^2s^-1"
+				    description="threshold kinetic energy below which noise is added"
+					possible_values="positive reals"
+					/>
 		<nml_option name="config_LES_noise_min_level" type="integer" default_value="1" units="unitless"
 					description="minimum level to apply noise, must be bigger than minLevelCell"
 					possible_values="positive integers"

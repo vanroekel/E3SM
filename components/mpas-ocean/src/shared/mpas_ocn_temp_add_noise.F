@@ -46,6 +46,8 @@ module ocn_temp_noise
    public :: ocn_temperature_add_noise, &
              ocn_temperature_noise_init
 
+   private :: ocn_temperature_compute_avg_ke
+
    !--------------------------------------------------------------------
    !
    ! Private module variables
@@ -55,7 +57,9 @@ module ocn_temp_noise
    logical :: noiseOn
 
    real(kind=RKIND) :: maxTime,   & !time to end the noise
-                       curTime
+                       curTime,   &
+                       globalKE,  &
+                       maxKE
 
    integer :: minNoiseLevel, maxNoiseLevel
 
@@ -75,7 +79,8 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_temperature_add_noise(tracer, index_temperature, dt, err)
+   subroutine ocn_temperature_add_noise(tracer, index_temperature, dt, err, &
+                dminfo, kineticEnergyCell, verticalVelocity, layerThickness)
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -94,6 +99,11 @@ contains
 
       real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
          tracer    !< Input/Output: velocity tendency
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         verticalVelocity, kineticEnergyCell, layerThickness
+
+      type (dm_info) :: dminfo
 
       !-----------------------------------------------------------------
       !
@@ -128,10 +138,13 @@ contains
 
       if(.not.noiseOn) return
 
-
       if(curTime > maxTime) return
       curTime = curTime + dt
 
+      if(globalKE < maxKE) return
+      call ocn_temperature_compute_avg_ke(dminfo, layerThickness, kineticEnergyCell, verticalVelocity)
+
+      print *, 'ke = ',globalKE
       call mpas_timer_start("noise tend")
 
       nCells = nCellsAll
@@ -235,16 +248,67 @@ contains
          noiseOn = .true.
          maxTime = config_LES_temp_noise_max_time
          curTime = 0.0_RKIND
-
+         globalKE = 0.0_RKIND
+         maxKE = config_LES_noise_max_kinetic_energy
       end if
 
       err = 0
-
+! COMPUTE ocean volume FIXME
    !--------------------------------------------------------------------
 
    end subroutine ocn_temperature_noise_init
 
 !***********************************************************************
+
+!***********************************************************************
+!
+!  routine ocn_temperature_compute_avg_ke
+!
+!> \brief   Initializes ocean temperature noise tendency 
+!> \author  Luke Van Roekel
+!> \date    7 April 2023
+!> \details
+!>  This routine computes the volume average kinetic energy for the  
+!>  noise cutoff
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_temperature_compute_avg_ke(dminfo, layerThickness, kineticEnergyCell, verticalVelocity)
+
+      implicit none
+
+      type (dm_info) :: dminfo
+      ! Note that nElements is nCells or nEdges
+      real (kind=RKIND), dimension(:,:), intent(in) :: verticalVelocity
+      real (kind=RKIND), dimension(:,:), intent(in) :: kineticEnergyCell
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness
+      real (kind=RKIND) :: localVol, localSum
+      real (kind=RKIND), dimension(nVertLevels) :: KE
+      real (kind=RKIND), dimension(2) :: sums, reduction
+
+      integer :: k, iCell, nSums
+      real (kind=RKIND) :: thickWeightColSum
+
+      localSum = 0.0_RKIND
+      localVol = 0.0_RKIND
+      nSums = 2
+
+      do iCell = 1,nCellsOwned
+         do k=1,nVertLevels
+            KE(k) = kineticEnergyCell(iCell,k) + 0.25_RKIND*(verticalVelocity(k,iCell) + verticalVelocity(k+1,iCell))
+         end do
+         thickWeightColSum = sum(layerThickness(minLevelCell(iCell):maxLevelCell(iCell),iCell) &
+                                * KE(minLevelCell(iCell):maxLevelCell(iCell)))
+         localSum = localSum + areaCell(iCell) * thickWeightColSum
+         localVol = localVol + areaCell(iCell) * sum(layerThickness(minLevelCell(iCell):maxLevelCell(iCell),iCell))
+      end do
+
+      sums(1) = localSum
+      sums(2) = localVol
+      call mpas_dmpar_sum_real_array(dminfo, nSums, sums(1:nSums), reduction(1:nSums))
+      globalKE = reduction(1) / reduction(2)
+
+   end subroutine ocn_temperature_compute_avg_ke
 
 end module ocn_temp_noise
 

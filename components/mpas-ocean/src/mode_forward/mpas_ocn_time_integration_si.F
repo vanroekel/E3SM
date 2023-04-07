@@ -3208,7 +3208,8 @@ module ocn_time_integration_si
                         
                          if(config_enable_nonhydrostatic_mode) then
                             call ocn_temperature_add_noise(tracersGroupNew, indexTemperature, &
-                                                           dt, err)
+                                                            dt, err, domain %dminfo, kineticEnergyCell, &
+                                                           verticalVelocityNew, layerThicknessNew)
                          end if
 
                      end if

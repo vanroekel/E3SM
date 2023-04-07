@@ -1947,7 +1947,8 @@ call mpas_dmpar_field_halo_exch(domain, 'verticalVelocity', timeLevel=2)
       end if
 
       call ocn_vel_add_noise(normalVelocityNew, dt, err)
-      call ocn_temperature_add_noise(tracersGroupNew, indexTemperature, dt, err)
+      call ocn_temperature_add_noise(tracersGroupNew, indexTemperature, dt, err, dminfo, &
+              kineticEnergyCell, verticalVelocityNew, layerThicknessNew)
    end subroutine ocn_time_integrator_rk4_cleanup
 
 end module ocn_time_integration_rk4
