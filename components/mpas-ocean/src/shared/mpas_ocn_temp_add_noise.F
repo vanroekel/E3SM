@@ -141,7 +141,7 @@ contains
       if(curTime > maxTime) return
       curTime = curTime + dt
 
-      if(globalKE < maxKE) return
+      if(globalKE > maxKE) return
       call ocn_temperature_compute_avg_ke(dminfo, layerThickness, kineticEnergyCell, verticalVelocity)
 
       print *, 'ke = ',globalKE
@@ -174,7 +174,7 @@ contains
       smooth(:,:) = 0.0_RKIND
       !$omp parallel
       !$omp do schedule(runtime) private(quant, cmask, k, nEdges, areaSum, edgeCount, iEdge, iNeighbor)
-      do iCell=1,nCells
+      do iCell=1,0!nCells
          nEdges = nEdgesOnCell(iCell)
          areaSum = 0.0_RKIND
          edgeCount = 0
@@ -203,7 +203,7 @@ contains
     !$omp do schedule(runtime) private(k)
     do iCell = 1,nCells
        do k=1,maxLevelCell(iCell)
-          tracer(index_temperature,k,iCell) = tracer(index_temperature,k,iCell) + dt*smooth(k,iCell) 
+          tracer(index_temperature,k,iCell) = tracer(index_temperature,k,iCell) + dt*noise(k,iCell) 
        end do
     end do
     !$omp end do
