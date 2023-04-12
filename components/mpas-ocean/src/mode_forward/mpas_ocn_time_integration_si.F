@@ -2867,7 +2867,7 @@ module ocn_time_integration_si
                   !$omp do schedule(runtime) private(k, temp_h)
                   do iCell = 1, nCellsAll
                      do k = 1, maxLevelCell(iCell)
-                        temp_h = tkeCur(k,ICell) + dt * float(int(tendTKE(k,iCell)*10**15 + 0.5_RKIND))/10**15
+                        temp_h = tkeCur(k,ICell) + dt * tendTKE(k,iCell)
                         tkeNew(k,iCell) = max(1.0E-12_RKIND, 0.5_RKIND*(tkeCur(k,iCell) + temp_h))
                      end do
                   end do
@@ -2879,7 +2879,7 @@ module ocn_time_integration_si
                      !$omp do schedule(runtime) private(k, temp_h)
                      do iCell = 1, nCellsAll
                         do k = 1, maxLevelCell(iCell)
-                           temp_h = glsPsiCur(k,iCell) + dt * float(int(tendglsPsi(k,iCell)*10**15 + 0.5_RKIND))/10**15
+                           temp_h = glsPsiCur(k,iCell) + dt * tendglsPsi(k,iCell)
                            glsPsiNew(k,iCell) = max(0.0_RKIND, 0.5_RKIND*(glsPsiCur(k,iCell) + temp_h))
                         end do
                      end do
