@@ -140,7 +140,7 @@ contains
 
          do k = 2, maxLevelCell(iCell)
             tend(k,iCell) = tend(k,iCell) - &
-               2.0_RKIND/rho_sw * (nhPressure(k-1,iCell) - nhPressure(k,iCell)) &
+               2.0_RKIND * (nhPressure(k-1,iCell) - nhPressure(k,iCell)) &
                   / (layerThickness(k-1,iCell) + layerThickness(k,iCell))
          end do
 
