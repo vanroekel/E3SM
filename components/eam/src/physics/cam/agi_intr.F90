@@ -11,7 +11,7 @@ module agi_intr
 
   use physics_types,          only: physics_state, physics_ptend
   use physics_buffer, only: physics_buffer_desc
-  use shr_kind_mod,  only: r8=>shr_kind_r8
+  use shr_kind_mod,  only: r8=>shr_kind_r8, cx => SHR_KIND_CX
   use shr_log_mod,   only: errMsg=>shr_log_errMsg
   use shr_const_mod, only: shr_const_rdair, shr_const_g
   use phys_control,  only: phys_getopts
@@ -41,6 +41,7 @@ module agi_intr
             agi_ini
 
   !namelist variables
+  logical :: first = .true.
   logical :: agi_enable = .false. ! AgI is off by default
   logical :: agi_point_source_emis = .true. ! if true use a fixed constant in time point source
   logical :: agi_data_emis = .false. ! if true do emission by data file
@@ -51,11 +52,11 @@ module agi_intr
   real(r8) :: agi_emis_rate = huge(1.0_r8) ! emission of AgI at a point source in kg/s
   real(r8) :: agi_height = 0.0_r8
   real(r8) :: agi_thickness = 100.0_r8
-  character(len=256) :: agi_emis_data_file
+  character(len=cx) :: agi_emis_data_file
   real(r8),parameter :: rad_to_deg = 180.0/pi
   real(r8),dimension(:,:),allocatable :: massAtmos, densAtmos
 
-  integer :: agi_idx, agiq_idx
+  integer :: agiAvail_idx, agi_idx, agiq_idx
 
   integer, public :: &
     ix_qagi = 0,         &
@@ -134,6 +135,9 @@ module agi_intr
 
     call pbuf_add_field('AgI_nadv', 'global', dtype_r8, (/pcols,pver/), agi_idx)
     call pbuf_add_field('qAgI_nadv', 'global', dtype_r8, (/pcols,pver/), agiq_idx)
+    if (agi_microphysics) then
+       call pbuf_add_field('agiAvail', 'global', dtype_r8, (/pcols,pver/), agiAvail_idx)
+    end if
     call cnst_add('qAgI',0._r8,0._r8,0._r8,ix_qagi,longname='mixing ratio of AgI',cam_outfld=.false.)
     call cnst_add('AgI',0._r8,0._r8,0._r8,ix_agi,longname='number concentration of AgI', cam_outfld=.false.)
 
@@ -149,7 +153,7 @@ module agi_intr
     !  Input Variables
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
-    integer :: agi_idx, agiq_idx
+!    integer :: agi_idx, agiq_idx, agiAvail_idx
 
     if (.not. agi_enable) return
 
@@ -157,6 +161,10 @@ module agi_intr
 
     agi_idx = pbuf_get_index('AgI_nadv')
     agiq_idx = pbuf_get_index('qAgI_nadv')
+    if (agi_microphysics) then
+       agiAvail_idx = pbuf_get_index('agiAvail')
+       call pbuf_set_field(pbuf2d, agiAvail_idx, 0.0_r8)
+    end if
 
     lq(1:pcnst) = .true.
 
@@ -164,17 +172,16 @@ module agi_intr
     call pbuf_set_field(pbuf2d, agiq_idx, 0.0_r8)
     call addfld('agi_Nc', (/'ilev'/), 'A', 'molec/m3', 'number concentration of silver iodide')
     call addfld('agi_q', (/'ilev'/), 'A', 'kg/kg', 'mixing ratio of silver iodide')
-
     call add_default('agi_Nc',1,' ')
     call add_default('agi_q',1,' ')
-
 
   end subroutine agi_ini
 
 !==============================================================================================
   subroutine agi_tend(state1, ptend1, pbuf1, ztodt)
 
-    use ppgrid, only: pver, pcols
+    use agi_read, only: agi_read_data_init, agi_read_data_adv
+    use ppgrid, only: pver, pcols, begchunk, endchunk
     use rgrid, only: nlon
     use physics_types,          only: physics_state, physics_ptend
     use physics_buffer, only: physics_buffer_desc
@@ -184,15 +191,24 @@ module agi_intr
     type(physics_ptend), intent(inout) :: ptend1
     type(physics_buffer_desc), pointer, intent(in) :: pbuf1(:)
     real(r8), intent(in) :: ztodt
+    real(r8), dimension(pcols,pver) :: agitend
+
     integer :: plon, plat
 
     if(.not. agi_enable) return
+
+    if(agi_data_emis .and. first) then
+       call agi_read_data_init(state1, pbuf1, agi_emis_data_file)
+       first = .false.
+    end if
+
 
     call get_horiz_grid_dim_d( plon, plat )
     if(agi_point_source_emis) then
       call agi_pointsource(state1, ptend1, pbuf1, ztodt, plon, plat)
     elseif(agi_data_emis) then
-      !stub non-call to agi data emis
+      call agi_read_data_adv(state1, pbuf1, agitend)
+      call agi_apply_source(state1, ptend1, pbuf1, ztodt, agitend, plon, plat)
     else
       !do nothing
     endif
@@ -200,6 +216,84 @@ module agi_intr
     ! this is probably where the microphysics part comes to add to ice nuclei, still need a PBUF field (FIXME)
 
   end subroutine agi_tend
+
+  subroutine agi_apply_source(state, ptend, pbuf, dt, agitend, plon, plat)
+
+    use ppgrid, only: pver, pcols, begchunk, endchunk
+    use cam_history, only: outfld
+    use rgrid,          only: nlon
+    use physconst,          only: gravit, rga, rair, cpair, latvap, rearth, pi, cappa
+    use physics_types,          only: physics_state, physics_ptend, physics_ptend_init
+    use physics_buffer, only: pbuf_old_tim_idx, physics_buffer_desc, pbuf_get_field, pbuf_get_index
+    use pmgrid,           only: plev
+    use phys_grid,        only : get_area_all_p
+
+    type(physics_buffer_desc), pointer :: pbuf(:)
+    type(physics_state), intent(in)    :: state
+    type(physics_ptend), intent(inout) :: ptend
+    integer,intent(in) :: plon, plat
+    real(r8), intent(in) :: dt
+    real(r8), dimension(pcols,pver),intent(in) :: agitend
+    real(r8), pointer, dimension(:,:) :: agi,agiq
+    real(r8), parameter :: rtd = 180.0_r8 / pi
+    integer :: k, icol, ncol, lchnk, itim_old, agiq_indx
+    real(r8) :: nConcTend, mixingratioTend, agiTemp, massAtmos, densAtmos, volAtmos
+    real(r8) :: pdel(plon,plev)           ! Pressure depth of layer
+    real(r8) :: pint(plon,plev)          ! Pressure at interfaces
+    real(r8) :: pmid(plon,plev)           ! Pressure at midpoint
+    real(r8) :: z3(pcols,pver)
+    real(r8), allocatable, dimension(:) :: area
+    real(r8), parameter :: molec_agi = 0.23477 !kg/mol
+    
+    ncol = state%ncol
+    lchnk = state%lchnk 
+
+    call physics_ptend_init(ptend, state%psetcols, 'agi', lq=lq)
+
+    itim_old = pbuf_old_tim_idx() !gets time index 
+
+    allocate(area(ncol))
+    do k = 1, pver
+       z3(:ncol,k) = state%zm(:ncol,k) + state%phis(:ncol)*rga
+    end do
+
+    call get_area_all_p(lchnk, ncol, area)
+    area = area * rearth**2
+
+
+    !use delp to get mass of the air in a layer should be dp/g*dA
+!    call plevs0(nlon(lat), plon, plev, ps(1,lat,n3), pint, pmid, pdel)
+!	agi_indx = pbuf_get_index('AgI')
+    call pbuf_get_field(pbuf, agi_idx, agi, start=(/1,1/), kount=(/pcols,pver/))
+!    agiq_indx = pbuf_get_index('qAgI')
+    call pbuf_get_field(pbuf, agiq_idx, agiq, start=(/1,1/), kount=(/pcols,pver/))
+    !find points to release AgI
+    
+    do icol = 1, ncol
+       do k = 1, pver
+          agi(icol,k) = state%q(icol,k,ix_agi)
+          agiq(icol,k) = state%q(icol,k,ix_qagi)
+ !         agi(icol,k) = 0.0_r8
+              massAtmos = 1.0_r8/shr_const_g*state%pdel(icol,k)*area(icol)
+             densAtmos = state%pmid(icol,k)/shr_const_rdair/state%t(icol,k)
+             volAtmos = massAtmos/densAtmos
+             mixingratioTend = agitend(icol,k)/massAtmos
+             nconcTend = agitend(icol,k)/molec_agi*6.022e23_r8/volAtmos
+ ! NEED to add tends back and 
+          agi(icol,k) = agi(icol,k) + dt*nconcTend
+          agiq(icol,k) = agiq(icol,k) + dt*mixingratioTend
+          ptend%q(icol,k,ix_agi) = nconcTend
+          ptend%q(icol,k,ix_qagi) = mixingratioTend
+
+       end do
+    end do
+
+    ! calls to outfield to save data
+    call outfld('agi_Nc', agi,pcols,lchnk)
+    call outfld('agi_q', agiq,pcols,lchnk)
+
+    deallocate(area)
+  end subroutine agi_apply_source
 
 !==============================================================================================
 

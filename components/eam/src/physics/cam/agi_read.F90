@@ -60,11 +60,11 @@ module agi_read
 
      !Data structure to store two time samples from a file to do time interpolation in the next step
      !(pcols,lev_frc,begchunk:endchunk,2)
-     real(r8), pointer, dimension(:,:,:,:) :: native_grid_flds_tslices
+     real(r8), pointer, dimension(:,:,:) :: native_grid_flds_tslices
 
      !Data structure to store data after time interpolation from two time samples
      !(pcols,lev_frc,begchunk:endchunk)
-     real(r8), pointer, dimension(:,:,:)   :: native_grid_flds
+     real(r8), pointer, dimension(:,:)   :: native_grid_flds
 
      !Data structure to keep track of time
      type(time_coordinate) :: time_coord
@@ -106,7 +106,7 @@ contains
 
     use cam_history,      only: addfld, add_default
     use physics_types,    only: physics_state
-    use ppgrid,           only: begchunk, endchunk, pcols
+    use ppgrid,           only: pcols
     use physics_buffer,   only: physics_buffer_desc, pbuf_get_index
     use physics_types,    only: physics_state
     use physics_buffer,   only: physics_buffer_desc
@@ -122,8 +122,8 @@ contains
     implicit none
 
     !arguments
-    type(physics_state), intent(in)    :: state(begchunk:endchunk)
-    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    type(physics_state), intent(in)    :: state
+    type(physics_buffer_desc), pointer :: pbuf2d(:)
 
     !local vars
     type(file_desc_t)   :: fh
@@ -148,6 +148,9 @@ contains
        !For SE grid, dim1name = dim2name = "ncol"
        !For FV grid, dim1name = lon, dim2name = lat
        call cam_grid_get_dim_names(grid_id, dim1name, dim2name)
+       if(dim1name .ne. dim2name) then
+          call endrun('Must run on SE grid, dim1 and dim2 for agi_read suggest lat/lon or FV grid')
+       endif
        dimnames_set = .true.
     end if
 
@@ -186,7 +189,7 @@ contains
 
     !if forcing file is on a different grid than the model grid
     !(e.g. model is running on an FV grid and forcing netcdf file is on an SE grid), exit with an error
-    if(pio_inq_dimid(fh, trim(adjustl(dim1name)), dim1id) /= pio_noerr) then
+    if(pio_inq_dimid(fh, trim(adjustl(dim2name)), dim1id) /= pio_noerr) then
     !pio_inq_dimid function tries to find dim1name in file with id "fh"
     !if it can't find dim1name, it means there is a mismacth in model and netcdf
     !file grid
@@ -277,15 +280,15 @@ contains
     call pio_closefile(fh)
 
     !allocate arrays to stroe data for interpolation in time
-    allocate(native_grid_agi%native_grid_flds_tslices(pcols, native_grid_agi%lev_frc, &
-             begchunk:endchunk,2), stat=astat )
+    allocate(native_grid_agi%native_grid_flds_tslices(pcols, native_grid_agi%lev_frc,2), stat=astat )
+
     if( astat/= 0 ) then
        write(err_str,*) 'failed to allocate native_grid_agi%native_grid_flds_tslices array; '&
                        &'error = ',astat,',',errmsg(__FILE__, __LINE__)
        call endrun(err_str)
     endif
     !allocate arrays to hold data before the vertical interpolation
-    allocate(native_grid_agi%native_grid_flds(pcols, native_grid_agi%lev_frc,begchunk:endchunk), stat=astat )
+    allocate(native_grid_agi%native_grid_flds(pcols, native_grid_agi%lev_frc), stat=astat )
     if( astat/= 0 ) then
        write(err_str,*) 'failed to allocate native_grid_agi%native_grid_flds array; error = ',&
                          astat,',',errmsg(__FILE__, __LINE__)
@@ -318,12 +321,11 @@ contains
 
    end subroutine agi_read_data_init
 
-   subroutine agi_read_data_adv(state, pbuf2d)
+   subroutine agi_read_data_adv(state, pbuf2d, agitend)
 
     use perf_mod,     only: t_startf, t_stopf
     use tracer_data,  only: advance_trcdata
     use physics_types,only: physics_state
-    use ppgrid,       only: begchunk, endchunk
     use ppgrid,       only: pcols, pver
     use string_utils, only: to_lower, GLC
     use cam_history,  only: outfld
@@ -334,9 +336,10 @@ contains
 
     implicit none
 
-    type(physics_state), intent(in)    :: state(begchunk:endchunk)
-    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    type(physics_state), intent(in)    :: state
+    type(physics_buffer_desc), pointer :: pbuf2d(:)
 
+    real(r8), dimension(pcols,pver), intent(out) :: agitend
     integer  :: ind, c, ncol, i, caseid, m, pbuf_ndx
     real(r8) :: to_mmr(pcols,pver)
     real(r8),pointer :: tmpptr(:,:)
@@ -348,15 +351,17 @@ contains
 
     call advance_native_grid_data_agi( native_grid_agi )
 
-    call vert_interp( state, pbuf_ndx, native_grid_agi, pbuf2d)
+    call vert_interp_agi( state, pbuf_ndx, native_grid_agi, pbuf2d)
 
 	call t_stopf('agi_read_data_adv')
+
+    agitend(:,:) = native_grid_agi%native_grid_flds(:,:)
 
    end subroutine agi_read_data_adv
 
    subroutine advance_native_grid_data_agi( native_grid_strct )
 
-    use ppgrid,         only: begchunk, endchunk, pcols
+    use ppgrid,         only: pcols
     use ncdio_atm,      only: infld
     use cam_pio_utils,  only: cam_pio_openfile
     use pio,            only: file_desc_t, pio_nowrite, pio_closefile
@@ -391,12 +396,12 @@ contains
        ! read time-level 1
        if (native_grid_strct%initialized .and. native_grid_strct%time_coord%indxs(1) == indx2_pre_adv) then
           ! skip the read if the needed vals for time level 1 are present in time-level 2
-          native_grid_strct%native_grid_flds_tslices(:,:,:,1) = native_grid_strct%native_grid_flds_tslices(:,:,:,2)
+          native_grid_strct%native_grid_flds_tslices(:,:,1) = native_grid_strct%native_grid_flds_tslices(:,:,2)
        else
           !NOTE: infld call doesn't do any interpolation in space, it just reads in the data
-          call infld('AgI_emis', fh, dim1name, dim2name, 'lev',&
-               1, pcols, 1, native_grid_strct%lev_frc, begchunk, endchunk, &
-               native_grid_strct%native_grid_flds_tslices(:,:,:,1), found, &
+          call infld('AgI_emis', fh, dim2name, 'lev',&
+               1, pcols, 1, native_grid_strct%lev_frc,  &
+               native_grid_strct%native_grid_flds_tslices(:,:,1), found, &
                gridname='physgrid', timelevel=native_grid_strct%time_coord%indxs(1))
           if (.not. found) then
              call endrun('AgI_emis not found '//errmsg(__FILE__,__LINE__))
@@ -404,9 +409,9 @@ contains
        endif
 
        ! read time level 2
-       call infld('AgI_emis', fh, dim1name, dim2name, 'lev',&
-            1, pcols, 1, native_grid_strct%lev_frc, begchunk, endchunk, &
-            native_grid_strct%native_grid_flds_tslices(:,:,:,2), found, &
+       call infld('AgI_emis', fh, dim2name, 'lev',&
+            1, pcols, 1, native_grid_strct%lev_frc, &
+            native_grid_strct%native_grid_flds_tslices(:,:,2), found, &
             gridname='physgrid', timelevel=native_grid_strct%time_coord%indxs(2))
 
        if (.not. found) then
@@ -423,11 +428,11 @@ contains
     ! generating fluxes that are piecewise constant in time.
 
     if (native_grid_strct%time_coord%wghts(2) == 0.0_r8) then
-       native_grid_strct%native_grid_flds(:,:,:) = native_grid_strct%native_grid_flds_tslices(:,:,:,1)
+       native_grid_strct%native_grid_flds(:,:) = native_grid_strct%native_grid_flds_tslices(:,:,1)
     else
-       native_grid_strct%native_grid_flds(:,:,:) = native_grid_strct%native_grid_flds_tslices(:,:,:,1) + &
-            native_grid_strct%time_coord%wghts(2) * (native_grid_strct%native_grid_flds_tslices(:,:,:,2) - &
-            native_grid_strct%native_grid_flds_tslices(:,:,:,1))
+       native_grid_strct%native_grid_flds(:,:) = native_grid_strct%native_grid_flds_tslices(:,:,1) + &
+            native_grid_strct%time_coord%wghts(2) * (native_grid_strct%native_grid_flds_tslices(:,:,2) - &
+            native_grid_strct%native_grid_flds_tslices(:,:,1))
     endif
 
    end subroutine advance_native_grid_data_agi
@@ -441,7 +446,6 @@ contains
     !-------------------------------------------------------------------
 
     use physics_types,  only: physics_state
-    use ppgrid,         only: begchunk, endchunk
     use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_get_chunk
     use ppgrid,         only: pver, pcols
     use cam_history,    only: outfld
@@ -450,8 +454,8 @@ contains
 
 
     !args
-    type(physics_state), intent(in)        :: state(begchunk:endchunk)
-    type(physics_buffer_desc), pointer     :: pbuf2d(:,:)
+    type(physics_state), intent(in)        :: state
+    type(physics_buffer_desc), pointer     :: pbuf2d(:)
     type(agi_emis_native_grid), intent(in) :: native_grid_strct
     integer, intent(in)                    :: pbuf_ndx
 
@@ -459,7 +463,7 @@ contains
     type(physics_buffer_desc), pointer :: pbuf_chnk(:)
 
     integer  :: ic, ncol, icol
-    real(r8) :: vrt_interp_field(pcols, pver,begchunk:endchunk)
+    real(r8) :: vrt_interp_field(pcols, pver)
     real(r8),pointer :: tmpptr_native_grid(:,:)
 
     real(r8) :: nzil, nzir, mzil, mzir                       ! level bounds
@@ -467,49 +471,44 @@ contains
     real(r8) :: ovrmat(pver, native_grid_strct%lev_frc) ! overlap fractions matrix
     integer  :: kinp, kmdl                              ! vertical indexes
     integer  :: lchnk, k
-    real(r8) :: ftem(pcols, begchunk:endchunk)
+    real(r8) :: ftem(pcols)
 
     ! Vertical interpolation follows Joeckel (2006) ACP method for conservation
-    do ic = begchunk,endchunk
-       ncol = state(ic)%ncol
+    ncol = state%ncol
 
-       do icol = 1, ncol
-          do kinp = 1, native_grid_strct%lev_frc
-             nzil = native_grid_strct%lev_bnds(1,kinp)
-             nzir = native_grid_strct%lev_bnds(2,kinp)
-             do kmdl = 1, pver
-                mzil               = state(ic)%zi(icol, kmdl)
-                mzir               = state(ic)%zi(icol, kmdl+1)
-                ovrl               = MAX( MIN(nzil, nzir), MIN(mzil, mzir) )
-                ovrr               = MIN( MAX(nzil, nzir), MAX(mzil, mzir) )
-                ovrf               = INT( SIGN(0.5_r8, ovrr-ovrl) + 1._r8 )
-                ovrmat(kmdl,kinp) = ABS(ovrr - ovrl) * ovrf / ABS(nzir - nzil)
-             end do
+    do icol = 1, ncol
+       do kinp = 1, native_grid_strct%lev_frc
+          nzil = native_grid_strct%lev_bnds(1,kinp)
+          nzir = native_grid_strct%lev_bnds(2,kinp)
+          do kmdl = 1, pver
+             mzil               = state%zi(icol, kmdl)
+             mzir               = state%zi(icol, kmdl+1)
+             ovrl               = MAX( MIN(nzil, nzir), MIN(mzil, mzir) )
+             ovrr               = MIN( MAX(nzil, nzir), MAX(mzil, mzir) )
+             ovrf               = INT( SIGN(0.5_r8, ovrr-ovrl) + 1._r8 )
+             ovrmat(kmdl,kinp) = ABS(ovrr - ovrl) * ovrf / ABS(nzir - nzil)
           end do
-          vrt_interp_field(icol,:,ic)  = MATMUL( ovrmat, native_grid_strct%native_grid_flds(icol,:,ic) )
        end do
+       vrt_interp_field(icol,:)  = MATMUL( ovrmat, native_grid_strct%native_grid_flds(icol,:) )
+    end do
 
-       lchnk = state(ic)%lchnk
-       call outfld('AF'//trim(cnst_name(c_i(4))), vrt_interp_field(:ncol,:,ic), ncol, lchnk)
-       ! AF is given in kg/m2/s already, so no pdel*rga scaling necessary to column integrate
-       ftem(:ncol, ic) = vrt_interp_field(:ncol, 1, ic)
-       do k = 2, pver
-          ftem(:ncol, ic) = ftem(:ncol, ic) + vrt_interp_field(:ncol, k, ic)
-       end do
-       call outfld('TAF'//trim(cnst_name(c_i(4))), ftem(:ncol, ic), ncol, lchnk)
-
-    enddo
+    lchnk = state%lchnk
+    call outfld('AF'//trim(cnst_name(c_i(4))), vrt_interp_field(:ncol,:), ncol, lchnk)
+    ! AF is given in kg/m2/s already, so no pdel*rga scaling necessary to column integrate
+    ftem(:ncol) = vrt_interp_field(:ncol, 1)
+    do k = 2, pver
+       ftem(:ncol) = ftem(:ncol) + vrt_interp_field(:ncol, k)
+    end do
+    call outfld('TAF'//trim(cnst_name(c_i(4))), ftem(:ncol), ncol, lchnk)
 
     !future work: these two (above abd below) do loops should be combined into one.
 
     !add field to pbuf
     !$OMP PARALLEL DO PRIVATE (IC, NCOL, tmpptr_native_grid, pbuf_chnk, vrt_interp_field)
-    do ic = begchunk,endchunk
-       ncol = state(ic)%ncol
-       pbuf_chnk => pbuf_get_chunk(pbuf2d, ic)
-       call pbuf_get_field(pbuf_chnk, pbuf_ndx , tmpptr_native_grid )
-       tmpptr_native_grid(:ncol,:) = vrt_interp_field(:ncol,:,ic)
-    enddo
+    ncol = state%ncol
+!    pbuf_chnk => pbuf_get_chunk(pbuf2d)
+    call pbuf_get_field(pbuf2d, pbuf_ndx , tmpptr_native_grid )
+    tmpptr_native_grid(:ncol,:) = vrt_interp_field(:ncol,:)
 
   end subroutine vert_interp_agi
 
