@@ -2615,15 +2615,23 @@ module ocn_time_integration_split
       ! the change due to implicit vertical mixing across the boundary.
 
       if(config_enable_nonhydrostatic_mode) then
+              call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityNew, 2)
+              call mpas_pool_get_array(statePool, 'verticalVelocity', verticalVelocityCur, 1)
+              call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressure,2)
+              call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressureOld,1)
+              call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityNew, 2)
+
+         call ocn_vel_add_noise(normalVelocityNew,dt,err)
+         dminfo = domain % dminfo
          call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, &
               verticalVelocityNew, layerThicknessNew, layerThickEdgeFlux, &
               nonHydrostaticPressure, dminfo % comm, dt)
+        
          call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=2)
          call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=1)
          call mpas_dmpar_field_halo_exch(domain, 'nhPressureCorrection')
          call mpas_dmpar_field_halo_exch(domain, 'normalVelocity',timeLevel=2)
          call mpas_dmpar_field_halo_exch(domain, 'normalVelocity',timeLevel=1)
-         call mpas_timer_stop('se NHpressure tend halo pressure')
 
          call mpas_dmpar_field_halo_exch(domain, 'layerThicknessEdgeFlux')
 
@@ -2631,7 +2639,6 @@ module ocn_time_integration_split
               verticalVelocityNew, layerThicknessNew, layerThickEdgeFlux, &
               nonhydrostaticPressure, nonhydrostaticPressureOld, &
               nhPressureCorrection, dt)
-         call ocn_vel_add_noise(normalVelocityNew,dt,err)
 
       end if
 

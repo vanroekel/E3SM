@@ -3443,6 +3443,8 @@ module ocn_time_integration_si
             call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressureOld,1)
             call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityNew, 2)
                         call ocn_vel_add_noise(normalVelocityNew, dt, err)
+            call mpas_dmpar_field_halo_exch(domain, 'normalVelocity',timeLevel=2)
+            call mpas_dmpar_field_halo_exch(domain, 'normalVelocity',timeLevel=1)
 
             dminfo = domain % dminfo
             call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, verticalVelocityNew, &
