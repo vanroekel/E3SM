@@ -1410,7 +1410,7 @@ else {
 
 	# add AGI tracers
 	if ($agi_inc) {
-	  $nadv += 2
+	  $nadv += 3
 	}
 
     # If neither adiabatic nor ideal physics are used, then accumulate advected constituents

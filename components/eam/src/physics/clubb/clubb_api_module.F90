@@ -521,7 +521,7 @@ contains
     host_dx, host_dy, &                                     ! intent(in)
     um, vm, upwp, vpwp, up2, vp2, &                         ! intent(inout)
     thlm, rtm, wprtp, wpthlp, &                             ! intent(inout)
-    wp2, wp3, rtp2, rtp3, thlp2, thlp3, rtpthlp, &          ! intent(inout)
+    wp2, wp3, dissipation, rtp2, rtp3, thlp2, thlp3, rtpthlp, &          ! intent(inout)
     sclrm,   &
 #ifdef GFDL
                sclrm_trsport_only,  &  ! h1g, 2010-06-16    ! intent(inout)
@@ -709,6 +709,9 @@ contains
       thlprcp_out
 #endif
 
+    real( kind = core_rknd), intent(out), dimension(gr%nz) :: &
+      dissipation !diagnosed TKE dissipation for agi physics
+
     !!! Output Variable 
     integer, intent(inout) :: err_code_api ! Diagnostic, for if some calculation goes amiss.
 
@@ -745,7 +748,7 @@ contains
       host_dx, host_dy, &                                     ! intent(in)
       um, vm, upwp, vpwp, up2, vp2, &                         ! intent(inout)
       thlm, rtm, wprtp, wpthlp, &                             ! intent(inout)
-      wp2, wp3, rtp2, rtp3, thlp2, thlp3, rtpthlp, &          ! intent(inout)
+      wp2, wp3, dissipation, rtp2, rtp3, thlp2, thlp3, rtpthlp, &          ! intent(inout)
       sclrm,   &
 #ifdef GFDL
                sclrm_trsport_only,  &  ! h1g, 2010-06-16      ! intent(inout)

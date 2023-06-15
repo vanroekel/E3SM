@@ -144,6 +144,7 @@ character(len=8), parameter :: &      ! Constituent names
 
 integer :: &
    ixcldliq = -1,      &! cloud liquid amount index
+   ix_availAgI = -1,   &! agi index
    ixcldice = -1,      &! cloud ice amount index
    ixnumliq = -1,      &! cloud liquid number index
    ixnumice = -1,      &! cloud ice water index
@@ -1207,6 +1208,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    type(MGPacker) :: packer
 
    ! Packed versions of inputs.
+   real(r8), allocatable :: packed_ncagi(:,:)
    real(r8), allocatable :: packed_t(:,:)
    real(r8), allocatable :: packed_q(:,:)
    real(r8), allocatable :: packed_qc(:,:)
@@ -1803,6 +1805,10 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    packer = MGPacker(psetcols, pver, mgcols, top_lev)
    post_proc = MGPostProc(packer)
 
+   allocate(packed_ncagi(mgncol,nlev))
+   call cnst_get_ind('availAgI',ix_availAgI)
+   call post_proc%add_field(p(state%q(:,:,ix_availAgI)),p(packed_ncagi))
+   
    allocate(packed_rate1ord_cw2pr_st(mgncol,nlev))
    pckdptr => packed_rate1ord_cw2pr_st ! workaround an apparent pgi compiler bug on goldbach
    call post_proc%add_field(p(rate1cld), pckdptr)
@@ -2160,7 +2166,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
                  mgncol,         nlev,           dtime/num_steps,&
                  packed_t,               packed_q,               &
                  packed_qc,              packed_qi,              &
-                 packed_nc,              packed_ni,              &
+                 packed_nc,              packed_ncagi, packed_ni,              &
                  packed_qr,              packed_qs,              &
                  packed_nr,              packed_ns,              &
                  packed_relvar,          packed_accre_enhan,     &

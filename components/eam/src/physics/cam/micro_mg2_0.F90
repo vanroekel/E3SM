@@ -361,7 +361,7 @@ subroutine micro_mg_tend ( &
      mgncol,             nlev,               deltatin,           &
      t,                            q,                            &
      qcn,                          qin,                          &
-     ncn,                          nin,                          &
+     ncn, ncagi,                         nin,                          &
      qrn,                          qsn,                          &
      nrn,                          nsn,                          &
      relvar,                       accre_enhan,                  &
@@ -459,6 +459,7 @@ subroutine micro_mg_tend ( &
   real(r8), intent(in) :: qcn(:,:)       ! cloud water mixing ratio (kg/kg)
   real(r8), intent(in) :: qin(:,:)       ! cloud ice mixing ratio (kg/kg)
   real(r8), intent(in) :: ncn(:,:)       ! cloud water number conc (1/kg)
+  real(r8), intent(in) :: ncagi(:,:)     ! number of available Agi nuclei for nucleation (1/kg???)
   real(r8), intent(in) :: nin(:,:)       ! cloud ice number conc (1/kg)
 
   real(r8), intent(in) :: qrn(:,:)       ! rain mixing ratio (kg/kg)
@@ -849,7 +850,7 @@ subroutine micro_mg_tend ( &
 
   ! Copies of input concentrations that may be changed internally.
   qc = qcn
-  nc = ncn
+  nc = ncn 
   qi = qin
   ni = nin
   qr = qrn
@@ -899,6 +900,9 @@ subroutine micro_mg_tend ( &
   mu = 1.496E-6_r8 * t**1.5_r8 / (t + 120._r8)
   sc = mu/(rho*dv)
 
+  ! add the nc from agi (need to normalize by density)
+  nc = ncn + ncagi/rho
+
   ! air density adjustment for fallspeed parameters
   ! includes air density correction factor to the
   ! power of 0.54 following Heymsfield and Bansemer 2007
@@ -915,6 +919,10 @@ subroutine micro_mg_tend ( &
 
   do k=1,nlev
      do i=1,mgncol
+
+        ! add the nc from agi (need to normalize by density)
+        nc(i,k) = ncn(i,k) + ncagi(i,k)/rho(i,k)
+
 
         call qsat_water(t(i,k), p(i,k), esl(i,k), qvl(i,k))
 

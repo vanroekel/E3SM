@@ -13,7 +13,7 @@ module physpkg
   !-----------------------------------------------------------------------
 
 
-  use shr_kind_mod,     only: i8 => shr_kind_i8, r8 => shr_kind_r8
+  use shr_kind_mod,     only: cx => SHR_KIND_CX, i8 => shr_kind_i8, r8 => shr_kind_r8
   use spmd_utils,       only: masterproc
   use physconst,        only: latvap, latice, rh2o
   use physics_types,    only: physics_state, physics_tend, physics_state_set_grid, &
@@ -87,6 +87,9 @@ module physpkg
   character(len=16) :: shallow_scheme
   character(len=16) :: macrop_scheme
   character(len=16) :: microp_scheme 
+  character(len=cx) :: agi_emis_data_file
+  logical           :: agi_data_emis
+
   integer           :: cld_macmic_num_steps    ! Number of macro/micro substeps
   logical           :: do_clubb_sgs
   logical           :: use_subcol_microp   ! if true, use subcolumns in microphysics
@@ -97,6 +100,7 @@ module physpkg
   logical           :: pergro_test_active= .false.
   logical           :: pergro_mods = .false.
   logical           :: is_cmip6_volc !true if cmip6 style volcanic file is read otherwise false
+  logical           :: first = .true.
 
   !======================================================================= 
 contains
@@ -892,7 +896,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
        call conv_water_init
     end if
 
-    call agi_ini(pbuf2d)
+    call agi_ini(pbuf2d, agi_emis_data_file, agi_data_emis)
 
     ! initiate CLUBB within CAM
     if (do_clubb_sgs) call clubb_ini_cam(pbuf2d,dp1)
@@ -957,8 +961,8 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
     use time_manager,   only: get_nstep
     use cam_diagnostics,only: diag_allocate, diag_physvar_ic
     use check_energy,   only: check_energy_gmean
-
-    use physics_buffer,         only: physics_buffer_desc, pbuf_get_chunk, pbuf_allocate
+    use agi_read, only: agi_read_data_init, agi_read_data_adv
+    use physics_buffer,         only: pbuf_get_index, physics_buffer_desc, pbuf_get_chunk, pbuf_allocate
 #if (defined E3SM_SCM_REPLAY )
     use cam_history,    only: outfld
 #endif
@@ -1000,8 +1004,13 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
     real(r8)    :: chunk_cost                    ! measured cost per chunk
     type(physics_buffer_desc), pointer :: phys_buffer_chunk(:)
 
+    integer :: agiEmis_idx
+    real(r8), dimension(pcols,pver,begchunk:endchunk) :: agitend
+
     call t_startf ('physpkg_st1')
     nstep = get_nstep()
+
+    agitend(:,:,:) = 0.0_r8
 
 #if ( defined OFFLINE_DYN )
     !
@@ -1045,6 +1054,14 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
        call gmean_mass ('before tphysbc DRY', phys_state)
 #endif
 
+       if(agi_data_emis) then
+          if(first) then
+             agiEmis_idx = pbuf_get_index('AgI_emis')
+             call agi_read_data_init(phys_state, pbuf2d, agi_emis_data_file, agiEmis_idx)
+             first = .false.
+          end if
+          call agi_read_data_adv(phys_state, pbuf2d, agitend)
+       end if
 
        !-----------------------------------------------------------------------
        ! Tendency physics before flux coupler invocation
@@ -1061,7 +1078,8 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
        !call t_adj_detailf(+1)
 
        call system_clock(count=beg_proc_cnt)
-       
+      
+       print *, 'maxloc agi = ',maxloc(agitend)
 !$OMP PARALLEL DO SCHEDULE(STATIC,1) &
 !$OMP PRIVATE (c, beg_chnk_cnt, phys_buffer_chunk, end_chnk_cnt, sysclock_rate, sysclock_max, chunk_cost)
        do c=begchunk, endchunk
@@ -1079,7 +1097,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 
           call tphysbc (ztodt, fsns(1,c), fsnt(1,c), flns(1,c), flnt(1,c), phys_state(c),        &
                        phys_tend(c), phys_buffer_chunk,  fsds(1,c),                       &
-                       sgh(1,c), sgh30(1,c), cam_out(c), cam_in(c) )
+                       sgh(1,c), sgh30(1,c), cam_out(c), cam_in(c), agitend(:,:,c) )
 
           call system_clock(count=end_chnk_cnt, count_rate=sysclock_rate, count_max=sysclock_max)
           if ( end_chnk_cnt < beg_chnk_cnt ) end_chnk_cnt = end_chnk_cnt + sysclock_max
@@ -1905,7 +1923,7 @@ end subroutine tphysac
 subroutine tphysbc (ztodt,               &
        fsns,    fsnt,    flns,    flnt,    state,   &
        tend,    pbuf,     fsds,                     &
-       sgh, sgh30, cam_out, cam_in )
+       sgh, sgh30, cam_out, cam_in, agiemis_tend )
     !----------------------------------------------------------------------- 
     ! 
     ! Purpose: 
@@ -1988,6 +2006,7 @@ subroutine tphysbc (ztodt,               &
     real(r8), intent(inout) :: fsds(pcols)                   ! Surface solar down flux
     real(r8), intent(in) :: sgh(pcols)                       ! Std. deviation of orography
     real(r8), intent(in) :: sgh30(pcols)                     ! Std. deviation of 30 s orography for tms
+    real(r8), dimension(pcols,pver), intent(in) :: agiemis_tend
 
     type(physics_state), intent(inout) :: state
     type(physics_tend ), intent(inout) :: tend
@@ -2465,7 +2484,7 @@ end if
        cld_macmic_ztodt = ztodt/cld_macmic_num_steps
        call t_startf('agi_tend')
 
-       call agi_tend(state, ptend, pbuf, cld_macmic_ztodt)
+       call agi_tend(state, ptend, pbuf, cld_macmic_ztodt, agiemis_tend)
        call physics_update(state, ptend, cld_macmic_ztodt, tend)
 
        call t_stopf('agi_tend')

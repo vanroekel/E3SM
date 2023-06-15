@@ -175,6 +175,7 @@ module clubb_intr
     sh_frac_idx, &      ! shallow convection cloud fraction
     rel_idx, &          ! Rel
     kvh_idx, &          ! CLUBB eddy diffusivity on thermo levels
+    diss_idx, &         ! CLUBB diagnosed dissipation of TKE
     kvm_idx, &          ! CLUBB eddy diffusivity on mom levels
     pblh_idx, &         ! PBL pbuf
     icwmrdp_idx, &      ! In cloud mixing ratio for deep convection
@@ -295,6 +296,7 @@ module clubb_intr
     end if
 
     !  put pbuf_add calls here (see macrop_driver.F90 for sample) use indicies defined at top
+    call pbuf_add_field('dissipation', 'global', dtype_r8, (/pcols, pverp/),            diss_idx)
     call pbuf_add_field('pblh',       'global', dtype_r8, (/pcols/),                    pblh_idx)
     call pbuf_add_field('tke',        'global', dtype_r8, (/pcols, pverp/),             tke_idx)
     call pbuf_add_field('kvh',        'global', dtype_r8, (/pcols, pverp/),             kvh_idx)
@@ -1021,6 +1023,7 @@ end subroutine clubb_init_cnst
        end if
        call pbuf_set_field(pbuf2d, tke_idx,     0.0_r8)
        call pbuf_set_field(pbuf2d, kvh_idx,     0.0_r8)
+       call pbuf_set_field(pbuf2d, diss_idx,    0.0_r8)
        call pbuf_set_field(pbuf2d, fice_idx,    0.0_r8)
        call pbuf_set_field(pbuf2d, radf_idx,    0.0_r8)
        call pbuf_set_field(pbuf2d, qrl_idx,     0.0_r8)
@@ -1273,6 +1276,7 @@ end subroutine clubb_init_cnst
    real(core_rknd) :: wp2hmp(pverp,hydromet_dim)
    real(core_rknd) :: rtphmp_zt(pverp,hydromet_dim)
    real(core_rknd) :: thlphmp_zt (pverp,hydromet_dim)
+   real(core_rknd) :: dissipation_loc (pverp)
    real(core_rknd) :: C_10                             ! transfer coefficient                          [-]
    real(core_rknd) :: khzm_out(pverp)                  ! eddy diffusivity on momentum grids            [m^2/s]
    real(core_rknd) :: khzt_out(pverp)                  ! eddy diffusivity on thermo grids              [m^2/s]
@@ -1433,6 +1437,7 @@ end subroutine clubb_init_cnst
    real(r8), pointer, dimension(:,:) :: shalcu   ! shallow convection cloud fraction            [fraction]
    real(r8), pointer, dimension(:,:) :: khzt     ! eddy diffusivity on thermo levels            [m^2/s]
    real(r8), pointer, dimension(:,:) :: khzm     ! eddy diffusivity on momentum levels          [m^2/s]
+   real(r8), pointer, dimension(:,:) :: dissipation ! dissipation of TKE (m^2/s^3)
    real(r8), pointer, dimension(:) :: pblh     ! planetary boundary layer height                [m]
    real(r8), pointer, dimension(:,:) :: tke      ! turbulent kinetic energy                     [m^2/s^2]
    real(r8), pointer, dimension(:,:) :: dp_icwmr ! deep convection in cloud mixing ratio        [kg/kg]
@@ -1656,6 +1661,7 @@ end subroutine clubb_init_cnst
    call pbuf_get_field(pbuf, sh_frac_idx, shalcu)
    call pbuf_get_field(pbuf, kvm_idx,     khzt)
    call pbuf_get_field(pbuf, kvh_idx,     khzm)
+   call pbuf_get_field(pbuf, diss_idx,    dissipation)
    call pbuf_get_field(pbuf, pblh_idx,    pblh)
    call pbuf_get_field(pbuf, icwmrdp_idx, dp_icwmr)
    call pbuf_get_field(pbuf, cmfmc_sh_idx, cmfmc_sh)
@@ -2270,7 +2276,7 @@ end subroutine clubb_init_cnst
               um_in, vm_in, upwp_in, &                                     ! intent(inout)
               vpwp_in, up2_in, vp2_in, &                                   ! intent(inout)
               thlm_in, rtm_in, wprtp_in, wpthlp_in, &                      ! intent(inout)
-              wp2_in, wp3_in, rtp2_in, &                                   ! intent(inout)
+              wp2_in, wp3_in, dissipation_loc, rtp2_in, &                  ! intent(inout)
               rtp3_in, thlp2_in, thlp3_in, rtpthlp_in, &                   ! intent(inout)
               sclrm,   &                                                   ! intent(inout)
               sclrp2, sclrprtp, sclrpthlp, &                               ! intent(inout)
@@ -2416,6 +2422,7 @@ end subroutine clubb_init_cnst
           cloud_cover(i,k)  = min(real(cloud_cover_out(pverp-k+1), kind = r8),1._r8)
           zt_out(i,k)       = real(zt_g(pverp-k+1), kind = r8)
           zi_out(i,k)       = real(zi_g(pverp-k+1), kind = r8)
+          dissipation(i,k)  = real(dissipation_loc(pverp-k+1), kind = r8)
           khzm(i,k)         = real(khzm_out(pverp-k+1), kind = r8)
           khzt(i,k)         = real(khzt_out(pverp-k+1), kind = r8)
           qclvar(i,k)       = min(1._r8,real(qclvar_out(pverp-k+1), kind = r8))

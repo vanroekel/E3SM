@@ -140,7 +140,7 @@ module advance_clubb_core_module
                host_dx, host_dy, &                                  ! intent(in)
                um, vm, upwp, vpwp, up2, vp2, &                      ! intent(inout)
                thlm, rtm, wprtp, wpthlp, &                          ! intent(inout)
-               wp2, wp3, rtp2, rtp3, thlp2, thlp3, rtpthlp, &       ! intent(inout)
+               wp2, wp3, dissipation, rtp2, rtp3, thlp2, thlp3, rtpthlp, &       ! intent(inout)
                sclrm,   &                                           ! intent(inout)
 #ifdef GFDL
                sclrm_trsport_only,  &  ! h1g, 2010-06-16            ! intent(inout)
@@ -636,6 +636,9 @@ module advance_clubb_core_module
 ! <--- h1g, 2012-06-14
 #endif
 
+    real( kind = core_rknd ), intent(out), dimension(gr%nz) :: &
+      dissipation
+
     real( kind = core_rknd ), intent(in), pointer ::  &
       upwp_sfc_pert,     & ! pertubed u'w' at surface          [m^2/s^2]
       vpwp_sfc_pert        ! pertubed v'w' at surface          [m^2/s^2]
@@ -734,7 +737,8 @@ module advance_clubb_core_module
 
     real( kind = core_rknd ), dimension(gr%nz)  :: &
       rtm_frz, &
-      thlm_frz
+      thlm_frz, &
+      et
 
     real( kind = core_rknd ) :: &
       thlm1000, &
@@ -1336,6 +1340,10 @@ module advance_clubb_core_module
       Kh_zt = c_K * Lscale * sqrt_em_zt
       Kh_zm = c_K * max( zt2zm( Lscale ), zero_threshold )  &
                   * sqrt( max( em, em_min ) )
+      ! Modification from LVR -- adding code to output turbulent dissipation
+      ! we assume that dissipation = em**1.5/Lscale -- should live at zt
+      et = max( em_min, zm2zt(em) )
+      dissipation = et**1.5 / Lscale
 
 #if defined(CLUBB_CAM) || defined(GFDL)
       khzt(:) = Kh_zt(:)

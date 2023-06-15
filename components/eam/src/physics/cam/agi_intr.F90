@@ -35,7 +35,6 @@ module agi_intr
 
   public :: agi_register,  & ! add silver iodide to pbuf
             agi_readnl,    & ! read namelist related to silver iodide
-            agi_emiss_data, &   ! read emission from data with times.
             agi_pointsource, &
             agi_tend,  &
             agi_ini
@@ -56,17 +55,15 @@ module agi_intr
   real(r8),parameter :: rad_to_deg = 180.0/pi
   real(r8),dimension(:,:),allocatable :: massAtmos, densAtmos
 
-  integer :: agiAvail_idx, agi_idx, agiq_idx
+  integer :: agiEmis_idx, agiAvail_idx, agi_idx, agiq_idx
 
   integer, public :: &
-    ix_qagi = 0,         &
-    ix_agi = 0
+    ix_qagi = -1,         &
+    ix_agi = -1, &
+    ix_availAgI = -1
 
   contains
 
-  subroutine agi_emiss_data()
-
-  end subroutine agi_emiss_data
   subroutine agi_readnl(nlfile)
 
     use cam_abortutils,  only: endrun
@@ -117,7 +114,7 @@ module agi_intr
     call mpibcast(agi_height,            1, mpir8,  0, mpicom)
     call mpibcast(agi_thickness,         1, mpir8,  0, mpicom)
     call mpibcast(agi_emis_rate,         1, mpir8,  0, mpicom)
-    call mpibcast(agi_emis_data_file,    128, mpichar, 0, mpicom)
+    call mpibcast(agi_emis_data_file,    cx, mpichar, 0, mpicom)
 #endif
 
   end subroutine agi_readnl
@@ -136,16 +133,21 @@ module agi_intr
     call pbuf_add_field('AgI_nadv', 'global', dtype_r8, (/pcols,pver/), agi_idx)
     call pbuf_add_field('qAgI_nadv', 'global', dtype_r8, (/pcols,pver/), agiq_idx)
     if (agi_microphysics) then
-       call pbuf_add_field('agiAvail', 'global', dtype_r8, (/pcols,pver/), agiAvail_idx)
+       call pbuf_add_field('fAgi', 'global', dtype_r8, (/pcols,pver/), agiAvail_idx)
+    end if
+    if (agi_data_emis) then
+       call pbuf_add_field('AgI_emis', 'global', dtype_r8, (/pcols,pver/), agiEmis_idx)
     end if
     call cnst_add('qAgI',0._r8,0._r8,0._r8,ix_qagi,longname='mixing ratio of AgI',cam_outfld=.false.)
     call cnst_add('AgI',0._r8,0._r8,0._r8,ix_agi,longname='number concentration of AgI', cam_outfld=.false.)
+    call cnst_add('availAgI',0._r8,0._r8,0._r8,ix_availagi,longname='number concentration of AgI available for ice nuclei', &
+                  cam_outfld=.false.)
 
   end subroutine agi_register
 
 !=============================================================================================
 
-  subroutine agi_ini(pbuf2d)
+  subroutine agi_ini(pbuf2d, agi_emis_data_file2, agidata_emis2)
 
     use cam_history,            only: addfld, add_default
     use physics_buffer,         only: pbuf_get_index, pbuf_add_field, pbuf_set_field, physics_buffer_desc
@@ -153,16 +155,22 @@ module agi_intr
     !  Input Variables
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
+    logical, intent(out) :: agidata_emis2
+    character(len=cx), intent(out) :: agi_emis_data_file2
+
 !    integer :: agi_idx, agiq_idx, agiAvail_idx
 
     if (.not. agi_enable) return
 
+    agi_emis_data_file2 = agi_emis_data_file
+    agidata_emis2 = agi_data_emis
+    
     ! Register Agi in the physics buffer
 
     agi_idx = pbuf_get_index('AgI_nadv')
     agiq_idx = pbuf_get_index('qAgI_nadv')
     if (agi_microphysics) then
-       agiAvail_idx = pbuf_get_index('agiAvail')
+       agiAvail_idx = pbuf_get_index('fAgi')
        call pbuf_set_field(pbuf2d, agiAvail_idx, 0.0_r8)
     end if
 
@@ -170,15 +178,22 @@ module agi_intr
 
     call pbuf_set_field(pbuf2d, agi_idx, 0.0_r8)
     call pbuf_set_field(pbuf2d, agiq_idx, 0.0_r8)
-    call addfld('agi_Nc', (/'ilev'/), 'A', 'molec/m3', 'number concentration of silver iodide')
+
+    call addfld('agi_Nc', (/'lev'/), 'A', 'molec/m3', 'number concentration of silver iodide')
     call addfld('agi_q', (/'ilev'/), 'A', 'kg/kg', 'mixing ratio of silver iodide')
+    if (agi_data_emis) then
+       call addfld( 'AgI_emis2', (/ 'lev' /), 'A',  'kg/s', 'Silver Iodide Emission rate ' )
+       call add_default( 'AgI_emis2', 1, ' ' )
+    endif
+
     call add_default('agi_Nc',1,' ')
     call add_default('agi_q',1,' ')
+!    call add_default('availAgI',1,' ')
 
   end subroutine agi_ini
 
 !==============================================================================================
-  subroutine agi_tend(state1, ptend1, pbuf1, ztodt)
+  subroutine agi_tend(state1, ptend1, pbuf1, ztodt, agiemis_tend)
 
     use agi_read, only: agi_read_data_init, agi_read_data_adv
     use ppgrid, only: pver, pcols, begchunk, endchunk
@@ -186,33 +201,35 @@ module agi_intr
     use physics_types,          only: physics_state, physics_ptend
     use physics_buffer, only: physics_buffer_desc
     use dyn_grid,         only: get_horiz_grid_dim_d
+    use agi_physics, only: agi_total_avail
 
-    type(physics_state), intent(in) :: state1
+    type(physics_state), intent(inout) :: state1
     type(physics_ptend), intent(inout) :: ptend1
     type(physics_buffer_desc), pointer, intent(in) :: pbuf1(:)
     real(r8), intent(in) :: ztodt
-    real(r8), dimension(pcols,pver) :: agitend
+    real(r8), dimension(pcols,pver), intent(in) :: agiemis_tend
 
     integer :: plon, plat
 
     if(.not. agi_enable) return
 
-    if(agi_data_emis .and. first) then
-       call agi_read_data_init(state1, pbuf1, agi_emis_data_file)
-       first = .false.
-    end if
+!    if(agi_data_emis .and. first) then
+!       call agi_read_data_init(state1, pbuf1, agi_emis_data_file, agiEmis_idx)
+!       first = .false.
+!    end if
 
 
     call get_horiz_grid_dim_d( plon, plat )
     if(agi_point_source_emis) then
       call agi_pointsource(state1, ptend1, pbuf1, ztodt, plon, plat)
     elseif(agi_data_emis) then
-      call agi_read_data_adv(state1, pbuf1, agitend)
-      call agi_apply_source(state1, ptend1, pbuf1, ztodt, agitend, plon, plat)
+      call agi_apply_source(state1, ptend1, pbuf1, ztodt, agiemis_tend, plon, plat)
     else
       !do nothing
     endif
 
+    if(agi_microphysics) call agi_total_avail(state1, pbuf1, ztodt)
+    
     ! this is probably where the microphysics part comes to add to ice nuclei, still need a PBUF field (FIXME)
 
   end subroutine agi_tend
@@ -268,7 +285,9 @@ module agi_intr
 !    agiq_indx = pbuf_get_index('qAgI')
     call pbuf_get_field(pbuf, agiq_idx, agiq, start=(/1,1/), kount=(/pcols,pver/))
     !find points to release AgI
-    
+
+    print *, 'agi1max = ',maxval(agitend),minval(agitend)
+
     do icol = 1, ncol
        do k = 1, pver
           agi(icol,k) = state%q(icol,k,ix_agi)
