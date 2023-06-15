@@ -1805,10 +1805,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    packer = MGPacker(psetcols, pver, mgcols, top_lev)
    post_proc = MGPostProc(packer)
 
-   allocate(packed_ncagi(mgncol,nlev))
-   call cnst_get_ind('availAgI',ix_availAgI)
-   call post_proc%add_field(p(state%q(:,:,ix_availAgI)),p(packed_ncagi))
-   
+!   allocate(packed_ncagi(mgncol,nlev))
+!   call cnst_get_ind('availAgI',ix_availAgI)
+!   print *, 'indexAGI = ',ix_availAgI
+!   call post_proc%add_field(p(state%q(:,:,ix_availAgI)),p(packed_ncagi))
+
    allocate(packed_rate1ord_cw2pr_st(mgncol,nlev))
    pckdptr => packed_rate1ord_cw2pr_st ! workaround an apparent pgi compiler bug on goldbach
    call post_proc%add_field(p(rate1cld), pckdptr)
@@ -2009,6 +2010,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    packed_relvar = packer%pack(relvar)
    allocate(packed_accre_enhan(mgncol,nlev))
    packed_accre_enhan = packer%pack(accre_enhan)
+
+   allocate(packed_ncagi(mgncol,nlev))
+   call cnst_get_ind('availAgI',ix_availAgI)
+!   call pDost_proc%add_field(p(state%q(:,:,ix_availAgI)),p(packed_ncagi))
+   packed_ncagi = packer%pack(state_loc%q(:,:,ix_availAgI))
 
    allocate(packed_p(mgncol,nlev))
    packed_p = packer%pack(state_loc%pmid)

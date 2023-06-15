@@ -429,13 +429,6 @@ contains
     ! then the time_coordinate class will produce time_coord%wghts(2) == 0.0,
     ! generating fluxes that are piecewise constant in time.
 
-    print *, 'agi1 = ',maxval(native_grid_strct%native_grid_flds_tslices(:,:,:,1)), &
-                       minval(native_grid_strct%native_grid_flds_tslices(:,:,:,1))
-    print *, 'agi2 = ',maxval(native_grid_strct%native_grid_flds_tslices(:,:,:,2)), &
-                       minval(native_grid_strct%native_grid_flds_tslices(:,:,:,2))
-    print *, 'agiloc = ',maxloc(native_grid_strct%native_grid_flds_tslices(:,:,:,1))
-    print *, 'weights = ', native_grid_strct%time_coord%wghts(:)
-    print *, 'index = ',native_grid_strct%time_coord%indxs(2), native_grid_strct%time_coord%indxs(1)
     if (native_grid_strct%time_coord%wghts(2) == 0.0_r8) then
        native_grid_strct%native_grid_flds(:,:,:) = native_grid_strct%native_grid_flds_tslices(:,:,:,1)
     else

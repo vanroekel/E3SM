@@ -1079,7 +1079,6 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 
        call system_clock(count=beg_proc_cnt)
       
-       print *, 'maxloc agi = ',maxloc(agitend)
 !$OMP PARALLEL DO SCHEDULE(STATIC,1) &
 !$OMP PRIVATE (c, beg_chnk_cnt, phys_buffer_chunk, end_chnk_cnt, sysclock_rate, sysclock_max, chunk_cost)
        do c=begchunk, endchunk
@@ -2163,6 +2162,8 @@ subroutine tphysbc (ztodt,               &
     !-----------------------------------------------------------------------
     call t_startf('bc_init')
 
+    print *, 'inside = ',maxval(agiemis_tend)
+    print *, 'insideloc = ',maxloc(agiemis_tend)
     zero = 0._r8
     zero_tracers(:,:) = 0._r8
     zero_sc(:) = 0._r8

@@ -286,8 +286,6 @@ module agi_intr
     call pbuf_get_field(pbuf, agiq_idx, agiq, start=(/1,1/), kount=(/pcols,pver/))
     !find points to release AgI
 
-    print *, 'agi1max = ',maxval(agitend),minval(agitend)
-
     do icol = 1, ncol
        do k = 1, pver
           agi(icol,k) = state%q(icol,k,ix_agi)
