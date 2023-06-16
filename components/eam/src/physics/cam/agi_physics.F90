@@ -86,8 +86,8 @@ module agi_physics
             else
                call qsat_ice(state%t(icol,k), state%pmid(icol,k), esi, qvi)
             endif
-            sat_w(icol,k) = state%q(icol,k,2)/qvl(icol,k)
-            sat_i(icol,k) = state%q(icol,k,3)/qvi
+            sat_w(icol,k) = state%q(icol,k,2)/qvl(icol,k) !index 2 is for water in the array
+            sat_i(icol,k) = state%q(icol,k,3)/qvi  !index 3 is for ice
 
             agi(icol,k) = state%q(icol,k,ix_agi)
          end do
@@ -213,32 +213,48 @@ module agi_physics
 
             i = 1
             do m=-2,6
+               !Mass of aerosol particle (Map) is from Caro et al (2004) Eq C.3
 			   Map(i) = Nagi(icol,k)*Dagi**m*exp(m**2*log(sigAgi)**2/2.0_r8)
+               !Mass of cloud particle is from Morrison and Gettleman 2008
+               !mu is acutually eta MG08 Eq2)
 			   mu = 0.0005714_r8*Nc(icol,k) + 0.2714_r8
+               !lam is MG08 Eq 3
 			   lam = ((pi*rho*Nc(icol,k)*gamma(mu+4))/(6.0_r8*qsat(icol,k)*gamma(mu+1)))**(1.0/3.0)
+               !No is Eq 4 of MG08
 			   No = Nc(icol,k)*lam**(mu+1)/gamma(mu+1)
+               !Mc is integration of these terms -- consult your favorite table of integrals
 			   Mc(i) = No*gamma(m+mu+1)/lam**(m+mu)
 			   i = i+1
             end do
 
+            !this term is Caro et al 2004 Equation c.9, but since it is a function of 'm' create two 
+            !constants of it
             factor = 2.0_r8*boltz/(3.0_r8*mu_a)
 			Cb0 = factor/Map(3)
 			Cb3 = factor/Map(6)
+            !Ctb is also equation c.9 of Caro et al 2004
 			!note that in 'factor' below, Caro et al 2004 suggests eps_c (dissipation) could be set constant
 			!should be around 46.2 cm2/s-3 for convective clouds 
 			factor = 3.0_r8*pi/(2.0_r8*sqrt(15.0_r8))*(dissipation(icol,k)/nu_a)**0.5
 			Ctb0 = factor/Map(3)
 			Ctb3 = factor/Map(6)
 
+            !Lama is defined in the second sentence of the first paragraph of Vuckovic et al 2022 page 4
+            !just above eq 6
             lama = lambdaAO*(Po/P(icol,k))*(T(icol,k)/To) !need to verify units of P, should be mb or convert to Pa)
+            !Nkn is defined in the same place as lama
 			Nkn = 2.0*lama/Dagi
+            !alpha also in same place as lama
 			alpha = 1.257_r8 + 0.4_r8*exp(-1.1_r8/Nkn)
+            !phiTH is equation 33 of Caro et al 2004
 			phiTH = (1.0_r8 + alpha*Nkn)/((1.0_r8 + 3.0_r8*Nkn) + (1.0_r8 + 5.0_r8*Nkn))
 
+            !A3 is equation 10 of Caro et al 2004
             A3 = (rhoh2o*rh2o*T(icol,k)/(esl(icol,k)*Dv) + rhoh2o*latvap/(Ka*T(icol,k))*(latvap/(rh2o*T(icol,k)) - 1.0_r8))**(-1.0)
-
+            !Equation C.9 of Caro et al 2004
             Cthdf = (-(2.0_r8*pi*phiTH*Fh*latvap*rhoh2o)/(P(icol,k)) + (2.4_r8*pi*rhoh2o*fv)/rho)*sat_w(icol,k)*A3
 
+            !Equation C.8 of Caro et al 2004 -- Note I'm applying this as a temnporary tendency as we need a fraction
 			Nconctend = Nagi(icol,k) + dt*(Cb0*((Map(3) + 2.0_r8*lama*Map(2))*Mc(3) + Map(3)*(Mc(3) + 2.0_r8*lama*Mc(2)) + &
 			                    Mc(4)*(Map(2) + 2.0_r8*lama*Map(1)) + Map(4)*(Mc(2) + 2.0_r8*lama*Mc(1))) + &
 								Ctb0*(Map(6)*Mc(3) + 3.0_r8*Map(5)*Mc(4) + 3.0_r8*Map(4)*Mc(5) + Map(3)*Mc(6)))
@@ -247,6 +263,7 @@ module agi_physics
 !			                    Mc(4)*(Map(5) + 2.0_r8*lama*Map(4)) + Map(7)*(Mc(2) + 2.0_r8*lama*Mc(1))) + &
 !								Ctb0*(Map(9)*Mc(3) + 3.0_r8*Map(8)*Mc(4) + 3.0_r8*Map(7)*Mc(5) + Map(6)*Mc(6))
 
+`           !fscav is the change in Agi normalized by original is the scavenging fractionation
             fscavAgi(spot,icol,k) = (Nagi(icol,k) - Nconctend) / Nagi(icol,k)
          end do
       end do

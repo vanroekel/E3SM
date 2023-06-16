@@ -459,7 +459,7 @@ subroutine micro_mg_tend ( &
   real(r8), intent(in) :: qcn(:,:)       ! cloud water mixing ratio (kg/kg)
   real(r8), intent(in) :: qin(:,:)       ! cloud ice mixing ratio (kg/kg)
   real(r8), intent(in) :: ncn(:,:)       ! cloud water number conc (1/kg)
-  real(r8), intent(in) :: ncagi(:,:)     ! number of available Agi nuclei for nucleation (1/kg???)
+  real(r8), intent(in) :: ncagi(:,:)     ! number of available Agi nuclei for nucleation (1/m3, converted to 1/kg below)
   real(r8), intent(in) :: nin(:,:)       ! cloud ice number conc (1/kg)
 
   real(r8), intent(in) :: qrn(:,:)       ! rain mixing ratio (kg/kg)

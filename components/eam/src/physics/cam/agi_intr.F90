@@ -180,7 +180,7 @@ module agi_intr
     call pbuf_set_field(pbuf2d, agiq_idx, 0.0_r8)
 
     call addfld('agi_Nc', (/'lev'/), 'A', 'molec/m3', 'number concentration of silver iodide')
-    call addfld('agi_q', (/'ilev'/), 'A', 'kg/kg', 'mixing ratio of silver iodide')
+    call addfld('agi_q', (/'lev'/), 'A', 'kg/kg', 'mixing ratio of silver iodide')
     if (agi_data_emis) then
        call addfld( 'AgI_emis2', (/ 'lev' /), 'A',  'kg/s', 'Silver Iodide Emission rate ' )
        call add_default( 'AgI_emis2', 1, ' ' )
