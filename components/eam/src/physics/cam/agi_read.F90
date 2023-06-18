@@ -353,7 +353,7 @@ contains
 
     call advance_native_grid_data_agi( native_grid_agi )
 
-    !    call vert_interp_agi( state, pbuf_ndx, native_grid_agi, pbuf2d)
+    call vert_interp_agi( state, pbuf_ndx, native_grid_agi, pbuf2d)
 
 	call t_stopf('agi_read_data_adv')
 
