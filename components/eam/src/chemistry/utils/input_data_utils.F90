@@ -118,7 +118,6 @@ contains
     if (use_time) then
        use_time = time_units(1:10).eq.'days since'
     endif
-
     if (present(try_dates)) then
        if (try_dates) then
           ierr = pio_inq_varid( fileid, 'date', varid  )

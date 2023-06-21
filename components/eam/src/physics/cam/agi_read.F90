@@ -401,7 +401,7 @@ contains
           native_grid_strct%native_grid_flds_tslices(:,:,:,1) = native_grid_strct%native_grid_flds_tslices(:,:,:,2)
        else
           !NOTE: infld call doesn't do any interpolation in space, it just reads in the data
-          call infld('AgI_emis', fh, 'ncol', 'ncol', 'lev',&
+          call infld('AgI_emis', fh, dim1name, dim2name, 'lev',&
             1, pcols, 1, native_grid_strct%lev_frc, begchunk,endchunk, &
                native_grid_strct%native_grid_flds_tslices(:,:,:,1), found, &
                gridname='physgrid', timelevel=native_grid_strct%time_coord%indxs(1))
@@ -411,7 +411,7 @@ contains
        endif
 
        ! read time level 2
-       call infld('AgI_emis', fh, 'ncol', 'ncol','lev',&
+       call infld('AgI_emis', fh, dim1name, dim2name,'lev',&
          1, pcols, 1, native_grid_strct%lev_frc, begchunk, endchunk, &
             native_grid_strct%native_grid_flds_tslices(:,:,:,2), found, &
             gridname='physgrid', timelevel=native_grid_strct%time_coord%indxs(2))
@@ -437,6 +437,9 @@ contains
             native_grid_strct%native_grid_flds_tslices(:,:,:,1))
     endif
 
+    !    if(maxval(native_grid_strct%native_grid_flds) > 1.0_r8) then
+   !   stop
+   ! end if
    end subroutine advance_native_grid_data_agi
 
    subroutine vert_interp_agi( state, pbuf_ndx, native_grid_strct, pbuf2d )

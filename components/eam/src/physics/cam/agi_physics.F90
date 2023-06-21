@@ -263,7 +263,7 @@ module agi_physics
 !			                    Mc(4)*(Map(5) + 2.0_r8*lama*Map(4)) + Map(7)*(Mc(2) + 2.0_r8*lama*Mc(1))) + &
 !								Ctb0*(Map(9)*Mc(3) + 3.0_r8*Map(8)*Mc(4) + 3.0_r8*Map(7)*Mc(5) + Map(6)*Mc(6))
 
-`           !fscav is the change in Agi normalized by original is the scavenging fractionation
+            !fscav is the change in Agi normalized by original is the scavenging fractionation
             fscavAgi(spot,icol,k) = (Nagi(icol,k) - Nconctend) / Nagi(icol,k)
          end do
       end do

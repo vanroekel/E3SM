@@ -2162,8 +2162,6 @@ subroutine tphysbc (ztodt,               &
     !-----------------------------------------------------------------------
     call t_startf('bc_init')
 
-    print *, 'inside = ',maxval(agiemis_tend)
-    print *, 'insideloc = ',maxloc(agiemis_tend)
     zero = 0._r8
     zero_tracers(:,:) = 0._r8
     zero_sc(:) = 0._r8

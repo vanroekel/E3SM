@@ -556,6 +556,7 @@ contains
     ! Check if field is on file; get netCDF variable id
     !
     call cam_pio_check_var(ncid, varname, varid, ndims, dimids, dimlens, readvar_tmp)
+   
     !
     ! If field is on file:
     !

@@ -146,6 +146,7 @@ subroutine timemgr_init( calendar_in, start_ymd, start_tod, ref_ymd, &
 
 ! Initalize start date.
 
+   print *, 'stuff = ',start_tod, ref_ymd, ref_tod, start_ymd
    start_date = TimeSetymd( start_ymd, start_tod, "start_date" )
 
 ! Initalize stop date.
