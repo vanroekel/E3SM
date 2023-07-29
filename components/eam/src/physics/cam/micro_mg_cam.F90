@@ -1343,6 +1343,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    ! recalculate sizes on the CAM grid to avoid time/subcolumn averaging
    ! issues.
    real(r8), allocatable :: rel_fn_dum(:,:)
+   real(r8), allocatable :: agi_dum(:,:)
    real(r8), allocatable :: dsout2_dum(:,:)
    real(r8), allocatable :: drout_dum(:,:)
    real(r8), allocatable :: reff_rain_dum(:,:)
@@ -2012,9 +2013,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    packed_accre_enhan = packer%pack(accre_enhan)
 
    allocate(packed_ncagi(mgncol,nlev))
-   call cnst_get_ind('availAgI',ix_availAgI)
+   call cnst_get_ind('availAgI',ix_availAgI,.false.)
+   if(ix_availAgI > 0) then
 !   call pDost_proc%add_field(p(state%q(:,:,ix_availAgI)),p(packed_ncagi))
-   packed_ncagi = packer%pack(state_loc%q(:,:,ix_availAgI))
+      packed_ncagi = packer%pack(state_loc%q(:,:,ix_availAgI))
+   else
+      allocate(agi_dum(mgncol,nlev))
+      agi_dum(:,:) = 0.0_r8
+      packed_ncagi = packer%pack(agi_dum)
+   end if
 
    allocate(packed_p(mgncol,nlev))
    packed_p = packer%pack(state_loc%pmid)
