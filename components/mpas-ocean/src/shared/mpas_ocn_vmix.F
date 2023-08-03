@@ -31,6 +31,7 @@ module ocn_vmix
    use ocn_constants
    use ocn_config
    use ocn_vmix_cvmix
+   use ocn_vmix_cvmix2_kokkos
    use ocn_vmix_gotm
    use ocn_vmix_coefs_redi
    use ocn_diagnostics_variables
@@ -207,6 +208,7 @@ contains
 #endif
 
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, err1, timeLevel)
+      call ocn_vmix_coefs_cvmix2_kokkos_build(statePool, forcingPool, err1, timeLevel)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, err2, timeLevel)
       call ocn_vmix_coefs_gotm_build(statePool, forcingPool, err3, timeLevel)
 
@@ -1421,7 +1423,7 @@ contains
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
-      if ( config_use_cvmix ) then
+      if ( config_use_cvmix .or. config_use_cvmix2) then
 
          call mpas_timer_start('CVMix avg', .false.)
 #ifdef MPAS_OPENACC
@@ -1763,6 +1765,8 @@ contains
       call ocn_vmix_gotm_init(domain,err_tmp)
       err = ior(err, err_tmp)
       call ocn_vmix_coefs_redi_init(err_tmp)
+      err = ior(err, err_tmp)
+      call ocn_vmix_cvmix2_kokkos_init(domain,err_tmp)
       err = ior(err, err_tmp)
 
    !--------------------------------------------------------------------

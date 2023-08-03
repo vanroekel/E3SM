@@ -460,6 +460,148 @@
 					possible_values=".true. or .false."
 		/>
 	</nml_record>
+    <nml_record name="cvmix2" mode="forward">
+        <nml_option name="config_use_cvmix2" type="logical" default_value=".false." units="NA"
+            description="If true, use the Updated Community Vertical MIXing routines"
+            possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_background_mixing_scheme" type="character" default_value="constant" units="NA"
+                    description="Choose between constant background mixing and Bryan and Lewis (1979)"
+                    possible_values="constant and bryanLewis"
+        />
+        <nml_option name="config_use_cvmix2_constant" type="logical" default_value=".false." units="NA"
+                    description="If true, background diffusivity and viscosity is computed"
+                    possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_background_diffusion" type="real" default_value="1.0e-5" units="m^2 s^{-1}"
+                    description="Background vertical diffusion applied to tracer quantities"
+                    possible_values="Any positive real value."
+        />
+        <nml_option name="config_cvmix2_background_viscosity" type="real" default_value="1.0e-4" units="m^2 s^{-1}"
+                    description="Background vertical viscosity applied to horizontal velocity"
+                    possible_values="Any positive real value."
+                    />
+        <nml_option name="config_cvmix2_computeLangmuir" type="logical" default_value=".false." units="NA"
+                    description="logical for computation of langmuir turbulence effects"
+                    possible_values=".true. or .false."
+        />
+        <nml_option name="config_cvmix2_addLFK17_langmuir" type="logical" default_value=".false." units="NA"
+                    description="adds LFK17 LT entrainment enhancement, requires computeLangmuir=True"
+                    possible_values=".true. or .false."
+                    />
+        <nml_option name="config_cvmix2_useParabolicNonlocal" type="logical" default_value=".false." units="NA"
+                    description="use parabolic shape function for KPP nonlocal flux"
+                    possible_values=".true. or .false."
+        />
+        <nml_option name="config_cvmix2_cs_value" type="real" default_value="98.954535" units="NA"
+                    description="value in convective stability function for scalars (advanced users parameter CHANGE AT YOUR OWN RISK)"
+                    possible_values="positive real numbers"
+        />
+        <nml_option name="config_cvmix2_as_value" type="real" default_value="-28.861739" units="NA"
+                    description="value 2 in convective stability function for scalars (advanced users parameter CHANGE AT YOUR OWN RISK)"
+                    possible_values="negative real numbers"
+        />
+        <nml_option name="config_cvmix2_cm_value" type="real" default_value="8.38241" units="NA"
+                    description="value in convective stability function for momentum (advanced users parameter CHANGE AT YOUR OWN RISK)"
+                    possible_values="positive real numbers"
+        />
+        <nml_option name="config_cvmix2_am_value" type="real" default_value="1.25736" units="NA"
+                    description="value 2 in convective stability function for momentum (advanced users parameter CHANGE AT YOUR OWN RISK)"
+                    possible_values="positive real numbers"
+        />
+        <nml_option name="config_cvmix2_nonLocalTermStrength" type="real" default_value="10.0" units="NA"
+                    description="strength of KPP non local flux (advanced users parameter CHANGE AT YOUR OWN RISK)"
+                    possible_values="positive real numbers"
+        />
+        <nml_option name="config_use_cvmix2_convection" type="logical" default_value=".false." units="NA"
+                    description="If true, convective diffusivity and viscosity is computed using CVMix"
+                    possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_convective_diffusion" type="real" default_value="1.0" units="m^2 s^{-1}"
+                    description="Convective vertical diffusion applied to tracer quantities"
+                    possible_values="Any positive real value."
+        />
+        <nml_option name="config_cvmix2_convective_viscosity" type="real" default_value="1.0" units="m^2 s^{-1}"
+                    description="Convective vertical viscosity applied to horizontal velocity components"
+                    possible_values="Any positive real value."
+		/>
+        <nml_option name="config_cvmix2_convective_basedOnBVF" type="logical" default_value=".true." units="NA"
+                    description="If true, convection is triggered based on value of config_cvmix2_convective_triggerBVF"
+                    possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_convective_triggerBVF" type="real" default_value="0.0" units="s^{-2}"
+                    description="Value of Brunt Viasala frequency squared below which convective mixing is triggered"
+                    possible_values="Any real value"
+        />
+        <nml_option name="config_use_cvmix2_shear" type="logical" default_value=".false." units="NA"
+                    description="If true, shear-based mixing is computed using CVMix"
+                    possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_num_ri_smooth_loops" type="integer" default_value="2" units="NA"
+                    description="Number of smoothing passes over RiTopOfCell for LMD94 shear instability mixing"
+                    possible_values="any integer"
+        />
+        <nml_option name="config_cvmix2_shear_mixing_scheme" type="character" default_value="PP" units="NA"
+                    description="Choose between Pacanowski/Philander or Large et al. shear mixing"
+                    possible_values="PP or KPP"
+        />
+        <nml_option name="config_cvmix2_shear_PP_nu_zero" type="real" default_value="0.005" units="m^2 s^{-1}"
+                    description="Numerator of Pacanowski and Philander (1981) Eq (1)"
+                    possible_values="Any positive real value"
+        />
+        <nml_option name="config_cvmix2_shear_PP_alpha" type="real" default_value="5.0" units="unitless"
+                    description="Alpha values used in Pacanowski and Philander (1981) Eqs (1) and (2)"
+                    possible_values="Any positive real value"
+        />
+        <nml_option name="config_cvmix2_shear_PP_exp" type="real" default_value="2.0" units="unitless"
+                    description="Exponent used in denominator of Pacanowski and Philander (1981) Eqs (1)"
+                    possible_values="Any positive real value"
+        />
+        <nml_option name="config_cvmix2_shear_KPP_nu_zero" type="real" default_value="0.005" units="m^2 s^{-1}"
+                    description="Maximum diffusivity produced by shear-generated mixing"
+                    possible_values="Any positive real value"
+        />
+        <nml_option name="config_cvmix2_shear_KPP_Ri_zero" type="real" default_value="0.7" units="non-dimensional"
+                    description="Theshold gradient Richardson number to produced enhanced diffusivities, See Large et al. (1994) Eq (28a,b,c)"
+                    possible_values="Any positive real value"
+        />
+        <nml_option name="config_cvmix2_shear_KPP_exp" type="real" default_value="3" units="NA"
+                    description="Exponent relating diffusivities to $Ri_g$. Referred to as $p_1$ in Large et al. (1994) Eq (28b)"
+                    possible_values="Any positive real value"
+        />
+        <nml_option name="config_use_cvmix2_kpp" type="logical" default_value=".false." units="NA"
+                    description="If true, diffusivity and viscosity is computed using CVMix KPP"
+                    possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_kpp_criticalBulkRichardsonNumber" type="real" default_value="0.25" units="non-dimensional"
+                    description="Critical bulk Richardson number used to determine bottom of ocean mixed layer"
+                    possible_values="Any positive real value."
+        />
+        <nml_option name="config_cvmix2_kpp_EkmanOBL" type="logical" default_value=".false." units="NA"
+                    description="If true, boundary layer depth is limited by Ekman layer depth"
+                    possible_values="True or False"
+        />
+        <nml_option name="config_cvmix2_kpp_MonObOBL" type="logical" default_value=".false." units="NA"
+                    description="If true, boundary layer depth is limited by Monin-Obukhov layer depth"
+                    possible_values="True or False"
+        />
+        <nml_option name="configure_cvmix2_kpp_minimum_OBL_under_sea_ice" type="real" default_value="10.0" units="m"
+                    description="The minimum allowable boundary layer depth with sea-ice is present"
+                    possible_values="Any positive real value, but typically should be between 1 and 20 meters"
+		/>
+        <nml_option name="config_cvmix2_kpp_surface_layer_extent" type="real" default_value="0.1" units="non-dimensional"
+                                        description="The non-dimensional extent of the surface layer, measured as fraction of boundary layer depth"
+                                        possible_values="Any value between 0 and 1"
+        />
+        <nml_option name="config_cvmix2_kpp_nonlocal_with_implicit_mix" type="logical" default_value=".false." units="none"
+                    description="flag that moves the non-local computation and application of tendency to after main timestep loop"
+                    possible_values=".true. or .false."
+        />
+        <nml_option name="config_cvmix2_kpp_minimumVt2" type="real" default_value="1.0E-10" units="m^2 s^{-2}"
+                    description="minimum value of turbulent scalar velocity in KPP"
+                    possible_values="any very small real number"
+        />
+    </nml_record>
 	<nml_record name="cvmix" mode="forward">
 		<nml_option name="config_use_cvmix" type="logical" default_value=".true."
 					description="If true, use the Community Vertical MIXing routines to compute vertical diffusivity and viscosity"

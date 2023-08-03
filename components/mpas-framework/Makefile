@@ -312,6 +312,7 @@ gfortran:
 	"CFLAGS_OMP = -fopenmp" \
 	"PICFLAG = -fPIC" \
 	"BUILD_TARGET = $(@)" \
+	"KOKKOS = $(KOKKOS)" \
 	"CORE = $(CORE)" \
 	"DEBUG = $(DEBUG)" \
 	"USE_PAPI = $(USE_PAPI)" \
@@ -715,6 +716,23 @@ ifeq "$(OPENMP_OFFLOAD)" "true"
 	LDFLAGS += $(LDFLAGS_GPU)
 endif #OPENMP_OFFLOAD IF
 
+ifeq "$(KOKKOS)" "true"
+    KOKKOS_DEVICES=Cuda
+    KOKKOS_CXX="kokkos/bin/nvcc_wrapper"
+    KOKKOS_CUDA_OPTIONS = enable_lambda
+    KOKKOS_CPP_FLAGS = "-DGPU -lineinfo"
+    LIBS += -L$(CUDA) -lcudart
+else
+    KOKKOS_DEVICES=Serial
+    KOKKOS_CXX = 'g++'
+endif
+
+ifneq "$(KOKKOSARCH)" ""
+    KOKKOS_ARCH = $(KOKKOSARCH)
+else
+    KOKKOS_ARCH = "none"
+endif
+
 ifeq "$(USE_MAGMA)" "true"
    LIBS += -L$(MAGMADIR)/lib -lmagma
    FCINCLUDES += -I${MAGMADIR}/include
@@ -752,6 +770,10 @@ ifeq "$(USE_PAPI)" "true"
 else # USE_PAPI IF
 	PAPI_MESSAGE="Papi libraries are off."
 endif # USE_PAPI IF
+
+ifeq "$(CVMIX2)" "true"
+    LIBS += -lstdc++ -ldl
+endif
 
 # Only if this Makefile was invoked from a compiler target should we check that PICFLAG is set
 ifneq "$(FC_SERIAL)" ""
@@ -1013,6 +1035,11 @@ dycore: $(AUTOCLEAN_DEPS) framework
                  CPPINCLUDES="$(CPPINCLUDES)" \
                  FCINCLUDES="$(FCINCLUDES)" \
                  CORE="$(CORE)"\
+				 KOKKOS_CXX="$(KOKKOS_CXX)" \
+                 KOKKOS_DEVICES="$(KOKKOS_DEVICES)" \
+         		 KOKKOS_CUDA_OPTIONS="$(KOKKOS_CUDA_OPTIONS)" \
+         		 KOKKOS_ARCH="$(KOKKOS_ARCH)" \
+         		 NAMELIST_SUFFIX="$(NAMELIST_SUFFIX)" \
                  AUTOCLEAN="$(AUTOCLEAN)" \
                  GEN_F90="$(GEN_F90)" )
 
@@ -1035,6 +1062,10 @@ drver:  $(AUTOCLEAN_DEPS) framework dycore
                  LIBS="$(LIBS)" \
                  CPPINCLUDES="$(CPPINCLUDES)" \
                  FCINCLUDES="$(FCINCLUDES)" \
+ 				 KOKKOS_CXX="$(KOKKOS_CXX)" \
+                 KOKKOS_DEVICES="$(KOKKOS_DEVICES)" \
+         		 KOKKOS_CUDA_OPTIONS="$(KOKKOS_CUDA_OPTIONS)" \
+         		 KOKKOS_ARCH="$(KOKKOS_ARCH)" \
                  CORE="$(CORE)"\
                  AUTOCLEAN="$(AUTOCLEAN)" \
                  GEN_F90="$(GEN_F90)" )
@@ -1061,6 +1092,10 @@ framework:
                  LIBS="$(LIBS)" \
                  CPPINCLUDES="$(CPPINCLUDES)" \
                  FCINCLUDES="$(FCINCLUDES)" \
+ 				 KOKKOS_CXX="$(KOKKOS_CXX)" \
+                 KOKKOS_DEVICES="$(KOKKOS_DEVICES)" \
+         		 KOKKOS_CUDA_OPTIONS="$(KOKKOS_CUDA_OPTIONS)" \
+         		 KOKKOS_ARCH="$(KOKKOS_ARCH)" \
                  CORE="$(CORE)"\
                  AUTOCLEAN="$(AUTOCLEAN)" \
                  GEN_F90="$(GEN_F90)"
@@ -1082,6 +1117,7 @@ endif
 	@echo $(OPENMP_MESSAGE)
 	@echo $(OPENMP_OFFLOAD_MESSAGE)
 	@echo $(OPENACC_MESSAGE)
+	@echo $(KOKKOS)
 	@echo $(SHAREDLIB_MESSAGE)
 ifeq "$(AUTOCLEAN)" "true"
 	@echo $(AUTOCLEAN_MESSAGE)
