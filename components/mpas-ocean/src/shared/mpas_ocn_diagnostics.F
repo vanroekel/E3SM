@@ -2844,8 +2844,8 @@ contains
          do k = maxLevelCell(iCell), minLevelCell(iCell)+1, -1
             vertAleTransportTop(k,iCell) = &
                 vertAleTransportTop(k+1,iCell) - div_hu(k,iCell) &
-                     - (ALE_Thickness(k,iCell) - &
-                        oldLayerThickness(k,iCell))/dt
+                     - (ALE_Thickness(k-1,iCell) - &
+                        oldLayerThickness(k-1,iCell))/dt
          end do
       end do
 #ifndef MPAS_OPENACC

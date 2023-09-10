@@ -47,6 +47,8 @@ module ocn_time_integration_split
    use ocn_time_average_coupled
 
    use ocn_effective_density_in_land_ice
+   use ocn_vel_noise
+   use ocn_temp_noise
    use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
 
@@ -237,7 +239,7 @@ module ocn_time_integration_split
 
       integer :: &
          startIndex, endIndex, &! start, end index for tracer groups
-         indexSalinity          ! tracer index for salinity
+         indexSalinity,indexTemperature          ! tracer index for salinity
 
       integer :: iTracer, numTracers, numActiveTracers
 
@@ -377,7 +379,8 @@ module ocn_time_integration_split
 
       call mpas_pool_get_dimension_scalar(tracersPool, 'index_salinity', &
                                                         indexSalinity)
-
+      call mpas_pool_get_dimension_scalar(tracersPool, 'index_temperature', &
+                                                        indexTemperature)
       !*** Retrieve tendency variables
 
       call mpas_pool_get_array(tendPool, 'highFreqThickness', &
@@ -2505,9 +2508,15 @@ module ocn_time_integration_split
       ! and tracer fields.  So this update is required to communicate
       ! the change due to implicit vertical mixing across the boundary.
 
+      call ocn_temperature_add_noise(activeTracersNew, indexTemperature, dt, err, dminfo, &
+                      kineticEnergyCell, vertVelocityNonhydroNew, layerThicknessNew)
+      call ocn_vel_add_noise(normalVelocityNew, dt, err)
+
       if(config_enable_nonhydrostatic_mode) then
         dminfo = domain % dminfo
-         call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, &
+
+      call ocn_vel_add_noise(normalVelocityNew, dt, err)
+        call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, &
               vertVelocityNonhydroNew, layerThicknessNew, layerThickEdgeFlux, &
               nhPressureCorrection, dminfo % comm, dt)
 

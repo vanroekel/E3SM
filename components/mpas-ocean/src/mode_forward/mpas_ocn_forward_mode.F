@@ -54,6 +54,8 @@ module ocn_forward_mode
    use ocn_vvel_advection
    use ocn_vvel_hmix_del2
    use ocn_vvel_hmix_del4
+   use ocn_temp_noise
+   use ocn_vel_noise
 
    use ocn_vel_pressure_grad
    use ocn_vel_vadv
@@ -331,6 +333,10 @@ module ocn_forward_mode
         call ocn_nonhydrostatic_solver_init(domain % dminfo % comm, err_tmp)
         ierr = ior(ierr, err_tmp)
       endif
+      call ocn_temperature_noise_init(domain % dminfo, err_tmp)
+        ierr = ior(ierr, err_tmp)
+        call ocn_vel_noise_init(err_tmp)
+        ierr = ior(ierr, err_tmp)
 
       call ocn_init_routines_block(block, dt, ierr)
 

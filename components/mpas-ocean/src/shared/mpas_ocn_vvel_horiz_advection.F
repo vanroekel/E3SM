@@ -75,7 +75,7 @@ module ocn_vvel_horiz_advection
 
       integer :: iCell, iEdge, jEdge, k, cell1, cell2
       integer :: nVertLevels, nCells, nEdges
-      real (kind=RKIND) :: vertVelocityFlux
+      real (kind=RKIND) :: fluxAvg, vertVelocityFlux
  
       real (kind=RKIND), dimension(:), allocatable :: invVolCell
       real (kind=RKIND), dimension(:,:), allocatable :: horizFlux
@@ -106,14 +106,28 @@ module ocn_vvel_horiz_advection
          cell2 = cellsOnEdge(2,iEdge)
          do k = 1, maxLevelEdgeTop(iEdge)
             if (k .gt. 1) then
-               vertVelocityFlux = &
-                  0.5_RKIND * (normalThicknessFlux(k-1,iEdge) + &
-                               normalThicknessFlux(k-0,iEdge)) * &
-                  0.5_RKIND * (vertVelocityNonhydro(k,cell1) + vertVelocityNonhydro(k,cell2))
+               fluxAvg = 0.5_RKIND*(normalThicknessFlux(k-1,iEdge) + &
+                                    normalThicknessFlux(k,iEdge))
+               if(fluxAvg > 0) then
+                  vertVelocityFlux = fluxAvg*vertVelocityNonhydro(k,cell1)
+               else
+                  vertVelocityFlux = fluxAvg*vertVelocityNonhydro(k,cell2)
+               end if
+!               vertVelocityFlux = &
+!                  0.5_RKIND * (normalThicknessFlux(k-1,iEdge) + &
+!                               normalThicknessFlux(k-0,iEdge)) * &
+!                  0.5_RKIND * (vertVelocityNonhydro(k,cell1) + vertVelocityNonhydro(k,cell2))
             else
-               vertVelocityFlux = & ! surface
-                  1.0_RKIND * (normalThicknessFlux(k-0,iEdge)) * &
-                  0.5_RKIND * (vertVelocityNonhydro(k,cell1) + vertVelocityNonhydro(k,cell2))
+               fluxAvg = normalThicknessFlux(k,iEdge)
+                if(fluxAvg < 0) then
+                  vertVelocityFlux = fluxAvg*vertVelocityNonhydro(k,cell1)
+               else
+                  vertVelocityFlux = fluxAvg*vertVelocityNonhydro(k,cell2)
+               end if
+!              
+!               vertVelocityFlux = & ! surface
+!                  1.0_RKIND * (normalThicknessFlux(k-0,iEdge)) * &
+!                  0.5_RKIND * (vertVelocityNonhydro(k,cell1) + vertVelocityNonhydro(k,cell2))
             end if
 
             horizFlux(k,iEdge) = &

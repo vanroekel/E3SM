@@ -178,6 +178,19 @@ module ocn_compute_nonhydrostatic_pressure
 
     nCells = nCellsHalo( 1 )
 
+!    vertVelocityNonhydroNew(1:minLevelCell(iCell),iCell) = 0.0_RKIND
+!    !$omp parallel
+!    !$omp do schedule(runtime) private(avgP
+!    do iCell = 1, nCells
+!       do k = minLevelCell(iCell)+1, maxLevelCell(iCell)+1
+!          vertVelocityNonhydroNew(k,iCell) = vertVelocityNonhydroNew(k,iCell) -  &
+!                  dt * (nhPressureCorrection(k-1,iCell) - nhPressureCorrection(k,iCell)) &
+!                  / (0.5_RKIND*(layerThickness(k-1,iCell) + layerThickness(k,iCell)))
+!       end do
+!    end do
+!    !$omp end do
+!    !$omp end parallel
+
     !$omp parallel
     !$omp do schedule(runtime) &
     !$omp private(i, r_tmp, iEdge, invAreaCell, k, div_hu)
@@ -192,9 +205,9 @@ module ocn_compute_nonhydrostatic_pressure
           end do
        end do
 
-       vertVelocityNonhydroNew(maxLevelCell(iCell) + 1, iCell) = 0.0_RKIND
-       do k=maxLevelCell(iCell),minLevelCell(iCell),-1
-          vertVelocityNonhydroNew(k,iCell) = vertVelocityNonhydroNew(k+1,iCell) - div_hu(k)
+       vertVelocityNonhydroNew(1:minLevelCell(iCell), iCell) = 0.0_RKIND
+       do k=minLevelCell(iCell)+1,maxLevelCell(iCell)+1!,minLevelCell(iCell),-1
+          vertVelocityNonhydroNew(k,iCell) = vertVelocityNonhydroNew(k-1,iCell) + div_hu(k)
        end do
     end do
     !$omp end do

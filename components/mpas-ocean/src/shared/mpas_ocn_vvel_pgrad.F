@@ -132,11 +132,11 @@ contains
 
       !$omp parallel
       !$omp do schedule(runtime) &
-      !$omp private(k)
+      !$omp private(k,kmin)
       do iCell= 1, nCells
          kmin = minLevelCell(iCell)
-         tend(kmin,iCell) = tend(kmin,iCell) - & ! nhPressure = 0.0 at surface
-            2.0_RKIND * (-nhPressure(kmin,iCell)) / layerThickness(kmin,iCell)
+!         tend(kmin,iCell) = tend(kmin,iCell) - & ! nhPressure = 0.0 at surface
+!            2.0_RKIND * (-nhPressure(kmin,iCell)) / layerThickness(kmin,iCell)
          do k = kmin+1, maxLevelCell(iCell)
             tend(k,iCell) = tend(k,iCell) - &
                2.0_RKIND * (nhPressure(k-1,iCell) - nhPressure(k,iCell)) &
