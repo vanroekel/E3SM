@@ -230,7 +230,6 @@ module agi_intr
 
     if(agi_microphysics) call agi_total_avail(state1, pbuf1, ztodt)
     
-    ! this is probably where the microphysics part comes to add to ice nuclei, still need a PBUF field (FIXME)
 
   end subroutine agi_tend
 
