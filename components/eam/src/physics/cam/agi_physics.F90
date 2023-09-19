@@ -255,7 +255,7 @@ module agi_physics
             !Lama is defined in the first sentence of the first paragraph of Vuckovic et al 2022 page 4
             !just above eq 6
             P_hPa = P(icol,k) * 0.01_r8   ! compute air pressure in hPa (P is in units Pa)
-            lama = lambdaAO * (Po / P_hPa) * (T(icol,k) / Tref) !need to verify units of P, should be mb or convert to Pa)
+            lama = lambdaAO * (Po / P_hPa) * (T(icol,k) / Tref)
             !Nkn is defined in the same place as lama
 			Nkn = 2.0_r8 * lama / Dagi
             !alpha also in same place as lama
