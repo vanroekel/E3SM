@@ -65,7 +65,7 @@ module ocn_vmix_cvmix
    type(cvmix_tidal_params_type)  :: cvmix_tidal_params
 
    logical :: cvmixOn, cvmixConvectionOn, cvmixKPPOn
-   real (kind=RKIND) :: backgroundVisc, backgroundDiff
+   real (kind=RKIND) :: multVal, backgroundVisc, backgroundDiff
 
    integer :: cvmixBackgroundChoice        ! user choice of cvmix background scheme
 
@@ -725,9 +725,9 @@ contains
             ! intent out of BoundaryLayerDepth is boundary layer depth measured in meters and vertical index
             indexBoundaryLayerDepth(iCell) = cvmix_variables % kOBL_depth
 
-            do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
-                vertViscTopOfCell(k, iCell) = cvmix_variables % Mdiff_iface(k)
-                vertDiffTopOfCell(k, iCell) = cvmix_variables % Tdiff_iface(k)
+            do k = minLevelCell(iCell), floor(indexBoundaryLayerDepth(iCell)) + 1
+                vertViscTopOfCell(k, iCell) = multVal*vertViscTopOfCell(k,iCell) + cvmix_variables % Mdiff_iface(k)
+                vertDiffTopOfCell(k, iCell) = multVal*vertDiffTopOfCell(k,iCell) + cvmix_variables % Tdiff_iface(k)
             end do
 
             ! store non-local flux terms
@@ -751,7 +751,7 @@ contains
             ! add convective mixing to vertical viscosity/diffusivity
             ! if using KPP, then do not apply convective mixing within the ocean boundary layer
             if(config_use_cvmix_kpp) then
-               do k = ceiling(indexBoundaryLayerDepth(iCell)) + 1, maxLevelCell(iCell)
+               do k = floor(indexBoundaryLayerDepth(iCell)) + 1, maxLevelCell(iCell)
                   vertViscTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) + cvmix_variables % Mdiff_iface(k)
                   vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k,iCell) + cvmix_variables % Tdiff_iface(k)
                enddo
@@ -1078,6 +1078,14 @@ contains
            return
         endif
 
+        if (config_cvmix_kpp_matching.eq.'MatchBoth') then
+           interp2_string = "LMD94"
+           multVal = 0.0_RKIND
+        else
+           interp2_string = config_cvmix_kpp_interpolationOMLType
+           multVal = 1.0_RKIND
+        end if
+
         call cvmix_init_kpp ( &
                ri_crit = config_cvmix_kpp_criticalBulkRichardsonNumber, &
                interp_type = config_cvmix_kpp_interpolationOMLType, &
@@ -1088,6 +1096,7 @@ contains
                surf_layer_ext = config_cvmix_kpp_surface_layer_extent, &
                langmuir_mixing_str = config_cvmix_kpp_langmuir_mixing_opt, &
                langmuir_entrainment_str = config_cvmix_kpp_langmuir_entrainment_opt, &
+               lnoDGat1 = .true., &
                lenhanced_diff = config_cvmix_kpp_use_enhanced_diff)
       endif
 
