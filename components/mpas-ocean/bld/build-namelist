@@ -610,7 +610,7 @@ add_default($nl, 'config_eddyMLD_use_old');
 
 #############################################
 # Namelist group: overflow_parameterization #
-# ###########################################
+#############################################
 
 add_default($nl, 'config_use_overflow');
 add_default($nl, 'config_use_overflow_advection');
@@ -1766,8 +1766,8 @@ my @groups = qw(run_modes
                 gm_eddy_parameterization
                 eddy_parameterization
                 cvmix
-				overflow_parameterization
                 wave_coupling
+		overflow_parameterization
                 gotm
                 forcing
                 coupling
