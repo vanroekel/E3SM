@@ -270,6 +270,12 @@
 <config_eddyMLD_reference_pressure>1.0e5</config_eddyMLD_reference_pressure>
 <config_eddyMLD_use_old>.true.</config_eddyMLD_use_old>
 
+<!-- overflow_parameterization -->
+<config_use_overflow>.false.</config_use_overflow>
+<config_use_overflow_advection>.false.</config_use_overflow_advection>
+<config_overflow_eddy_diffusivity_minimum>0.01</config_overflow_eddy_diffusivity_minimum>
+<config_overflow_eddy_diffusivity_maximum>1.0e4</config_overflow_eddy_diffusivity_maximum>
+
 <!-- cvmix -->
 <config_use_cvmix>.true.</config_use_cvmix>
 <config_cvmix_prandtl_number>1.0</config_cvmix_prandtl_number>

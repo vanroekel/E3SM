@@ -608,6 +608,15 @@ add_default($nl, 'config_eddyMLD_reference_depth');
 add_default($nl, 'config_eddyMLD_reference_pressure');
 add_default($nl, 'config_eddyMLD_use_old');
 
+#############################################
+# Namelist group: overflow_parameterization #
+# ###########################################
+
+add_default($nl, 'config_use_overflow');
+add_default($nl, 'config_use_overflow_advection');
+add_default($nl, 'config_overflow_eddy_diffusivity_minimum');
+add_default($nl, 'config_overflow_eddy_diffusivity_maximum');
+
 #########################
 # Namelist group: cvmix #
 #########################
@@ -1757,6 +1766,7 @@ my @groups = qw(run_modes
                 gm_eddy_parameterization
                 eddy_parameterization
                 cvmix
+				overflow_parameterization
                 wave_coupling
                 gotm
                 forcing

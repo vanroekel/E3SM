@@ -712,6 +712,39 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<!-- overflow_parameterization -->
+
+<entry id="config_use_overflow" type="logical"
+  category="overflow_parameterization", group="overflow_parameterization">
+  If true the parameterization of Beckmann and Doscher 1997 is enabled for overflows
+
+  Valid values: True or False
+  Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_overflow_advection" type="logical"
+  category="overflow_parameterization", group="overflow_parameterization">
+  If true the advective part of the parameterization of Beckmann and Doscher 1997 is enabled for overflows
+
+  Valid values: True or False
+  Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_eddy_diffusivity_minimum" type="real"
+  category="overflow_parameterization", group="overflow_parameterization">
+  The minimum value of diffusion for the diffusive part of the BD97 scheme for overflows 
+
+  Valid values: small positive reals
+  Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_eddy_diffusivity_maximum" type="real"
+  category="overflow_parameterization", group="overflow_parameterization">
+  The maximum value of diffusion for the diffusive part of the BD97 scheme for overflows 
+
+  Valid values: positive reals
+  Default: Defined in namelist_defaults.xml
+</entry>
 
 <!-- cvmix -->
 
