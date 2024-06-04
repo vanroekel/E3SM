@@ -80,7 +80,7 @@ contains
       integer, intent(out) :: iErr
       real (kind=RKIND) :: yMin, yMax, dcEdgeMin
       real (kind=RKIND) :: yMinGlobal, yMaxGlobal, dcEdgeMinGlobal
-      real (kind=RKIND) :: plugWidth
+      real (kind=RKIND) :: ltSum, plugWidth
       real (kind=RKIND) :: slopeCenter, slopeWidth
 
       type (block_type), pointer :: block_ptr
@@ -216,7 +216,9 @@ contains
                  do k = 1, maxLevelCell(iCell)
                     if(yCell(iCell) < yMinGlobal + plugWidth) then
                        activeTracers(index_temperature, k, iCell) = config_overflow_plug_temperature
+                       activeTracers(index_salinity, :, iCell) = config_overflow_salinity + 1.0_RKIND
                     else
+                       activeTracers(index_salinity, :, iCell) = config_overflow_salinity
                        activeTracers(index_temperature, k, iCell) = config_overflow_domain_temperature
                     end if
                  end do
@@ -228,10 +230,20 @@ contains
 
            ! Set layerThickness and restingThickness
            if ( trim(config_overflow_layer_type) == 'z-level' ) then
+              layerThickness(:,iCell) = 0.0_RKIND
+              ltSum = 0.0_RKIND
               do k = 1, maxLevelCell(iCell)
                  layerThickness(k, iCell) = config_overflow_bottom_depth * (interfaceLocations(k+1) - interfaceLocations(k))
+                 ltSum = ltSum + layerThickness(k, iCell)
+              end do
+
+              !Change bottom layer thickness to ensure flat sea surface
+              layerThickness(maxLevelCell(iCell),iCell) = layerThickness(maxLevelCell(iCell),iCell) - &
+                                                                 abs(bottomDepth(iCell) - ltSum)
+              do k=1, maxLevelCell(iCell)
                  restingThickness(k, iCell) = layerThickness(k, iCell)
               end do
+
            else if ( trim(config_overflow_layer_type) == 'sigma' ) then
               do k = 1, nVertLevels
                  layerThickness(k, iCell) = bottomDepth(iCell) / nVertLevels
@@ -251,9 +263,9 @@ contains
            end if
 
            ! Set salinity
-           if ( associated(activeTracers) ) then
-              activeTracers(index_salinity, :, iCell) = config_overflow_salinity
-           end if
+!           if ( associated(activeTracers) ) then
+!              activeTracers(index_salinity, :, iCell) = config_overflow_salinity
+!           end if
 
            ! Set debug tracer
            if ( associated(debugTracers) ) then

@@ -463,6 +463,24 @@
 					possible_values=".true. or .false."
 		/>
 	</nml_record>
+	<nml_record name="overflow_parameterization" mode="forward">
+		<nml_option name="config_use_overflow" type="logical" default_value=".false."
+					description="if true use the dense overflow parameterization from Beckmann and Doscher 1997 as updated by Doscher and Beckmann 2000"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_use_overflow_advection" type="logical" default_value=".false."
+					description="if true use the advection part of the overflow parameterization"
+					possible_values=".true. or .false."
+					/>
+		<nml_option name="config_overflow_eddy_diffusivity_minimum" type="real" default_value="0.01"
+					description="Minimum value of eddy diffusivity in the overflow scheme"
+					possible_values="small positive values, recommended between 0.01 and 1"
+					/>
+		<nml_option name="config_overflow_eddy_diffusivity_maximum" type="real" default_value="1.0e4"
+					description="maximum value of eddy diffusivity in the overflow scheme"
+					possible_values="larger positive real values 1e3-1e4"
+					/>
+	</nml_record>
 	<nml_record name="cvmix" mode="forward">
 		<nml_option name="config_use_cvmix" type="logical" default_value=".true."
 					description="If true, use the Community Vertical MIXing routines to compute vertical diffusivity and viscosity"
@@ -3267,6 +3285,15 @@
 		/>
 		<var name="dThreshMLD" type="real" dimensions="nCells Time" units="m"
 			description="mixed layer depth based on density threshold"
+		/>
+	    <var name="alphaH2" type="real" dimensions="nEdges Time" default_value="0.0"
+			 description="non dimensional factor controlling portion of advection included in the overflow scheme.  Advection is only activated if downslope overflows occur"
+		/>
+	<var name="alphaH" type="real" dimensions="nEdges Time" default_value="0.0"
+			 description="non dimensional factor controlling portion of advection included in the overflow scheme.  Advection is only activated if downslope overflows occur"
+		/>
+		<var name="alphaZ" type="real" dimensions="nCells Time" default_value="0.0"
+			 description="non dimensional factor controlling portion of vertical advection included in the overflow scheme.  It is fully enabled if any edge experiences downslope overflows"
 		/>
 		<var name="slopeTriadUp" type="real" dimensions="nVertLevels TWO nEdges Time" units="non-dimensional" default_value="0.0"
 			 description="Magnitude of slope of isopycnal surface, using triad through this cell and edge, angled up. Uses expansion of equation of state."

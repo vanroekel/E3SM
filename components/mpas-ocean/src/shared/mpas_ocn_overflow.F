@@ -31,9 +31,10 @@ Module ocn_overflow
    use mpas_pool_routines
    use mpas_threading
 
-   use ocn_tracer_hmix_del2
    use ocn_constants
    use ocn_config
+   use ocn_mesh
+   use ocn_diagnostics_variables
 
    implicit none
    private
@@ -60,9 +61,8 @@ Module ocn_overflow
    !
    !--------------------------------------------------------------------
 
-   logical :: del2On
-   real (kind=RKIND) :: eddyDiff2
-
+   logical :: overflowOn, useOverflowAdvection
+   real (kind=RKIND) :: eddyDiff2, overflowDiffMin, overflowDiffMax
 
 !***********************************************************************
 
@@ -81,20 +81,19 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_overflow_tend(meshPool, layerThickEdgeMean, tracers, tend, err)
+   subroutine ocn_overflow_tend(normalVelocity, layerThickness, tracers, tend, err)
       !-----------------------------------------------------------------
       !
       ! input variables
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
-
-      real (kind=RKIND), dimension(:,:), intent(in) :: &
-         layerThickEdgeMean !< Input: mean thickness at edges
-
       real (kind=RKIND), dimension(:,:,:), intent(in) :: &
         tracers !< Input: tracer quantities
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+        normalVelocity,  &
+        layerThickness
 
       !-----------------------------------------------------------------
       !
@@ -120,41 +119,45 @@ contains
       !-----------------------------------------------------------------
 
       integer :: iCell, iEdge, cell1, cell2
-      integer :: i, k, iTracer, num_tracers, nCells
-      integer, dimension(:), pointer :: nCellsArray
+      integer :: nEdges, i, k, iTracer, num_tracers, nCells
 
-      integer, dimension(:), pointer :: minLevelEdgeBot, maxLevelEdgeTop, nEdgesOnCell
-      integer, dimension(:,:), pointer :: cellsOnEdge, edgesOnCell, edgeSignOnCell
-
-      real (kind=RKIND) :: invAreaCell
-      real (kind=RKIND) :: tracer_turb_flux, flux, r_tmp
-
-      real (kind=RKIND), dimension(:), pointer :: areaCell, dvEdge, dcEdge
-      real (kind=RKIND), dimension(:), pointer :: meshScalingDel2
-
+      real (kind=RKIND) :: tmp1, tmp2, normalThicknessFlux,invAreaCell
+      real (kind=RKIND) :: tracer_turb_flux, flux, r_tmp, ltEdge, div_hu, vertBot
+      real (kind=RKIND),dimension(:), allocatable :: tempTend, eddyDiff
       err = 0
 
       if (.not.overflowOn) return
 
-      call mpas_timer_start("tracer del2")
+      call mpas_timer_start("dense overflow")
 
-      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      nEdges = nEdgesHalo(1)
+      allocate(eddyDiff(nEdges))
+      do iEdge = 1,nEdges
+         cell1 = cellsOnEdge(1,iEdge)
+         cell2 = cellsOnEdge(2,iEdge)
+
+         if (maxLevelEdgeTop(iEdge) > 0) then
+             tmp1 = (density(maxLevelCell(cell2),cell2) - density(maxLevelCell(cell1),cell1)) / dcEdge(iEdge) * &
+                           (bottomDepth(cell2) - bottomDepth(cell1)) / dcEdge(iEdge)
+             tmp2 = normalVelocity(maxLevelEdgeTop(iEdge),iEdge)*  &
+                           (bottomDepth(cell2) - bottomDepth(cell1)) / dcEdge(iEdge)
+             alphaH2(iEdge) = tmp1
+             if(tmp1 < -3e-6) then
+                alphaH(iEdge) = 1.00_RKIND
+                eddyDiff(iEdge) = dcEdge(iEdge)*abs(normalVelocity(maxLevelEdgeTop(iEdge),iEdge))
+                eddyDiff(iEdge) = max(overflowDiffMin,min(overflowDiffMax,eddyDiff2))
+             else
+                alphaH(iEdge) = 0.0_RKIND
+                eddyDiff(iEdge) = overflowDiffMin
+             end if
+         end if
+      end do
+
       num_tracers = size(tracers, dim=1)
 
-      call mpas_pool_get_array(meshPool, 'minLevelEdgeBot', minLevelEdgeBot)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-      call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
-      call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-      call mpas_pool_get_array(meshPool, 'meshScalingDel2', meshScalingDel2)
+      nCells = nCellsOwned
 
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
-
-      nCells = nCellsArray( 1 )
-
+      !alphaH, eddyDiff gets computed in a separate loop to not compute each edge twice
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(invAreaCell, i, iEdge, cell1, cell2, r_tmp, k, iTracer, &
@@ -167,34 +170,26 @@ contains
           cell1 = cellsOnEdge(1,iEdge)
           cell2 = cellsOnEdge(2,iEdge)
 
-          r_tmp = meshScalingDel2(iEdge) * eddyDiff2 * dvEdge(iEdge) / dcEdge(iEdge)
+          if (maxLevelEdgeTop(iEdge) > 0) then
+             if (alphaH(iEdge) > 0.0_RKIND) then
+                 alphaZ(iCell) = 1.0_RKIND
+             end if
+             r_tmp = eddyDiff(iEdge) * dvEdge(iEdge) / dcEdge(iEdge)
 
-          tmp1 = (density(maxLevelCell(cell2),cell2) - density(maxLevelCell(cell1),cell1)) / dcEdge(iEdge) * &
-                        (bottomDepth(cell2) - bottomDepth(cell1)) / dcEdge(iEdge)
-          tmp2 = edgeSignOnCell(i, iCell)*velBot(1,iEdge)*(bottomDepth(cell2) - bottomDepth(cell1)) / dcEdge(iEdge)
-          if(tmp1 < 0 and tmp2 > 0) then
-             alphaH(iEdge) = 1.0_RKIND
-             alphaZ(iCell) = 1.0_RKIND
-             eddyDiff2 = dcEdge(iEdge)*abs(velBot(1,iEdge))
-             eddyDiff2 = max(overflowDiffMin,min(overflowDiffMax,eddyDiff2))
-          else
-             alphaH(iEdge) = 0.0_RKIND
-             eddyDiff2 = overflowDiffMin
-          end if
-          r_tmp = meshScalingDel2(iEdge) * eddyDiff2 * dvEdge(iEdge) / dcEdge(iEdge)
+             do iTracer = 1, num_tracers
+                ! \kappa_2 \nabla \phi on edge
+                tracer_turb_flux = tracers(iTracer, maxLevelCell(cell2), cell2) - &
+                                          tracers(iTracer, maxLevelCell(cell1), cell1)
 
-          do iTracer = 1, num_tracers
-             ! \kappa_2 \nabla \phi on edge
-             tracer_turb_flux = tracers(iTracer, maxLevelCell(cell2), cell2) - &
-                                       tracers(iTracer, maxLevelCell(cell1), cell1)
+                ! div(h \kappa_2 \nabla \phi) at cell center
+                flux = 0.5_RKIND*(layerThickness(maxLevelCell(cell1),cell1) + &
+                                  layerThickness(maxLevelCell(cell2),cell2)) &
+                                  * tracer_turb_flux * r_tmp
 
-             ! div(h \kappa_2 \nabla \phi) at cell center
-             flux = layerThickEdgeBot(1, iEdge) * tracer_turb_flux * r_tmp
-
-             tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) -  &
-                                                         edgeSignOnCell(i, iCell) * flux * invAreaCell
-            end do
-
+                tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) -  &
+                                                            edgeSignOnCell(i, iCell) * flux * invAreaCell
+               end do
+           end if
         end do
       end do
       !$omp end do
@@ -203,32 +198,62 @@ contains
 ! upstream advection next
 
       if (useOverflowAdvection) then
+
         ! need to compute vertical velocity from the sigma layer
 
+        allocate(tempTend(num_tracers))
+        alphaH(:) = 1.0_RKIND
+        alphaZ(:) = 1.0_RKIND
         do iCell = 1, nCells
+          tempTend(:) = 0.0_RKIND
            invAreaCell = 1.0_RKIND / areaCell(icell)
+           div_hu = 0.0_RKIND
            do i = 1, nEdgesOnCell(iCell)
               iEdge = edgesOnCell(i, iCell)
               cell1 = cellsOnEdge(1, iEdge)
               cell2 = cellsOnEdge(2, iEdge)
-              layerThickEdgeBot = 0.5_RKIND*(layerThickness(maxLevelCell(cell1),cell1) + &
-                                             layerThickness(maxLevelCell(cell2),cell2))
-              normalThicknessFlux = layerThickEdgeBot*normalVelocity(maxLevelEdgeBot(iEdge),iEdge)
+              if (maxLevelEdgeTop(iEdge) > 0) then
+                 ltEdge =min(layerThickness(maxLevelCell(cell1),cell1), &
+                                                layerThickness(maxLevelCell(cell2),cell2))
+                 normalThicknessFlux = ltEdge*normalVelocity(maxLevelEdgeTop(iEdge),iEdge)
 
-              tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) -      &
+                 div_hu = div_hu - ltEdge*edgeSignOnCell(i, iCell)*dvEdge(iEdge)* &
+                             alphaH(iEdge)*normalVelocity(maxLevelEdgeTop(iEdge),iEdge)*invAreaCell
+
+                 do iTracer = 1, num_tracers
+                    tempTend(iTracer) = tempTend(iTracer) +      &
                                     alphaH(iEdge)*edgeSignOnCell(i, iCell)*invAreaCell*dvEdge(iEdge)*      &
-                                    (max(0.0_RKIND,normalThicknessFlux)*tracers(maxLevelCell(cell1),cell1) &
-                                  +  min(0.0_RKIND,normalThicknessFlux)*tracers(maxLevelCell(cell2),cell2))
-
+                                    (max(0.0_RKIND,normalThicknessFlux)*tracers(iTracer, maxLevelCell(cell1),cell1) &
+                                  +  min(0.0_RKIND,normalThicknessFlux)*tracers(iTracer, maxLevelCell(cell2),cell2))
+                 end do
+            end if
           end do
-          ! need vertical advection too
-          tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer
-       end do
 
-       ! vertical advection
+          if (maxLevelCell(iCell) > 10000) then
+             vertBot = div_hu
+             do iTracer = 1, num_tracers
+                tempTend(iTracer) = tempTend(iTracer) + &
+                                              alphaZ(iCell)*(min(0.0_RKIND,vertBot)*tracers(iTracer,maxLevelCell(iCell)-1,iCell) + &
+                                               max(0.0_RKIND,vertBot)*tracers(iTracer,maxLevelCell(iCell),iCell))
+             end do
+          end if
+          do iTracer = 1, num_tracers
+             tend(iTracer,maxLevelCell(iCell),iCell) = tend(iTracer,maxLevelCell(iCell),iCell) - &
+                                                       tempTend(iTracer)
+          end do
+     !          alphaZ(iCell) = 0.0_RKIND
+       end do
+       alphaH(:) = 0.0_RKIND
+       alphaZ(:) = 0.0_RKIND
+       deallocate(tempTend)
+      else
+       alphaH(:) = 0.0_RKIND
+       alphaZ(:) = 0.0_RKIND
+      end if
+      call mpas_timer_stop("dense overflow") 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tracer_hmix_del2_tend!}}}
+   end subroutine ocn_overflow_tend!}}}
 
 !***********************************************************************
 !
@@ -243,7 +268,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_hmix_del2_init(err)!{{{
+   subroutine ocn_overflow_init(err)!{{{
 
    !--------------------------------------------------------------------
 
@@ -257,22 +282,22 @@ contains
 
       err = 0
 
-      del2on = .false.
+      overflowOn = .false.
 
-      if ( config_use_tracer_del2 ) then
-         if ( config_tracer_del2 > 0.0_RKIND ) then
-            del2On = .true.
-            eddyDiff2 = config_tracer_del2
-         endif
+      if ( config_use_overflow ) then
+         overflowOn = .true.
+         useOverflowAdvection = config_use_overflow_advection
+         overflowDiffMin = config_overflow_eddy_diffusivity_minimum
+         overflowDiffMax = config_overflow_eddy_diffusivity_maximum
       endif
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tracer_hmix_del2_init!}}}
+   end subroutine ocn_overflow_init!}}}
 
 !***********************************************************************
 
-end module ocn_tracer_hmix_del2
+end module ocn_overflow
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 ! vim: foldmethod=marker

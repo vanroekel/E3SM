@@ -526,12 +526,18 @@ module ocn_tracer_advection_mono
            do i = 1, nEdgesOnCell(iCell)
               iEdge = edgesOnCell(i, iCell)
               signedFactor = invAreaCell1*edgeSignOnCell(i,iCell)
-              do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+              do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge) - 1
                  ! workTend on RHS is upwind tendency
                  ! workTend on LHS is total horiz advect tendency
                  workTend(k,iCell) = workTend(k,iCell) &
                                    + signedFactor*highOrderFlx(k,iEdge)
               end do
+              if (maxLevelEdgeTop(iEdge) > 0) then
+                 k = maxLevelEdgeTop(iEdge)
+                 workTend(k,iCell) = workTend(k,iCell) &
+                                   + (1.0_RKIND-alphaH(iEdge)) &
+                                   * signedFactor*highOrderFlx(k,iEdge)
+              end if
            end do
 
            do k = minLevelCell(iCell), maxLevelCell(iCell)
@@ -545,7 +551,6 @@ module ocn_tracer_advection_mono
               tend(iTracer,k,iCell) = tend(iTracer,k,iCell) &
                                     + workTend(k,iCell)
            end do
-
         end do ! iCell loop
 #ifndef MPAS_OPENACC
         !$omp end do
@@ -855,7 +860,7 @@ module ocn_tracer_advection_mono
                                           flxIn (k  ,iCell))
            end do ! k loop
 
-           do k = kmin,kmax
+           do k = kmin,kmax-1
               ! workTend on the RHS is upwind tendency
               ! workTend on the LHS is total vertical advection tendency
               workTend(k, iCell) = workTend(k, iCell)       &
@@ -865,6 +870,14 @@ module ocn_tracer_advection_mono
                                     + workTend(k,iCell)
            end do ! k loop
 
+           if (kmax > 1) then
+              k = kmax
+              workTend(k, iCell) = workTend(k, iCell)       &
+                                 + (highOrderFlx(k+1,iCell) &
+                                  - highOrderFlx(k  ,iCell))
+              tend(iTracer,k,iCell) = tend(iTracer,k,iCell) &
+                                    + (1.0_RKIND - alphaZ(iCell))*workTend(k,iCell)
+           end if
         end do ! iCell loop
 #ifndef MPAS_OPENACC
         !$omp end do

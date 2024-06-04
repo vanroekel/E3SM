@@ -38,6 +38,7 @@ module ocn_tendency
    use ocn_frazil_forcing
    use ocn_tidal_forcing
 
+   use ocn_overflow
    use ocn_tracer_hmix
    use ocn_high_freq_thickness_hmix_del2
    use ocn_tracer_advection
@@ -115,7 +116,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tend_thick(tendPool, forcingPool)!{{{
+   subroutine ocn_tend_thick(tendPool, forcingPool)
 
       !-----------------------------------------------------------------
       ! output variables
@@ -237,7 +238,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tend_thick!}}}
+   end subroutine ocn_tend_thick
 
 !***********************************************************************
 !
@@ -252,7 +253,7 @@ contains
 !-----------------------------------------------------------------------
     ! NOTE: Domain being passed in for halo update on SAL
    subroutine ocn_tend_vel(domain, tendPool, statePool, forcingPool, &
-                           timeLevelIn, dminfo, dt)!{{{
+                           timeLevelIn, dminfo, dt)
 
       !-----------------------------------------------------------------
       ! input variables
@@ -490,7 +491,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tend_vel!}}}
+   end subroutine ocn_tend_vel
 
 !***********************************************************************
 !
@@ -506,7 +507,7 @@ contains
 
    subroutine ocn_tend_tracer(tendPool, statePool, forcingPool, &
                               meshPool, swForcingPool, &
-                              dt, activeTracersOnlyIn, timeLevelIn )!{{{
+                              dt, activeTracersOnlyIn, timeLevelIn )
 
       !-----------------------------------------------------------------
       ! input variables
@@ -604,7 +605,8 @@ contains
          fractionAbsorbedRunoff,       &! frac runoff flux aborbed
          tracerGroupSurfaceFluxRunoff, &! runoff flux
          tracerGroupSurfaceFluxRemoved,&! total sfc flux absorbed
-         nonLocalSurfaceTracerFlux      ! non-local fluxes (eg KPP)
+         nonLocalSurfaceTracerFlux,    &! non-local fluxes (eg KPP)
+         normalVelocity
 
       real (kind=RKIND), dimension(:,:,:), pointer, contiguous :: &
          tracerGroup,     &! tracers in current tracer group
@@ -664,6 +666,8 @@ contains
                                              fractionAbsorbed)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', &
                                              fractionAbsorbedRunoff)
+      call mpas_pool_get_array(statePool,   'normalVelocity', &
+                                             normalVelocity, timeLevel)
 
       ! allocate and transfer data not specific to tracer groups
       allocate(normalThicknessFlux(nVertLevels, nEdgesAll+1))
@@ -1098,6 +1102,9 @@ contains
          !$acc enter data &
          !$acc    copyin(tracerGroup, tracerGroupTend)
 
+         ! adds tendency due to dense overflow waters
+         call ocn_overflow_tend(normalVelocity, layerThickness, tracerGroup, tracerGroupTend, err)
+
          !
          ! Accumulate tendencies for all tracers
          ! First is the horizontal advection term
@@ -1314,7 +1321,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tend_tracer!}}}
+   end subroutine ocn_tend_tracer
 
 !***********************************************************************
 !
@@ -1331,7 +1338,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_tend_freq_filtered_thickness(tendPool, statePool, &
-                                               timeLevelIn)!{{{
+                                               timeLevelIn)
 
       !-----------------------------------------------------------------
       ! input variables
@@ -1481,7 +1488,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tend_freq_filtered_thickness!}}}
+   end subroutine ocn_tend_freq_filtered_thickness
 
 !***********************************************************************
 !
@@ -1495,7 +1502,7 @@ contains
 !>  other tendency routines.
 !
 !-----------------------------------------------------------------------
-    subroutine ocn_tendency_init(err)!{{{
+    subroutine ocn_tendency_init(err)
         integer, intent(out) :: err !< Output: Error flag
 
         logical, pointer :: config_use_highFreqThick_restore
@@ -1510,7 +1517,7 @@ contains
            use_highFreqThick_restore = 0
         endif
 
-    end subroutine ocn_tendency_init!}}}
+    end subroutine ocn_tendency_init
 
 !***********************************************************************
 
