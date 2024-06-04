@@ -1089,7 +1089,7 @@ contains
         call cvmix_init_kpp ( &
                ri_crit = config_cvmix_kpp_criticalBulkRichardsonNumber, &
                interp_type = config_cvmix_kpp_interpolationOMLType, &
-               interp_type2 = config_cvmix_kpp_interpolationOMLType, &
+               interp_type2 = 'LMD94', &
                lEkman = config_cvmix_kpp_EkmanOBL, &
                lMonOb = config_cvmix_kpp_MonObOBL, &
                MatchTechnique = config_cvmix_kpp_matching, &
