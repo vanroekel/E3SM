@@ -3453,26 +3453,32 @@ contains
          nonLocalSurfaceTracerFlux(indexTempFlux, iCell) = &
                    activeTracersSurfaceFlux(indexTempFlux,iCell) &
                  + penetrativeTemperatureFlux(iCell) &
-                 - penetrativeTemperatureFluxOBL(iCell)  &
-                 - fracAbsorbed* (rainTemperatureFlux(iCell) + &
-                                  evapTemperatureFlux(iCell) + &
-                                  seaIceTemperatureFlux(iCell) + &
-                                  icebergTemperatureFlux(iCell)) &
-                 - fracAbsorbedRunoff* &
-                   activeTracersSurfaceFluxRunoff(indexTempFlux,iCell)
+                 - penetrativeTemperatureFluxOBL(iCell) ! &
+!                 - fracAbsorbed* (rainTemperatureFlux(iCell) + &
+!                                  evapTemperatureFlux(iCell) + &
+!                                  seaIceTemperatureFlux(iCell) + &
+!                                  icebergTemperatureFlux(iCell)) &
+!                 - fracAbsorbedRunoff* &
+!                   activeTracersSurfaceFluxRunoff(indexTempFlux,iCell)
 
          nonLocalSurfaceTracerFlux(indexSaltFlux,iCell) = &
-                   activeTracersSurfaceFlux(indexSaltFlux,iCell) &
-                 - fracAbsorbed*surfaceThicknessFlux(iCell)* &
-                   activeTracers(indexSaltFlux,kmin,iCell) &
-                 - fracAbsorbedRunoff*surfaceThicknessFluxRunoff(iCell)* &
-                   activeTracers(indexSaltFlux,kmin,iCell)
+                   activeTracersSurfaceFlux(indexSaltFlux,iCell) !&
+!                 - fracAbsorbed*surfaceThicknessFlux(iCell)* &
+!                   activeTracers(indexSaltFlux,kmin,iCell) &
+!                 - fracAbsorbedRunoff*surfaceThicknessFluxRunoff(iCell)* &
+!                   activeTracers(indexSaltFlux,kmin,iCell)
 
          surfaceBuoyancyForcing(iCell) = &
                   thermalExpansionCoeff(kmin,iCell)* &
-                  nonLocalSurfaceTracerFlux(indexTempFlux,iCell) &
+                  (nonLocalSurfaceTracerFlux(indexTempFlux,iCell) - &
+                  (fracAbsorbed*surfaceThicknessFlux(iCell) + &
+                  fracAbsorbedRunoff*surfaceThicknessFluxRunoff(iCell))* &
+                  activeTracers(indTempFlux,kmin,iCell))
                 - salineContractionCoeff(kmin,iCell)* &
-                  nonLocalSurfaceTracerFlux(indexSaltFlux,iCell)
+                  (nonLocalSurfaceTracerFlux(indexSaltFlux,iCell) - &
+                  (surfaceThicknessFlux(iCell)*fracAbsorbed + &
+                  surfaceThicknessFluxRunoff(iCell)*fracAbsorbedRunoff)* &
+                  activeTracers(indSaltFlux,kmin,iCell))
 
          ! at this point, surfaceBuoyancyForcing has units of m/s
          ! change into units of m^2/s^3 (which can be thought of as
