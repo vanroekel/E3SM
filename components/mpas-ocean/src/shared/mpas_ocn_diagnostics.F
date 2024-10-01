@@ -39,6 +39,7 @@ module ocn_diagnostics
    use ocn_surface_land_ice_fluxes
    use ocn_vertical_advection
    use ocn_subgrid
+   use ocn_ke_triskcv
 
    implicit none
    private
@@ -2426,11 +2427,59 @@ contains
             vertVelocityTop(k,iCell) = (heightCellLag(k) - heightCell(k))/dt
          end do
       end do
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if (config_triskCV) then
+         kineticEnergyEdge(:,:) = 0.0_RKIND
+         do iEdge = 1, nEdges 
+            u_perp(:,iEdge) = 0.0_RKIND
+            do j = 1, nEdgesOnEdge(iEdge)
+               jEdge = edgesOnEdge(j,iEdge)
+               weightsOnEdge_lsqr_temp = weightsOnEdge_lsqr(j,iEdge)
+               do k = minLevelCell(iCell), maxLevelCell(iCell)
+                  u_perp(k,iEdge) = u_perp(k,iEdge) + weightsOnEdge_lsqr_temp*normalVelocity(k,jEdge)
+               end do
+            end do
+            do k = minLevelCell(iCell), maxLevelCell(iCell)
+               kineticEnergyEdge(k,iEdge) = 0.5_RKIND*(normalVelocity(k,iEdge)*normalVelocity(k,iEdge) + u_perp(k,iEdge)*u_perp(k,iEdge))
+            end do
+         end do
+         kineticEnergyCell(:, iCell) = 0.0_RKIND
+         do iCell = 1, nCells 
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               do k = minLevelCell(iCell), maxLevelCell(iCell)
+                  !ke_baricentric(k,iCell) = ke_baricentric(k,iCell) + weightsEdgeToCell(i,iCell)*ke_edge(k,edgesOnCell(i,iCell))
+                  kineticEnergyCell(k,iCell) = kineticEnergyCell(k,iCell) + 0.25_RKIND * dcEdge(iEdge) * dvEdge(iEdge) * kineticEnergyEdge(k,iEdge)
+               end do 
+            end do
+            do k = 1, nVertLevels
+               !ke_baricentric(k,iCell) = ke_baricentric(k,iCell) / !areaCell(iCell)
+               kineticEnergyCell(k,iCell) = kineticEnergyCell(k,iCell) / areaCell(iCell)
+            end do
+         end do
+      else
+         do iCell = 1, nCells
+            kineticEnergyCell(:, iCell) = 0.0_RKIND
+            invAreaCell1 = invAreaCell(iCell)
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               dcEdge_temp = dcEdge(iEdge)
+               do k = minLevelCell(iCell), maxLevelCell(iCell)
+                  r_tmp = dvEdge_temp * normalVelocity(k, iEdge) * invAreaCell1
+                   kineticEnergyCell(k, iCell) = kineticEnergyCell(k, iCell) &
+                                                  + 0.25 * r_tmp * dcEdge_temp * normalVelocity(k,iEdge)
+               end do
+            end do
+         end do   
+      end if
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !$omp end do
       !$omp end parallel
 
       deallocate(heightCell)
       deallocate(heightCellLag)
+      deallocate(div_hu,div_huTransport,div_huGMBolus)
+      deallocate(u_perp,kineticEnergyEdge)
 
    end subroutine ocn_diagnostic_solve_vertVel_remap!}}}
 

@@ -211,6 +211,10 @@
 					description="The number of time levels in the time-stepping scheme. This is used for array allocation."
 					possible_values="Any integer greater than or equal to 2."
 		/>
+		<nml_option name="config_triskCV" type="logical" default_value=".false." units="unitless"
+                                        description="Turns on the computation of the kinetic energy in the TRiSK-CV way."
+                                        possible_values=".true. or .false."
+		/>
 	</nml_record>
 	<nml_record name="hmix" mode="forward">
 		<nml_option name="config_hmix_scaleWithMesh" type="logical" default_value=".false."
@@ -2037,6 +2041,10 @@
 			<var name="xtime"/>
 			<var name="zMid"/>
 			<var name="zTop"/>
+                        <var name="areaCVEdge"/>
+                        <var name="weightsEdgeToCell"/>
+                        <var name="invBtB"/>
+                        <var name="weightsOnEdge_lsqr"/>
 			<var name="kineticEnergyCell"/>
 			<var name="relativeVorticityCell"/>
 			<var name="areaCellGlobal"/>
@@ -2513,6 +2521,15 @@
 		<var name="weightsOnEdge" type="real" dimensions="maxEdges2 nEdges" units="1"
 			 description="Reconstruction weights associated with each of the edgesOnEdge, used to reconstruct the tangentialVelocity from normalVelocities on neighboring edges."
 		/>
+                <var name="weightsOnEdge_lsqr" type="real" dimensions="maxEdges2 nEdges" units="unitless"
+			 desription="Weights associated with each of the edgesOnEdge needed for the tangential velocity in the kinetic energy for TRiSK-CV."
+                />
+                <var name="weightsEdgeToCell" type="real" dimensions="maxEdges nCells" units="unitless"
+                         desription="Weights needed for the edge to cell mapping in TRiSK-CV."
+                />
+                <var name="areaCVEdge" type="real" dimensions="nEdges" units="m^2"
+                         desription="Areas of the diamond-shaped control volumes for TRiSK-CV."
+                />
 		<var name="dvEdge" type="real" dimensions="nEdges" units="m"
 			 description="The distance (great circle distance for spherical meshes, Euclidean distance for planar meshes) between the two vertices (defined by verticesOnEdge) located at the endpoints of a given edge. It is the length of the edge on the primal mesh."
 		/>
@@ -2558,7 +2575,10 @@
 		<var name="kiteAreasOnVertex" type="real" dimensions="vertexDegree nVertices" units="m^2"
 			 description="Area of the portions of each dual cell that are part of each cellsOnVertex."
 		/>
-		<var name="fEdge" type="real" dimensions="nEdges" units="radians s^-1"
+        <var name="invBtB" type="real" dimensions="vertexDegree vertexDegree nEdges" units="m^2"
+             description="3x3 matrix needed for each edge in the kinetic energy for TRiSK-CV."
+        />
+		<var name="fEdge" type="real" dimensions="nEdges" units="s^{-1}"
 			 description="Coriolis parameter at edges."
 		/>
 		<var name="fVertex" type="real" dimensions="nVertices" units="radians s^-1"
