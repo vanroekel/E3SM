@@ -643,6 +643,16 @@
     </queues>
   </batch_system>
 
+  <batch_system MACH="venado" type="slurm">
+    <directives>
+     <directive>--partition=standard </directive>
+     <directive>--qos=standard </directive>
+    </directives>
+    <queues>
+      <queue walltimemax="16:00:00" nodemax="1792" default="true">standard</queue>
+    </queues>
+   </batch_system>
+
    <batch_system MACH="chicoma-cpu" type="slurm">
     <directives>
      <directive>--partition=standard </directive>

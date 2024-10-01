@@ -1,3 +1,9 @@
+string(APPEND CONFIG_ARGS " --host=cray")
+if (COMP_NAME STREQUAL gptl)
+  string(APPEND CPPDEFS " -DBIT64 -DHAVE_SLASHPROC -DHAVE_GETTIMEOFDAY")
+endif()
+set(PIO_FILESYSTEM_HINTS "lustre")
+
 if (compile_threaded)
   string(APPEND CMAKE_C_FLAGS   " -fopenmp")
   string(APPEND CMAKE_Fortran_FLAGS   " -fopenmp")

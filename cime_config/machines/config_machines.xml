@@ -4174,6 +4174,119 @@
 
   </machine>
 
+  <machine MACH="venado">
+    <DESC>Venado CPU-only nodes at LANL IC. Each node has NVIDIA grace cpu</DESC>
+    <NODENAME_REGEX>ve-fe*</NODENAME_REGEX>
+    <OS>Linux</OS>
+    <COMPILERS>gnu,cray,crayclang</COMPILERS>
+    <MPILIBS>mpich</MPILIBS>
+    <CIME_OUTPUT_ROOT>/lustre/vescratch1/$ENV{USER}/E3SM/scratch/venado-cpu</CIME_OUTPUT_ROOT>
+    <DIN_LOC_ROOT>/usr/projects/e3sm/inputdata</DIN_LOC_ROOT>
+    <DIN_LOC_ROOT_CLMFORC>/usr/projects/e3sm/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+    <DOUT_S_ROOT>/lustre/vescratch1/$ENV{USER}/E3SM/archive/$CASE</DOUT_S_ROOT>
+    <BASELINE_ROOT>/lustre/vescratch1/$ENV{USER}/E3SM/input_data/ccsm_baselines/$COMPILER</BASELINE_ROOT>
+    <CCSM_CPRNC>/usr/projects/climate/SHARED_CLIMATE/software/badger/cprnc</CCSM_CPRNC>
+    <GMAKE_J>10</GMAKE_J>
+    <TESTS>e3sm_developer</TESTS>
+    <NTEST_PARALLEL_JOBS>4</NTEST_PARALLEL_JOBS>
+    <BATCH_SYSTEM>slurm</BATCH_SYSTEM>
+    <SUPPORTED_BY>e3sm</SUPPORTED_BY>
+    <MAX_TASKS_PER_NODE>288</MAX_TASKS_PER_NODE>
+    <MAX_MPITASKS_PER_NODE>144</MAX_MPITASKS_PER_NODE>
+    <PROJECT_REQUIRED>FALSE</PROJECT_REQUIRED>
+    <mpirun mpilib="default">
+      <executable>srun</executable>
+      <arguments>
+        <arg name="label"> --label</arg>
+        <arg name="num_tasks"> -n {{ total_tasks }} -N {{ num_nodes }}</arg>
+        <arg name="thread_count">-c $SHELL{echo 288/`./xmlquery --value MAX_MPITASKS_PER_NODE`|bc}</arg>
+        <arg name="binding"> $SHELL{if [ 144 -ge `./xmlquery --value MAX_MPITASKS_PER_NODE` ]; then echo "--cpu_bind=cores"; else echo "--cpu_bind=threads";fi;}</arg>
+        <arg name="placement"> -m plane=$SHELL{echo `./xmlquery --value MAX_MPITASKS_PER_NODE`}</arg>
+    </arguments>
+    </mpirun>
+    <module_system type="module" allow_error="true">
+	  <init_path lang="perl">/opt/cray/pe/lmod/8.7.31/init/perl</init_path>
+	  <init_path lang="python">/opt/cray/pe/lmod/8.7.31/init/python</init_path>
+	  <init_path lang="sh">/opt/cray/pe/lmod/8.7.31/init/sh</init_path>
+	  <init_path lang="csh">/opt/cray/pe/lmod/8.7.31/init/csh</init_path>
+	  <cmd_path lang="perl">/opt/cray/pe/lmod/lmod/libexec/lmod perl</cmd_path>
+	  <cmd_path lang="python">/opt/cray/pe/lmod/lmod/libexec/lmod python</cmd_path>
+      <cmd_path lang="sh">module</cmd_path>
+      <cmd_path lang="csh">module</cmd_path>
+
+      <modules>
+        <command name="unload">cray-hdf5-parallel</command>
+        <command name="unload">cray-netcdf-hdf5parallel</command>
+        <command name="unload">cray-parallel-netcdf</command>
+        <command name="unload">cray-netcdf</command>
+        <command name="unload">cray-hdf5</command>
+        <command name="unload">PrgEnv-gnu</command>
+        <command name="unload">PrgEnv-cray</command>
+        <command name="unload">nvidia</command>
+        <command name="unload">cudatoolkit</command>
+        <command name="unload">climate-utils</command>
+        <command name="unload">craype-accel-nvidia80</command>
+        <command name="unload">craype-accel-host</command>
+        <command name="unload">perftools-base</command>
+        <command name="unload">perftools</command>
+        <command name="unload">darshan</command>
+      </modules>
+
+      <modules compiler="gnu">
+        <command name="load">PrgEnv-gnu/8.5.0</command>
+        <command name="load">gcc-native/12.3</command>
+        <command name="load">cray-libsci/23.12.5</command>
+      </modules>
+
+	  <modules compiler="crayclang">
+        <command name="load">PrgEnv-cray/8.5.0</command>
+        <command name="load">cce/17.0.0</command>
+        <command name="load">cray-libsci/23.12.5</command>
+      </modules>
+
+      <modules compiler="cray">
+        <command name="load">PrgEnv-cray/8.5.0</command>
+        <command name="load">cce/17.0.0</command>
+        <command name="load">cray-libsci/23.12.5</command>
+      </modules>
+
+      <modules>
+        <command name="load">craype-accel-host</command>
+        <command name="load">craype/2.7.30</command>
+        <command name="load">cray-mpich/8.1.28</command>
+        <command name="load">libfabric/1.15.2.0</command>
+        <command name="load">cray-hdf5-parallel/1.12.2.9</command>
+        <command name="load">cray-netcdf-hdf5parallel/4.9.0.9</command>
+        <command name="load">cray-parallel-netcdf/1.12.3.9</command>
+      </modules>
+    </module_system>
+
+    <RUNDIR>$CIME_OUTPUT_ROOT/$CASE/run</RUNDIR>
+    <EXEROOT>$CIME_OUTPUT_ROOT/$CASE/bld</EXEROOT>
+    <TEST_TPUT_TOLERANCE>0.1</TEST_TPUT_TOLERANCE>
+
+    <environment_variables>
+	  <env name="MPICH_SMP_SINGLE_COPY_MODE">CMA</env>
+	  <env name="MPICH_MALLOC_FALLBACK">1</env>
+      <env name="MPICH_ENV_DISPLAY">1</env>
+      <env name="MPICH_VERSION_DISPLAY">1</env>
+      <env name="OMP_STACKSIZE">128M</env>
+      <env name="OMP_PROC_BIND">spread</env>
+      <env name="OMP_PLACES">threads</env>
+      <env name="HDF5_USE_FILE_LOCKING">FALSE</env>
+      <env name="PERL5LIB">/usr/projects/climate/SHARED_CLIMATE/software/chicoma-cpu/perl5-only-switch/lib/perl5</env>
+      <env name="PNETCDF_HINTS">romio_ds_write=disable;romio_ds_read=disable;romio_cb_write=enable;romio_cb_read=enable</env>
+      <env name="FI_CXI_RX_MATCH_MODE">software</env>
+      <env name="MPICH_COLL_SYNC">MPI_Bcast</env>
+      <env name="NETCDF_PATH">$ENV{CRAY_NETCDF_HDF5PARALLEL_PREFIX}</env>
+      <env name="PNETCDF_PATH">$ENV{CRAY_PARALLEL_NETCDF_PREFIX}</env>
+    </environment_variables>
+    <resource_limits>
+      <resource name="RLIMIT_STACK">-1</resource>
+    </resource_limits>
+  </machine>
+
+
   <machine MACH="chicoma-cpu">
     <DESC>Chicoma CPU-only nodes at LANL IC. Each node has 2 AMD EPYC 7H12 64-Core (Milan) 512GB</DESC>
     <NODENAME_REGEX>ch-fe*</NODENAME_REGEX>
