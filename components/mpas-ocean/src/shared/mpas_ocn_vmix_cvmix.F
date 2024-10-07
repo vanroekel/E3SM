@@ -62,6 +62,7 @@ module ocn_vmix_cvmix
    type(cvmix_global_params_type) :: cvmix_global_params
    type(cvmix_bkgnd_params_type)  :: cvmix_background_params
    type(cvmix_shear_params_type)  :: cvmix_shear_params
+   type(cvmix_ddiff_params_type) :: cvmix_ddiff_params
    type(cvmix_tidal_params_type)  :: cvmix_tidal_params
 
    logical :: cvmixOn, cvmixConvectionOn, cvmixKPPOn
@@ -137,6 +138,7 @@ contains
       !-----------------------------------------------------------------
 
       type(cvmix_data_type) :: cvmix_variables
+      type(mpas_pool_type),pointer :: tracersPool
 
       integer, dimension(:), pointer :: &
         maxLevelCell, minLevelCell, nEdgesOnCell, maxLevelEdgeTop, minLevelEdgeBot
@@ -160,7 +162,7 @@ contains
 
       real (kind=RKIND) :: x, bulkRichardsonNumberStop, sfc_layer_depth
       real (kind=RKIND) :: normalVelocityAv, delU2, areaSum, blTemp,tangentialVelocityAv
-      real (kind=RKIND) :: sigma
+      real (kind=RKIND) :: sigma, dlt, avg_alpha, avg_beta
       real (kind=RKIND), dimension(:), allocatable :: Nsqr_iface, turbulentScalarVelocityScale, &
                                                       deltaVelocitySquared, normalVelocitySum, &
                                                       potentialDensitySum, RiTemp,              &
@@ -175,7 +177,7 @@ contains
       real(kind=RKIND), dimension(:,:), pointer :: stokesDriftMeridionalWavenumber
       real(kind=RKIND), dimension(:), pointer :: significantWaveHeight
       real(kind=RKIND), dimension(:), pointer :: windStressZonal, windStressMeridional
-
+      real(kind=RKIND), dimension(:,:,:), pointer, contiguous :: activeTracers
 
 
       !-----------------------------------------------------------------
@@ -205,6 +207,7 @@ contains
       !
       ! set parameters
       !
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(meshPool, 'nVertLevelsP1', nVertLevelsP1)
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
@@ -218,6 +221,8 @@ contains
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
       call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
 
+      call mpas_pool_get_array(tracersPool, 'activeTracers', &
+                                             activeTracers, timeLevel)
       !
       ! set pointers for fields related to position on sphere
       !
@@ -430,6 +435,26 @@ contains
          cvmix_variables % BulkRichardson_cntr => bulkRichardsonNumber(minLevelCell(iCell):maxLevelCell(iCell), iCell)
 
          if (kpp_stage == 2) then
+         if (config_use_cvmix_ddiff) then
+            !fill in the density ratio numerator and denominator
+            cvmix_variables % strat_param_num(:) = 0.0_RKIND
+            cvmix_variables % strat_param_denom(:) = 1.0E-15_RKIND
+            do k = minLevelCell(iCell), maxLevelCell(iCell)-1
+               dlt = layerThickness(k,iCell) + layerThickness(k+1,iCell)
+               avg_alpha = (layerThickness(k,iCell)*thermExpCoeff(k,iCell) + &
+                             layerThickness(k+1,iCell)*thermExpCoeff(k+1,iCell)) / dlt
+               avg_beta = (layerThickness(k,iCell)*salineContractCoeff(k,iCell) + &
+                           layerThickness(k+1,iCell)*salineContractCoeff(k+1,iCell)) / dlt
+               cvmix_variables % strat_param_num(k) = avg_alpha*(activeTracers(1,k,iCell) - &
+                                                      activeTracers(1,k+1,iCell))/(0.5_RKIND*dlt)
+               cvmix_variables % strat_param_denom(k) = avg_beta*(activeTracers(2,k,iCell) - &
+                                                        activeTracers(2,k+1,iCell))/(0.5_RKIND*dlt)
+            end do
+
+            call cvmix_coeffs_ddiff( &
+                 cvmix_variables, &
+                 cvmix_ddiff_params)
+         end if
          if (config_use_cvmix_shear) then
 
             do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
@@ -1035,7 +1060,16 @@ contains
       !  (at present, double diffusion can only use CVMix default parameter settings)
       !
       if (config_use_cvmix_double_diffusion) then
-        call cvmix_init_ddiff( )
+        call cvmix_init_ddiff(cvmix_ddiff_params, &
+                              strat_param_max=config_cvmix_ddiff_den_ratio_param_max, &
+                              kappa_ddiff_s=config_cvmix_ddiff_kappa_diff_s, &
+                              ddiff_exp1=config_cvmix_ddiff_exp1, &
+                              ddiff_exp2=config_cvmix_ddiff_exp2, &
+                              mol_diff=config_cvmix_ddiff_molecular_diffusivity, &
+                              kappa_ddiff_param1=config_cvmix_ddiff_param1, &
+                              kappa_ddiff_param2=config_cvmix_ddiff_param2, &
+                              kappa_ddiff_param3=config_cvmix_ddiff_param3, &
+                              diff_conv_type=config_cvmix_ddiff_convection_type)
       endif
 
       !
