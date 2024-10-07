@@ -1083,6 +1083,86 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_use_cvmix_ddiff" type="logical"
+	category="cvmix" group="cvmix">
+Flag to enable or disable salt fingering and double diffusive convection
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_den_ratio_param_max" type="real"
+	category="cvmix" group="cvmix">
+maximum density ratio (alpha dTdz / beta dSdz) for DD mixing.
+
+Valid values: small positive reals (less than 3)
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_kappa_diff_s" type="real"
+	category="cvmix" group="cvmix">
+maximum diffusivity of salt for salt fingering cases.
+
+Valid values: small positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_exp1" type="real"
+	category="cvmix" group="cvmix">
+Exponent inside the bracket of equation A4 of Danabasoglu et al 2006
+
+Valid values: small integers
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_exp2" type="real"
+	category="cvmix" group="cvmix">
+Exponent on the outside of the bracket of equation A4 of Danabasoglu et al 2006
+
+Valid values: small integers
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_molecular_diffusivity" type="real"
+	category="cvmix" group="cvmix">
+molecular diffusivity (m^2/s)
+
+Valid values: very small positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_param1" type="real"
+	category="cvmix" group="cvmix">
+Leading factor on the diffusive convection equation (eq 32 of Large et al 1994)
+
+Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_param2" type="real"
+	category="cvmix" group="cvmix">
+factor inside exponent 1 of equation 32 of Large et al 1994
+
+Valid values: positive reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_param3" type="real"
+	category="cvmix" group="cvmix">
+term inside last exponent of equation 32 of Large et al 1994
+
+Valid values: small reals
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_cvmix_ddiff_convection_type" type="char*1024"
+	category="cvmix" group="cvmix">
+name of double diffusive option to utilize
+
+Valid values: MC76 or K88
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- wave_coupling -->
 
