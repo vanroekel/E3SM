@@ -677,6 +677,16 @@ if ($ocn_wave eq 'true' ) {
 	add_default($nl, 'config_cvmix_kpp_langmuir_mixing_opt');
 	add_default($nl, 'config_cvmix_kpp_langmuir_entrainment_opt');
 }
+add_default($nl, 'config_use_cvmix_ddiff');
+add_default($nl, 'config_cvmix_ddiff_den_ratio_param_max');
+add_default($nl, 'config_cvmix_ddiff_kappa_diff_s');
+add_default($nl, 'config_cvmix_ddiff_exp1');
+add_default($nl, 'config_cvmix_ddiff_exp2');
+add_default($nl, 'config_cvmix_ddiff_molecular_diffusivity');
+add_default($nl, 'config_cvmix_ddiff_param1');
+add_default($nl, 'config_cvmix_ddiff_param2');
+add_default($nl, 'config_cvmix_ddiff_param3');
+add_default($nl, 'config_cvmix_ddiff_convection_type');
 
 #################################
 # Namelist group: wave_coupling #

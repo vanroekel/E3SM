@@ -324,6 +324,16 @@
 <config_cvmix_kpp_langmuir_mixing_opt>'NONE'</config_cvmix_kpp_langmuir_mixing_opt>
 <config_cvmix_kpp_langmuir_entrainment_opt>'NONE'</config_cvmix_kpp_langmuir_entrainment_opt>
 <config_cvmix_kpp_use_active_wave>.false.</config_cvmix_kpp_use_active_wave>
+<config_use_cvmix_ddiff>.true.</config_use_cvmix_ddiff>
+<config_cvmix_ddiff_den_ratio_param_max>2.55</config_cvmix_ddiff_den_ratio_param_max>
+<config_cvmix_ddiff_kappa_diff_s>1e-4</config_cvmix_ddiff_kappa_diff_s>
+<config_cvmix_ddiff_exp1>1</config_cvmix_ddiff_exp1>
+<config_cvmix_ddiff_exp2>3</config_cvmix_ddiff_exp2>
+<config_cvmix_ddiff_molecular_diffusivity>1.5e-6</config_cvmix_ddiff_molecular_diffusivity>
+<config_cvmix_ddiff_param1>0.909</config_cvmix_ddiff_param1>
+<config_cvmix_ddiff_param2>4.6</config_cvmix_ddiff_param2>
+<config_cvmix_ddiff_param3>-0.54</config_cvmix_ddiff_param3>
+<config_cvmix_ddiff_convection_type>'MC76'</config_cvmix_ddiff_convection_type>
 
 <!-- wave_coupling -->
 <config_use_active_wave>.false.</config_use_active_wave>
