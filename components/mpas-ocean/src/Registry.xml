@@ -650,7 +650,7 @@
 		/>
 	    <nml_option name="config_cvmix_ddiff_den_ratio_param_max" type="real" default_value="2.55"
 		            description="maximum density ratio (alpha dTdz / beta dSdz) for DD mixing."
-					possible_values="small positive reals (<3)"
+					possible_values="small positive reals (less than3)"
 		/>
 	    <nml_option name="config_cvmix_ddiff_kappa_diff_s" type="real" default_value="1e-4"
 		            description="maximum diffusivity of salt for salt fingering cases."
@@ -670,15 +670,15 @@
 		/>
 	    <nml_option name="config_cvmix_ddiff_param1" type="real" default_value="0.909"
 		            description="Leading factor on the diffusive convection equation (eq 32 of Large et al 1994)"
-					possible+values="positive reals"
+					possible_values="positive reals"
 		/>
 	    <nml_option name="config_cvmix_ddiff_param2" type="real" default_value="4.6"
 		            description="factor inside exponent 1 of equation 32 of Large et al 1994"
-					possible+values="positive reals"
+					possible_values="positive reals"
 		/>
 	    <nml_option name="config_cvmix_ddiff_param3" type="real" default_value="-0.54"
 		            description="term inside last exponent of equation 32 of Large et al 1994"
-					possible+values="small reals"
+					possible_values="small reals"
 		/>
 		<nml_option name="config_cvmix_ddiff_convection_type" type="character" default_value="MC76"
 		            description="name of double diffusive option to utilize"
