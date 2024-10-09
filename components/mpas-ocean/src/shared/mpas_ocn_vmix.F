@@ -54,7 +54,8 @@ module ocn_vmix
 
    public :: ocn_vmix_coefs, &
              ocn_vel_vmix_tend_implicit, &
-             ocn_tracer_vmix_tend_implicit, &
+             ocn_active_tracer_vmix_tend_implicit, &
+             ocn_passive_tracer_vmix_tend_implicit, &
              ocn_vmix_init, &
              ocn_vmix_implicit
 
@@ -194,7 +195,7 @@ contains
 #endif
       do iCell = 1, nCells
       do k = 1, nVertLevels
-         vertDiffTopOfCell(k, iCell) = 0.0_RKIND
+         vertDiffTopOfCell(:, k, iCell) = 0.0_RKIND
       end do
       end do
 #ifndef MPAS_OPENACC
@@ -207,8 +208,8 @@ contains
 #endif
 
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, err1, timeLevel)
-      call ocn_vmix_coefs_redi_build(meshPool, statePool, err2, timeLevel)
       call ocn_vmix_coefs_gotm_build(statePool, forcingPool, err3, timeLevel)
+      call ocn_vmix_coefs_redi_build(meshPool, statePool, err2, timeLevel)
 
       err = ior(ior(err1, err2), err3)
 
@@ -1147,9 +1148,9 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_tracer_vmix_tend_implicit
+!  routine ocn_active_tracer_vmix_tend_implicit
 !
-!> \brief   Computes tendencies for implicit tracer vertical mixing
+!> \brief   Computes tendencies for implicit active tracer vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
 !> \details
@@ -1158,7 +1159,171 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_vmix_tend_implicit(dt, vertDiffTopOfCell, layerThickness, tracers, &
+   subroutine ocn_active_tracer_vmix_tend_implicit(dt, vertDiffTopOfCell, layerThickness, tracers, &
+                  vertNonLocalFlux, tracerGroupSurfaceFlux, config_cvmix_kpp_nonlocal_with_implicit_mix, &
+                  err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         vertDiffTopOfCell !< Input: vertical mixing coefficients
+
+      real (kind=RKIND), intent(in) :: &
+         dt            !< Input: time step
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         layerThickness, &             !< Input: thickness at cell center
+         tracerGroupSurfaceFlux        !< Input: surface flux for tracers nonlocal computation
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         vertNonLocalFlux             !non local flux at interfaces
+
+      logical, intent(in) :: config_cvmix_kpp_nonlocal_with_implicit_mix
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tracers        !< Input: tracers
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, iTracer, num_tracers, N, Nsurf
+
+      real (kind=RKIND), dimension(:,:), allocatable :: bTemp, C
+      real (kind=RKIND), dimension(:,:), allocatable :: rTemp
+      real (kind=RKIND) :: A, m
+
+      err = 0
+
+      if(.not.tracerVmixOn) return
+
+      num_tracers = size(tracers, dim=1)
+
+      allocate(bTemp(num_tracers,nVertLevels),C(num_tracers,nVertLevels))
+      allocate(rTemp(num_tracers,nVertLevels))
+
+      call mpas_timer_start('vmix tracers tend imp loop', .false.)
+
+#ifdef MPAS_OPENACC
+      !$acc enter data create(bTemp, C, rTemp)
+
+      !$acc parallel loop present(maxLevelCell, minLevelCell, vertDiffTopOfCell, &
+      !$acc    layerThickness, tracers, tracerGroupSurfaceFlux, vertNonLocalFlux) &
+      !$acc    private(Nsurf, N, A, bTemp, C, m, rTemp, iTracer, k)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime) private(Nsurf, N, A, bTemp, C, m, rTemp, iTracer, k)
+#endif
+      do iCell = 1, nCellsOwned
+         Nsurf = minLevelCell(iCell)
+         N = maxLevelCell(iCell)
+         do iTracer = 1, num_tracers
+           ! tridiagonal matrix algorithm
+           C(iTracer,Nsurf) = -2.0_RKIND*dt*vertDiffTopOfCell(iTracer,Nsurf+1,iCell) &
+                    / (layerThickness(Nsurf,iCell) + layerThickness(Nsurf+1,iCell)) &
+                    / layerThickness(Nsurf,iCell)
+           bTemp(iTracer,Nsurf) = 1.0_RKIND - C(iTracer,Nsurf)
+           if ( config_cvmix_kpp_nonlocal_with_implicit_mix ) then
+               rTemp(iTracer,Nsurf) = tracers(iTracer,Nsurf,iCell) + dt*tracerGroupSurfaceFlux(iTracer,iCell) &
+                    * (-vertNonLocalFlux(1, Nsurf+1,iCell) )/ layerThickness(Nsurf,iCell)
+           else
+               rTemp(iTracer,Nsurf) = tracers(iTracer,Nsurf,iCell)
+           endif
+         end do
+
+         ! first pass: set the coefficients
+         do k = Nsurf+1, N-1
+           do iTracer = 1, num_tracers
+            A        = -2.0_RKIND*dt*vertDiffTopOfCell(iTracer,k,iCell) &
+                   / (layerThickness(k-1,iCell) + layerThickness(k,iCell)) / layerThickness(k,iCell)
+            m        = A/bTemp(iTracer,k-1)
+            C(itracer,k)     = -2.0_RKIND*dt*vertDiffTopOfCell(iTracer,k+1,iCell) &
+                   / (layerThickness(k,iCell) + layerThickness(k+1,iCell)) / layerThickness(k,iCell)
+            bTemp(iTracer,k) = 1.0_RKIND - A - C(iTracer,k) - m*C(iTracer,k-1)
+            if ( config_cvmix_kpp_nonlocal_with_implicit_mix ) then
+                  rTemp(iTracer,k) = tracers(iTracer,k,iCell) + dt*tracerGroupSurfaceFlux(iTracer,iCell) &
+                       * (vertNonLocalFlux(1,k,iCell) - vertNonLocalFlux(1,k+1,iCell)) / layerThickness(k,iCell) &
+                       - m*rTemp(iTracer,k-1)
+            else
+                  rTemp(iTracer,k) = tracers(iTracer,k,iCell) - m*rTemp(iTracer,k-1)
+            endif
+           end do
+         enddo
+
+         do iTracer = 1, num_tracers
+           A = -2.0_RKIND*dt*vertDiffTopOfCell(iTracer,N,iCell) &
+             / (layerThickness(N-1,iCell) + layerThickness(N,iCell)) / layerThickness(N,iCell)
+           m = A/bTemp(iTracer,N-1)
+
+           ! x(N) = rTemp(N) / bTemp(N)
+           if ( config_cvmix_kpp_nonlocal_with_implicit_mix ) then
+               tracers(iTracer,N,iCell) = (tracers(iTracer,N,iCell) + dt*tracerGroupSurfaceFlux(iTracer,iCell) &
+                      * vertNonLocalFlux(1,N,iCell) / layerThickness(N,iCell) &
+                      - m*rTemp(iTracer,N-1)) / (1.0_RKIND - A - m*C(iTracer,N-1))
+           else
+               tracers(iTracer,N,iCell) = (tracers(iTracer,N,iCell) - m*rTemp(iTracer,N-1)) &
+                      / (1.0_RKIND - A - m*C(iTracer,N-1))
+           endif
+         end do
+         ! second pass: back subsititution
+         do k = N-1, Nsurf, -1
+           do iTracer = 1, num_tracers
+             tracers(iTracer,k,iCell) = (rTemp(iTracer,k) - C(iTracer,k)*tracers(iTracer,k+1,iCell)) / bTemp(iTracer,k)
+           end do
+         enddo
+         tracers(:,1:Nsurf-1,iCell) = -1e34
+         tracers(:,N+1:nVertLevels,iCell) = -1e34
+
+      end do
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
+
+#ifdef MPAS_OPENACC
+      !$acc exit data delete(bTemp, C, rTemp)
+#endif
+      call mpas_timer_stop('vmix tracers tend imp loop')
+
+      deallocate(bTemp, C, rTemp)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_active_tracer_vmix_tend_implicit!}}}
+
+!***********************************************************************
+!
+!  routine ocn_passive_tracer_vmix_tend_implicit
+!
+!> \brief   Computes tendencies for implicit passive tracer vertical mixing
+!> \author  Mark Petersen
+!> \date    September 2011
+!> \details
+!>  This routine computes the tendencies for implicit vertical mixing for
+!>  tracers using computed coefficients.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_passive_tracer_vmix_tend_implicit(dt, vertDiffTopOfCell, layerThickness, tracers, &
                   vertNonLocalFlux, tracerGroupSurfaceFlux, config_cvmix_kpp_nonlocal_with_implicit_mix, &
                   err)!{{{
 
@@ -1314,7 +1479,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_tracer_vmix_tend_implicit!}}}
+   end subroutine ocn_passive_tracer_vmix_tend_implicit!}}}
 
 !***********************************************************************
 !
@@ -1597,7 +1762,7 @@ contains
 #endif
                   do iCell = 1, nCellsOwned
                   do k = 2, maxLevelCell(iCell)
-                      vertDiffPassiveTopOfCell(k,iCell) = vertDiffTopOfCell(k,iCell) - &
+                      vertDiffPassiveTopOfCell(k,iCell) = vertDiffTopOfCell(2,k,iCell) - &
                          config_cvmix_background_diffusion + config_cvmix_background_diffusion_passive
                   end do
                   end do
@@ -1615,11 +1780,11 @@ contains
                       !$acc update host (vertDiffPassiveTopOfCell)
 #endif
 
-                      call ocn_tracer_vmix_tend_implicit(dt, vertDiffPassiveTopOfCell, layerThickness, tracersGroup, &
+                      call ocn_passive_tracer_vmix_tend_implicit(dt, vertDiffPassiveTopOfCell, layerThickness, tracersGroup, &
                         vertNonLocalFlux, tracerGroupSurfaceFlux,  &
                         config_cvmix_kpp_nonlocal_with_implicit_mix, err)
                else
-                      call ocn_tracer_vmix_tend_implicit(dt, vertDiffTopOfCell, layerThickness, tracersGroup, &
+                      call ocn_active_tracer_vmix_tend_implicit(dt, vertDiffTopOfCell, layerThickness, tracersGroup, &
                         vertNonLocalFlux, tracerGroupSurfaceFlux,  &
                         config_cvmix_kpp_nonlocal_with_implicit_mix, err)
                end if

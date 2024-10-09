@@ -153,7 +153,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), dimension(:,:), intent(inout) :: vertDiffTopOfCell !< Output: Vertical diffusion
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: vertDiffTopOfCell !< Output: Vertical diffusion
 
       !-----------------------------------------------------------------
       !
@@ -207,8 +207,10 @@ contains
             rediKappaCell = rediKappaCell + 0.25_RKIND*RediKappa(iEdge) * dvEdge(iEdge) * dcEdge(iEdge)
          enddo
 
-         vertDiffTopOfCell(:, iCell) = vertDiffTopOfCell(:, iCell) + rediKappaCell * k33(:, iCell) &
+         do i = 1, 2
+           vertDiffTopOfCell(i,:, iCell) = vertDiffTopOfCell(i,:, iCell) + rediKappaCell * k33(:, iCell) &
                         / areaCell(iCell)
+         end do
       end do
       !$omp end do
       !$omp end parallel

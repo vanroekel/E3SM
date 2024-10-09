@@ -190,7 +190,7 @@ contains
       !$omp do schedule(runtime)
       do iCell = 1, nCells
          vertViscTopOfCell(:, iCell) = 0.0_RKIND
-         vertDiffTopOfCell(:, iCell) = 0.0_RKIND
+         vertDiffTopOfCell(:, :, iCell) = 0.0_RKIND
       end do
       !$omp end do
       !$omp end parallel
@@ -299,7 +299,8 @@ contains
             gotmEpsbTopOfCellNew(k, iCell) = gotm_epsb(ki)
             ! update viscosity/diffusivity
             vertViscTopOfCell(k, iCell) = gotm_vertVisc(ki)
-            vertDiffTopOfCell(k, iCell) = gotm_vertDiffT(ki)
+            vertDiffTopOfCell(1, k, iCell) = gotm_vertDiffT(ki)
+            vertDiffTopOfCell(2, k, iCell) = gotm_vertDiffT(ki)
          end do
 
       end do

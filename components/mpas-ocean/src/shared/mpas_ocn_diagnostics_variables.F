@@ -156,7 +156,7 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:), pointer :: layerThicknessCellWetDry
    real (kind=RKIND), dimension(:), pointer :: sshCellWetDry
 
-   real (kind=RKIND), dimension(:,:), pointer :: vertDiffTopOfCell
+   real (kind=RKIND), dimension(:,:,:), pointer :: vertDiffTopOfCell
    real (kind=RKIND), dimension(:,:), pointer :: vertDiffPassiveTopOfCell
    real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
    integer, dimension(:,:), pointer :: rediLimiterCount

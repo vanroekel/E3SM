@@ -179,6 +179,7 @@ contains
       real(kind=RKIND), dimension(:), pointer :: windStressZonal, windStressMeridional
       real(kind=RKIND), dimension(:,:,:), pointer, contiguous :: activeTracers
 
+      real(kind=RKIND), dimension(:),   allocatable, target :: Rrho_num, Rrho_denom
 
       !-----------------------------------------------------------------
       !
@@ -261,7 +262,7 @@ contains
       !$omp do schedule(runtime)
       do iCell = 1, nCells
          vertViscTopOfCell(:, iCell) = 0.0_RKIND
-         vertDiffTopOfCell(:, iCell) = 0.0_RKIND
+         vertDiffTopOfCell(:, :, iCell) = 0.0_RKIND
          vertNonLocalFlux(:, :, iCell) = 0.0_RKIND
       end do
       !$omp end do
@@ -278,7 +279,7 @@ contains
          do iCell = 1, nCells
             do k = 1, nVertLevelsP1
                vertViscTopOfCell(k, iCell) = vertViscTopOfCell(k, iCell) + config_cvmix_background_viscosity
-               vertDiffTopOfCell(k, iCell) = vertDiffTopOfCell(k, iCell) + config_cvmix_background_diffusion
+               vertDiffTopOfCell(:, k, iCell) = vertDiffTopOfCell(:, k, iCell) + config_cvmix_background_diffusion
             end do
          end do
          !$omp end do
@@ -320,6 +321,8 @@ contains
       allocate(deltaVelocitySquared(nVertLevels))
       allocate(layerThicknessSum(nVertLevels))
       allocate(layerThicknessEdgeSum(nVertLevels))
+      allocate(Rrho_num(nVertLevels))
+      allocate(Rrho_denom(nVertLevels))
 
       do k = 1, nVertLevels
          Nsqr_iface(k) = 0.0_RKIND
@@ -396,10 +399,10 @@ contains
             do k = minLevelCell(iCell),maxLevelCell(iCell)
                x = (abs(cvmix_variables % zw_iface(k)) - config_cvmix_BryanLewis_transitionDepth) / &
                    config_cvmix_BryanLewis_transitionWidth
-               vertDiffTopOfCell(k, iCell) = vertDiffTopOfCell(k, iCell) + config_cvmix_BryanLewis_bl1 + &
+               vertDiffTopOfCell(:, k, iCell) = vertDiffTopOfCell(:, k, iCell) + config_cvmix_BryanLewis_bl1 + &
                         (config_cvmix_BryanLewis_bl2/2.0_RKIND)*(sign(1.0_RKIND, x)*(0.596227_RKIND*     &
                         abs(x)+x**2)/(1.0_RKIND+1.192454_RKIND*abs(x)+x**2))
-               vertViscTopOfCell(k, iCell) = config_cvmix_prandtl_number*vertDiffTopOfCell(k, iCell)
+               vertViscTopOfCell(k, iCell) = config_cvmix_prandtl_number*vertDiffTopOfCell(1, k, iCell)
             enddo
          endif
 
@@ -437,6 +440,8 @@ contains
          if (kpp_stage == 2) then
          if (config_use_cvmix_ddiff) then
             !fill in the density ratio numerator and denominator
+            cvmix_variables%strat_param_num => Rrho_num(:)
+            cvmix_variables%strat_param_denom => Rrho_denom(:)
             cvmix_variables % strat_param_num(:) = 0.0_RKIND
             cvmix_variables % strat_param_denom(:) = 1.0E-15_RKIND
             do k = minLevelCell(iCell), maxLevelCell(iCell)-1
@@ -451,16 +456,19 @@ contains
                                                         activeTracers(2,k+1,iCell))/(0.5_RKIND*dlt)
             end do
 
+            do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
+               cvmix_variables % Mdiff_iface(k) = 0.0_RKIND
+               cvmix_variables % Tdiff_iface(k) = 0.0_RKIND
+               cvmix_variables % Sdiff_iface(k) = 0.0_RKIND
+            end do
+
             call cvmix_coeffs_ddiff( &
                  cvmix_variables, &
                  cvmix_ddiff_params)
          end if
+
          if (config_use_cvmix_shear) then
 
-            do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
-               cvmix_variables % Mdiff_iface(k) = 0.0_RKIND
-               cvmix_variables % Tdiff_iface(k) = 0.0_RKIND
-            end do
             call cvmix_coeffs_shear( &
                  cvmix_variables, &
                  cvmix_shear_params)
@@ -477,7 +485,7 @@ contains
 
             do k = minLevelCell(iCell), maxLevelCell(iCell)
                vertViscTopOfCell(k, iCell) = vertViscTopOfCell(k, iCell) + cvmix_variables % Mdiff_iface(k)
-               vertDiffTopOfCell(k, iCell) = vertDiffTopOfCell(k, iCell) + cvmix_variables % Tdiff_iface(k)
+               vertDiffTopOfCell(:, k, iCell) = vertDiffTopOfCell(:, k, iCell) + cvmix_variables % Tdiff_iface(k)
             end do
 
          endif ! if (config_use_cvmix_shear)
@@ -690,7 +698,8 @@ contains
             ! copy data into cvmix_variables
             do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
               cvmix_variables % Mdiff_iface(k) = vertViscTopOfCell(k, iCell)
-              cvmix_variables % Tdiff_iface(k) = vertDiffTopOfCell(k, iCell)
+              cvmix_variables % Tdiff_iface(k) = vertDiffTopOfCell(1, k, iCell)
+              cvmix_variables % Sdiff_iface(k) = vertDiffTopOfCell(2, k, iCell)
             end do
 
             !must reapply max and min limits to boundaryLayerDepth
@@ -752,7 +761,8 @@ contains
 
             do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
                 vertViscTopOfCell(k, iCell) = cvmix_variables % Mdiff_iface(k)
-                vertDiffTopOfCell(k, iCell) = cvmix_variables % Tdiff_iface(k)
+                vertDiffTopOfCell(1, k, iCell) = cvmix_variables % Tdiff_iface(k)
+                vertDiffTopOfCell(2, k, iCell) = cvmix_variables % Sdiff_iface(k)
             end do
 
             ! store non-local flux terms
@@ -778,14 +788,15 @@ contains
             if(config_use_cvmix_kpp) then
                do k = ceiling(indexBoundaryLayerDepth(iCell)) + 1, maxLevelCell(iCell)
                   vertViscTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) + cvmix_variables % Mdiff_iface(k)
-                  vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k,iCell) + cvmix_variables % Tdiff_iface(k)
+                  vertDiffTopOfCell(1,k,iCell) = vertDiffTopOfCell(1,k,iCell) + cvmix_variables % Tdiff_iface(k)
+                  vertDiffTopOfCell(2,k,iCell) = vertDiffTopOfCell(2,k,iCell) + cvmix_variables % Tdiff_iface(k)
                enddo
             else
                vertViscTopOfCell(1:minLevelCell(iCell)-1, iCell) = 0.0_RKIND
-               vertDiffTopOfCell(1:minLevelCell(iCell)-1, iCell) = 0.0_RKIND
+               vertDiffTopOfCell(:,1:minLevelCell(iCell)-1, iCell) = 0.0_RKIND
                do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
                   vertViscTopOfCell(k, iCell) = vertViscTopOfCell(k, iCell) + cvmix_variables % Mdiff_iface(k)
-                  vertDiffTopOfCell(k, iCell) = vertDiffTopOfCell(k, iCell) + cvmix_variables % Tdiff_iface(k)
+                  vertDiffTopOfCell(:, k, iCell) = vertDiffTopOfCell(:, k, iCell) + cvmix_variables % Tdiff_iface(k)
                end do
             endif
          endif  ! if (config_use_cvmix_convection)
@@ -802,10 +813,10 @@ contains
          ! computation of viscosity/diffusivity complete
          ! impose no-flux boundary conditions at top and bottom by zero viscosity/diffusivity
          vertViscTopOfCell(1:minLevelCell(iCell), iCell) = 0.0_RKIND
-         vertDiffTopOfCell(1:minLevelCell(iCell), iCell) = 0.0_RKIND
+         vertDiffTopOfCell(:, 1:minLevelCell(iCell), iCell) = 0.0_RKIND
          do k = maxLevelCell(iCell)+1, nVertLevelsP1
             vertViscTopOfCell(k, iCell)=0.0_RKIND
-            vertDiffTopOfCell(k, iCell)=0.0_RKIND
+            vertDiffTopOfCell(:, k, iCell)=0.0_RKIND
          end do
 
  endif ! kpp stage 2 convection calc
@@ -1059,7 +1070,7 @@ contains
       ! initialize double diffusion
       !  (at present, double diffusion can only use CVMix default parameter settings)
       !
-      if (config_use_cvmix_double_diffusion) then
+      if (config_use_cvmix_ddiff) then
         call cvmix_init_ddiff(cvmix_ddiff_params, &
                               strat_param_max=config_cvmix_ddiff_den_ratio_param_max, &
                               kappa_ddiff_s=config_cvmix_ddiff_kappa_diff_s, &
