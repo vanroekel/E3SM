@@ -572,10 +572,6 @@
 					description="If true, diffusivity and viscosity is computed using CVMix tidal mixing"
 					possible_values="True or False"
 		/>
-		<nml_option name="config_use_cvmix_double_diffusion" type="logical" default_value=".false."
-					description="If true, diffusivity and viscosity is computed using CVMix double diffusion"
-					possible_values="True or False"
-		/>
 		<nml_option name="config_use_cvmix_kpp" type="logical" default_value=".false."
 					description="If true, diffusivity and viscosity is computed using CVMix KPP"
 					possible_values="True or False"
@@ -3284,7 +3280,7 @@
 			 description="vertical viscosity defined at the cell center (horizontally) and top (vertically)"
 			 packages="forwardMode;analysisMode"
 		/>
-		<var name="vertDiffTopOfCell" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2 s^-1"
+		<var name="vertDiffTopOfCell" type="real" dimensions="TWO nVertLevelsP1 nCells Time" units="m^2 s^-1"
 			 description="vertical diffusion defined at the cell center (horizontally) and top (vertically)"
 			 packages="forwardMode;analysisMode"
 		/>
