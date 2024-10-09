@@ -465,6 +465,13 @@ contains
             call cvmix_coeffs_ddiff( &
                  cvmix_variables, &
                  cvmix_ddiff_params)
+
+            do k = minLevelCell(iCell), maxLevelCell(iCell)
+               vertViscTopOfCell(k, iCell) = vertViscTopOfCell(k, iCell) + cvmix_variables % Mdiff_iface(k)
+               vertDiffTopOfCell(1, k, iCell) = vertDiffTopOfCell(1, k, iCell) + cvmix_variables % Tdiff_iface(k)
+               vertDiffTopOfCell(2, k, iCell) = vertDiffTopOfCell(2, k, iCell) + cvmix_variables % Sdiff_iface(k)
+            end do
+
          end if
 
          if (config_use_cvmix_shear) then
