@@ -652,7 +652,6 @@ add_default($nl, 'config_cvmix_shear_KPP_nu_zero');
 add_default($nl, 'config_cvmix_shear_KPP_Ri_zero');
 add_default($nl, 'config_cvmix_shear_KPP_exp');
 add_default($nl, 'config_use_cvmix_tidal_mixing');
-add_default($nl, 'config_use_cvmix_double_diffusion');
 add_default($nl, 'config_use_cvmix_kpp');
 add_default($nl, 'config_use_cvmix_fixed_boundary_layer');
 add_default($nl, 'config_cvmix_kpp_boundary_layer_depth');

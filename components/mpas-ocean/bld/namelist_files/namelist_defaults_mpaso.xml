@@ -305,7 +305,6 @@
 <config_cvmix_shear_KPP_Ri_zero>0.7</config_cvmix_shear_KPP_Ri_zero>
 <config_cvmix_shear_KPP_exp>3</config_cvmix_shear_KPP_exp>
 <config_use_cvmix_tidal_mixing>.false.</config_use_cvmix_tidal_mixing>
-<config_use_cvmix_double_diffusion>.false.</config_use_cvmix_double_diffusion>
 <config_use_cvmix_kpp>.true.</config_use_cvmix_kpp>
 <config_use_cvmix_fixed_boundary_layer>.false.</config_use_cvmix_fixed_boundary_layer>
 <config_cvmix_kpp_boundary_layer_depth>30.0</config_cvmix_kpp_boundary_layer_depth>

@@ -931,14 +931,6 @@ Valid values: True or False
 Default: Defined in namelist_defaults.xml
 </entry>
 
-<entry id="config_use_cvmix_double_diffusion" type="logical"
-	category="cvmix" group="cvmix">
-If true, diffusivity and viscosity is computed using CVMix double diffusion
-
-Valid values: True or False
-Default: Defined in namelist_defaults.xml
-</entry>
-
 <entry id="config_use_cvmix_kpp" type="logical"
 	category="cvmix" group="cvmix">
 If true, diffusivity and viscosity is computed using CVMix KPP
