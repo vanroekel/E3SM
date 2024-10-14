@@ -187,8 +187,6 @@ module ocn_forward_mode
       !-----------------------------------------------------------------
       ierr = 0
 
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
-
       ! Setup ocean config pool
       call ocn_config_init(domain % configs)
 

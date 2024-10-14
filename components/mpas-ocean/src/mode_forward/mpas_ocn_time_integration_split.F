@@ -2681,7 +2681,7 @@ module ocn_time_integration_split
       end if
 
       call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, &
-                                scratchPool, tracersPool, 2) 
+                                verticalMeshPool, scratchPool, tracersPool, 2) 
 
       ! Update the effective desnity in land ice if we're coupling to
       ! land ice

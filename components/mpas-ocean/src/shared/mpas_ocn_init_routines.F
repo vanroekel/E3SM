@@ -173,7 +173,8 @@ contains
       endif
 #endif
 
-      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, scratchPool, tracersPool)
+      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, &
+                    verticalMeshPool, scratchPool, tracersPool)
 
 #ifdef MPAS_OPENACC
       !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)

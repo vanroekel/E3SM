@@ -1279,9 +1279,6 @@ contains
          nCells, nEdges, nVertices, &! number of cells, edges, vertices
          vertex1, vertex2,          &! neighbor vertex addresses
          cell1, cell2                ! neighbor cell   addresses
-      real(kind=RKIND) :: invAreaTri1, invAreaCell1, invLength
-      real(kind=RKIND) :: layerThicknessVertex
-      real(kind=RKIND) :: apvm_scale_factor
       real(kind=RKIND) :: aust_scale_factor
       real(kind=RKIND) :: se, invNormVel
 
@@ -2200,7 +2197,9 @@ contains
          relativeVorticity,      &!< [in] relative vorticity in cells
          layerThicknessEdgeFlux, &!< [in] thickness flux at edge
          normalVelocity,         &!< [in] velocity normal to edge
-         normalTransportVelocity  !< [in] transport vel normal to edge
+         normalTransportVelocity, &!< [in] transport vel normal to edge
+         normalGMBolusVelocity
+
       real (kind=RKIND), dimension(:,:), intent(out) :: &
          vertGMBolusVelocityTop
       real (kind=RKIND), dimension(:,:), intent(out) :: &
@@ -2289,7 +2288,7 @@ contains
       !
       ! Compute divergence, kinetic energy, and vertical velocity
       !
-      allocate(div_hu(nVertLevels),div_huTransport(nVertLevels),div_huGMBolus(nVertLevels))
+      allocate(div_hu(nVertLevels),div_huTransport(nVertLevels))
       !$acc enter data create(div_hu, div_huTransport)
 
 #ifdef MPAS_OPENACC
