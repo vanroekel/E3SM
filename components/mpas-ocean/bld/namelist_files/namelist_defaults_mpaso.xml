@@ -164,6 +164,13 @@
 <config_use_tracer_del4>.false.</config_use_tracer_del4>
 <config_tracer_del4>0.0</config_tracer_del4>
 
+<!-- hmix_aust -->
+<config_aust_scale_factor>0.0</config_aust_scale_factor>
+<config_use_mom_div2>.false.</config_use_mom_div2>
+<config_mom_div2>1.0e5</config_mom_div2>
+<config_use_mom_div4>.false.</config_use_mom_div4>
+<config_mom_div4>1.0e12</config_mom_div4>
+
 <!-- hmix_Leith -->
 <config_use_Leith_del2>.false.</config_use_Leith_del2>
 <config_Leith_parameter>1.0</config_Leith_parameter>

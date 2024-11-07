@@ -78,6 +78,16 @@ add_default($nl, 'config_mom_del4_div_factor');
 add_default($nl, 'config_use_tracer_del4');
 add_default($nl, 'config_tracer_del4');
 
+#############################
+# Namelist group: hmix_aust #
+#############################
+
+add_default($nl, 'config_aust_scale_factor');
+add_default($nl, 'config_use_mom_div2');
+add_default($nl, 'config_mom_div2');
+add_default($nl, 'config_use_mom_div4');
+add_default($nl, 'config_mom_div4');
+
 ##############################
 # Namelist group: hmix_Leith #
 ##############################

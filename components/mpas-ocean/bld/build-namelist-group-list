@@ -6,6 +6,7 @@ my @groups = qw(run_modes
                 hmix
                 hmix_del2
                 hmix_del4
+                hmix_aust
                 hmix_leith
                 redi_isopycnal_mixing
                 submesoscale_eddy_parameterization
