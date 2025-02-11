@@ -33,6 +33,7 @@ def buildlib(bldroot, installpath, case):
     #-------------------------------------------------------
 
     cppdefs += " -DBLCKX={} -DBLCKY={} -DMXBLCKS={}\n".format(cice_blckx, cice_blcky, cice_mxblcks)
+    print(cice_mxblcks,cppdefs)
     with open(os.path.join(casebuild, "ciceconf", "CIME_cppdefs"), "w") as fd:
         fd.write(cppdefs)
 

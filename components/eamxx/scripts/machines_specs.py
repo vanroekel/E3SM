@@ -147,6 +147,45 @@ class PMGPU(PM):
         cls.gpu_arch = "cuda"
 
 ###############################################################################
+class CHFE(CrayMachine):
+###############################################################################
+    @classmethod
+    def setup_chfe(cls,partition):
+        expect (partition in ['cpu', 'gpu'], "Unknown chicoma partition")
+
+        super().setup_cray("chicoma-"+partition)
+
+        compiler = "gnu" if partition=="cpu" else "gnugpu"
+
+        cls.env_setup = [f"eval $({CIMEROOT}/CIME/Tools/get_case_env -c SMS.ne4pg2_ne4pg2.F2010-SCREAMv1.{cls.name}_{compiler})"]
+        cls.batch = f"salloc --account w25_atmo_turb_g --constraint={partition}"
+        if partition=="cpu":
+            cls.batch += "--time 00:30:00 --nodes=1 -q debug"
+        else:
+            cls.batch += "--time 02:00:00 --nodes=4 --gpus-per-node=4 --gpu-bind=none --exclusive -q regular"
+
+        cls.baselines_dir = f"/lustre/scratch5/lvanroekel/baselines/{compiler}/scream/{cls.name}"
+
+###############################################################################
+class CHFECPU(CHFE):
+###############################################################################
+    concrete = True
+    @classmethod
+    def setup(cls):
+        super().setup_chfe("cpu")
+
+###############################################################################
+class CHFEGPU(CHFE):
+###############################################################################
+    concrete = True
+    @classmethod
+    def setup(cls):
+        super().setup_chfe("gpu")
+
+        cls.num_run_res = 4 # four gpus
+        cls.gpu_arch = "cuda"
+
+###############################################################################
 class Chrysalis(Machine):
 ###############################################################################
     concrete = True
@@ -391,6 +430,7 @@ def get_machine (name):
 
     all_machines = get_all_machines()
 
+    print(all_machines)
     for m in all_machines:
         if m.name==name:
             return m

@@ -654,13 +654,8 @@
       <directive> --partition=gpu</directive>
     </directives>
     <directives compiler="gnugpu">
+	  <directive> --gpus-per-node=4</directive>
       <directive> --gpu-bind=none</directive>
-    </directives>
-    <directives COMPSET="!.*MMF.*" compiler="gnugpu">
-      <directive> --gpu-bind=none</directive>
-    </directives>
-    <directives COMPSET=".*MMF.*" compiler="gnugpu">
-      <directive> --gpu-bind=map_gpu:0,1,2,3</directive>
     </directives>
     <directives compiler="nvidiagpu">
       <directive> --gpu-bind=none</directive>
