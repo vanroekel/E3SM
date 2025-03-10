@@ -1,10 +1,10 @@
 export CODE_ROOT=/lustre/scratch5/lvanroekel/scream_testing #or wherever you cloned the scream repo
 export COMPSET=F2010-SCREAMv1      #or whatever compset you want
-export RES=ne30pg2_ne30pg2                 #or whatever resolution you want
-export PECOUNT=16x1                # Number of MPIs by number of threads. Should be divisible by node size
+export RES=ne120pg2_r05_EC30to60E2r2                 #or whatever resolution you want
+export PECOUNT=16x4                # Number of MPIs by number of threads. Should be divisible by node size
 export CASE_NAME=${COMPSET}.${RES}.${PECOUNT}.test1  #name for your simulation.
 export QUEUE=standard
-export WALLTIME=00:30              #HH:MM on Summit, HH:MM:SS on other machines
+export WALLTIME=16:00              #HH:MM on Summit, HH:MM:SS on other machines
 export COMPILER=gnugpu              #which compiler to use (can be omitted on some machines)
 export PROJECT=w25_atmo_turb_g
 export MACHINE=chicoma-gpu

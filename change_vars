@@ -1,10 +1,10 @@
-./xmlchange ATM_NCPL=288
+./xmlchange ATM_NCPL=96
 ./xmlchange DEBUG=FALSE #debug rather than optimized build.
-./xmlchange JOB_WALLCLOCK_TIME=0:30:00
+./xmlchange JOB_WALLCLOCK_TIME=16:00:00
 ./xmlchange STOP_OPTION=ndays #how long to run for
-./xmlchange STOP_N=1
+./xmlchange STOP_N=5
 ./xmlchange HIST_OPTION=ndays #how often to write cpl.hi files
-./xmlchange HIST_N=1
-./xmlchange NTASKS=16 #change how many MPI tasks to use
+./xmlchange HIST_N=5
+./xmlchange NTASKS=63 #change how many MPI tasks to use
 ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
-./xmlchange SCREAM_CMAKE_OPTIONS="SCREAM_NP 4 SCREAM_NUM_VERTICAL_LEV 128 SCREAM_NUM_TRACERS 10"
+./xmlchange SCREAM_CMAKE_OPTIONS="SCREAM_NP 4 SCREAM_NUM_VERTICAL_LEV 80 SCREAM_NUM_TRACERS 10"
