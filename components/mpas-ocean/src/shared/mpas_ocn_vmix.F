@@ -1647,7 +1647,8 @@ contains
                   do k = 1, nVertLevels
                   do iTracer = 1, num_tracers
                      activeTracerVertMixTendency(iTracer,k,iCell) = &
-                        (tracersGroup(iTracer,k,iCell) - activeTracerVertMixTendency(iTracer,k,iCell)) / dt
+                          layerThickness(k,iCell)*(tracersGroup(iTracer,k,iCell) - &
+                          activeTracerVertMixTendency(iTracer,k,iCell)) / dt
                   end do
                   end do
                   end do
