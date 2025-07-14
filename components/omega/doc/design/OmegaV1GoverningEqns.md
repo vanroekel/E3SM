@@ -732,7 +732,7 @@ $$
 & + \left[ {\bf k} \cdot \nabla \times u_{e,k} +f_v\right]_e\left(u_{e,k}^{\perp}\right) + \left[\nabla K\right]_e  \\
 & + \frac{\rho_0}{\left[\tilde{h}_{i,k}\right]_e} \left\{ \left[\left(u - u_k\right) \left\{\tilde{W}_{tr} \right\} \right]_{e,k} - \left[  \left(u - u_k\right) \left\{\tilde{W}_{tr} \right\} \right]_{e,k+1} \right\} \\
 & = - \left(\nabla \Phi \right)_{e,k} + \frac{1}{\left[\tilde{h}_k\right]_e} \nabla \left( \tilde{h}_k \alpha_k p_k \right) + \frac{1}{\left[\tilde{h}_k\right]_e} \left\{ \left[ \alpha p \nabla \tilde{z}^{\text{top}}\right]_{e,k} -  \left[ \alpha p \nabla \tilde{z}^{\text{bot}}\right]_{e,k+1} \right\} \\
-&  + \frac{1}{\left[\tilde{h}_{i,k}\right]_e} \nabla \cdot \left( \tilde{h}_k \left< {\bf u}^\prime \otimes {\bf u}^\prime \right>_k \right) + \frac{\rho_0}{\left[\tilde{h}_{i,k}\right]_e}  \left\{ \left[ \left<\mathbf{u}^\prime \tilde{w}_{tr}^\prime \right> - \left< \mathbf{u}^\prime \tilde{ u}^\prime \right> \right]_{e,k} - \left[ \left<\mathbf{u}^\prime \tilde{w}_{tr}^\prime \right> - \left< \mathbf{u}^\prime \tilde{ u}^\prime \right> \right]_{e,k+1} \right\}.
+&  - \frac{1}{\left[\tilde{h}_{i,k}\right]_e} \nabla \cdot \left( \tilde{h}_k \left< {\bf u}^\prime \otimes {\bf u}^\prime \right>_k \right) - \frac{\rho_0}{\left[\tilde{h}_{i,k}\right]_e}  \left\{ \left[ \left<\mathbf{u}^\prime \tilde{w}_{tr}^\prime \right> - \left< \mathbf{u}^\prime \tilde{ u}^\prime \right> \right]_{e,k} - \left[ \left<\mathbf{u}^\prime \tilde{w}_{tr}^\prime \right> - \left< \mathbf{u}^\prime \tilde{ u}^\prime \right> \right]_{e,k+1} \right\}.
 $$ (discrete-momentum)
 
 **Diagnostic Relations:**
@@ -754,16 +754,19 @@ We refer to these as the discrete equations, but time derivatives remain continu
 The horizontal operators $\nabla$, $\nabla\cdot$, and $\nabla \times$ are now in their discrete form. In the TRiSK design, gradients ($\nabla$) map cell centers to edges; divergence ($\nabla \cdot$) maps edge quantities to cells; and curl ($\nabla \times$) maps edges to vertices. The exact form of operators and interpolation stencils remain the same as those given in [Omega-0 design document](OmegaV0ShallowWater.md#operator-formulation). The discrete version of terms common with Omega-0, such as advection, potential vorticity, and $\nabla K$, can be found in [Omega-0 Momentum Terms](OmegaV0ShallowWater.md#momentum-terms) and [Omega-0 Thickness and Tracer Terms](OmegaV0ShallowWater.md#thickness-and-tracer-terms).
 
 
-# 11. Sub gridscale parameterizations
+## 11. Sub gridscale parameterizations
 
-### Momentum Dissipation
+### Horizontal Momentum Dissipation
 
-The discretized momentum dissipation ${ \bf D}^u_{e,k}$ may include these terms, which are detailed in the subsections below.
+There are two terms related to horizontal momentum dissipation in [](#discrete-momentum) that need to be parameterized, $\left<\mathbf{u}^\prime \tilde{u}^\prime \right>$ and $\frac{1}{\left[\tilde{h}_{i,k}\right]_e} \nabla \cdot \left( \tilde{h}_k \left< {\bf u}^\prime \otimes {\bf u}^\prime \right>_k \right)$.  The former only arises from the layer integration in psuedo-height coordinates, we interpret this term as the projection of the horizontal momentum dissipation that crosses $\tilde{z}$ interfaces.  Given this, we discuss the form of the horizontal dissipation parameterization first and return to the second term in a later subsection.
+
+As in MPAS-Ocean, parameterizaiton of the horizontal momentum dissipiation is through laplacian or biharmonic dissipation, 
 
 $$
-{ \bf D}^u_{e,k} =  \nu_2 \nabla^2 u_{e,k} - \nu_4 \nabla^4 u_{e,k} +
-\frac{\partial }{\partial z} \left( \nu_v \frac{\partial u_{e,k}}{\partial z} \right)
-$$ (discrete-mom-del2)
+\frac{1}{\left[\tilde{h}_{i,k}\right]_e} \nabla \cdot \left( \tilde{h}_k \left< {\bf u}^\prime \otimes {\bf u}^\prime \right>_k \right) =  \nu_2 \nabla^2 u_{e,k} - \nu_4 \nabla^4 u_{e,k}.
+$$ (discrete-mom-diss)
+
+Again, the quantities in [](#discrete-mom-diss) are layer averaged.  The gradient of $\tilde{h}$ is assumed to be small relative to the stress tensor to allow the utilization of traditional parameterization of the dissipation.
 
 #### Laplacian dissipation (del2)
 
@@ -781,60 +784,47 @@ $$
 = - \nu_4 \nabla^2 \left( \nabla^2 u_{e,k} \right)
 $$ (discrete-mom-del4)
 
-#### Vertical momentum diffusion
-Vertical derivatives may be computed with either $z$ or $p$ as the independent variable,
+### Momentum dissipation across a sloping $\tilde{z}$ surface
+
+We interpret $\left<\mathbf{u}^\prime \tilde{u}^\prime \right>$ as the dissipation of momentum across the sloping $\tilde{z}$ surface.  
 
 $$
-\frac{\partial }{\partial z} \left( \nu_v \frac{\partial u}{\partial z} \right)
-= \frac{\partial }{\partial p}\frac{\partial p}{\partial z} \left( \nu_v \frac{\partial u}{\partial p} \frac{\partial p}{\partial z}\right)
-= \rho g^2\frac{\partial }{\partial p} \left( \nu_v \rho \frac{\partial u}{\partial p} \right).
-$$ (mom-vert-diff-z-p)
+\left<\mathbf{u}^\prime \tilde{u}^\prime \right> = \left\{\left[\nu_2 \left( \nabla \tilde{D}_{i} - \nabla^{\perp} \tilde{\zeta}_{v} \right)\right]_k - \left[\nu_4 \nabla^2 \left( \nabla^2 \tilde{u}_{e,k} \right)\right]_k\right\} 
+$$ (discrete-mom-flux-sloping)
 
-We choose to use $z$ values for simplicity. A single vertical derivative of an arbitrary variable $\varphi$ at mid-layer is
+While whit looks very similar to [](#discrete-mom-del2) - [](#discrete-mom-del4), we not a few critical differences.  First, the normal velocities in the divergence and relative vorticity in [](#discrete-mom-flux-sloping) are the reconstructed velocity at the top of the cell along an edge, not the layer average.  Second, the velocities in the divergence and relative vorticity are only the projection across the interface (hence the tilde on $D$ and $\zeta$), computed in a discrete sense following
 
 $$
-\frac{\partial \varphi_k}{\partial z}
-= \frac{\varphi_k^{top} - \varphi_k^{bot} }{z_k^{top} - z_k^{bot}}
-$$ (vertderiv1)
+\left[\tilde{u}_{e}\right]_k = u_e \nabla \tilde{z}_{e,k}
+$$
 
-and a second derivative is
+in this relation, we have moved the subscript $k$ off the variable itself to prevent confusion with the layer average.  With this definition, [](#discrete-mom-flux-sloping) goes to zero for flat layer surfaces.
+
+#### Vertical momentum dissipation
+The vertical turbulent momentum stress is most commonly parameterized as a down-gradient process, i.e.
 
 $$
-\frac{\partial }{\partial z} \left(
-\frac{\partial \varphi_k}{\partial z} \right)
-=
-\frac{1}{z_{k}^{top} - z_{k+1}^{top}} \left(
-\frac{\varphi_{k-1} - \varphi_k }{z_{k-1}^{mid} - z_k^{mid}}
- -
-\frac{\varphi_{k} - \varphi_{k+1} }{z_{k}^{mid} - z_{k+1}^{mid}}
-\right)
-$$ (vertderiv2)
+\left[ \left<\mathbf{u}^\prime \tilde{w}_{tr}^\prime \right> \right]_{e,k} = -\frac{\nu_v \rho}{\rho_0} \left[\frac{\partial u}{\partial \tilde{z}}\right]_{e,k}
+$$
 
-Thus, the vertical momentum diffusion is
+Plugging this relation into the last part of [](#discrete-momentum)
 
 $$
-\frac{\partial }{\partial z} \left( \nu_v \frac{\partial u_{e,k}}{\partial z} \right)
-=
-\frac{1}{z_{e,k}^{top} - z_{e,k+1}^{top}} \left(
-\nu_{e,k}^{top}
-\frac{u_{e,k-1} - u_k }{z_{e,k-1}^{mid} - z_k^{mid}}
- -
-\nu_{e,k+1}^{top}
-\frac{u_{e,k} - u_{e,k+1} }{z_{e,k}^{mid} - z_{e,k+1}^{mid}}
-\right)
+\frac{1}{\left[\tilde{h}_{i,k}\right]_{e,k}}  \left\{ \left[ \nu_v \left[\frac{\partial u}{\partial \tilde{z}}\right]_{e,k} \right]_{e,k} - \left[ \nu_v \left[\frac{\partial u}{\partial \tilde{z}}\right]_{e,k} \right]_{e,k+1}  \right\}
 $$ (discrete-mom-vert-diff)
 
-This stencil is applied as an implicit tri-diagonal solve at the end of the time step. See details in the [tridiagonal solver design document](TridiagonalSolver) and forthcoming vertical mixing design document.
+**NOTE: further thought is needed, a standard derivative does not respect finite volume - should probably go back and redirve the heat flux equation** -If [](#discrete-mom-vert-diff) is discretized with a standard centered derivative around the top and bottom of the cell, this stencil is applied as an implicit tri-diagonal solve at the end of the time step.  However, this approach to the derivative may not be correct / fully consistent with a finite volume approach
 
-### Momentum Forcing
-The discretized momentum forcing ${ \bf F}^u_{e,k}$ may include:
+### Forcing at the top and bottom of the ocean
+
+The discretized momentum and tracer forcing appear as the surface value of the vertical turbulent fluxes of tracer and momentum.  Omega also includes a ocean floor vertical turbulent flux of momentum.  
 
 #### Wind Forcing
 
 The wind forcing is applied as a top boundary condition during implicit vertical mixing as
 
 $$
-\frac{\tau_{e}}{[ h_{i,k}]_e}
+\frac{\tau_{e}}{[ \tilde{h}_{i,k}]_e}
 $$
 
 where $\tau$ is the wind stress in Pa. Since the mass-thickness $h$ is in kg/s/m$^2$, this results in the desired units of m/s$^2$ for a momentum tendency term.
@@ -844,7 +834,7 @@ where $\tau$ is the wind stress in Pa. Since the mass-thickness $h$ is in kg/s/m
 Bottom Drag is applied as a bottom boundary condition during implicit vertical mixing as
 
 $$
-- C_D \frac{u_{e,k}\left|u_{e,k}\right|}{[\alpha_{i,k}h_{i,k}]_e} .
+- C_D \frac{u_{e,k}\left|u_{e,k}\right|}{[\alpha_{i,k}\tilde{h}_{i,k}]_e} .
 $$ (discrete-mom-bottom)
 
 The units of specific volume times mass-thickness $\alpha h$ are length (m), so that the full term has units of m/s$^2$.
@@ -857,20 +847,33 @@ $$
 - Ra \, u_{e,k}
 $$ (discrete-mom-Ra)
 
-### Tracer Diffusion
+#### Temperature, salinity, and freshwater forcing
 
-The discretized tracer diffusion $ D^\varphi_{i,k}$ may include these terms, which are detailed below. Here $\kappa_2$ and $\kappa_4$ are written in front of the operator for simplicity.
+Direct forcing of temperature, e.g. from latent or sensible heat fluxes take a form similar to MPAS-Ocean
 
 $$
-D^\varphi_{i,k} =  \kappa_2 \nabla^2 \varphi_{i,k} - \kappa_4 \nabla^4 \varphi_{i,k} +
-\frac{\partial }{\partial z} \left( \kappa_v \frac{\partial \varphi_{i,k}}{\partial z} \right)
+\frac{LHF}{C_p \rho_1}
+$$
+
+where $\rho_1$ is the density in the top layer of Omega. This gives units of $mK/s$.  
+
+#### Freshwater forcing
+
+Since Omega is a non-Boussinesq ocean, surface sources of water will be mass fluxes instead of being converted into thickness fluxes.  Similar to MPAS-Oceran, Omega will include an ability to spread certain fluxes (e.g., river runoff) over a depth specified in the YAML configuration file.
+
+### Horizontal Tracer Diffusion
+
+As with momentum dissipation, the horizontal tracer diffusion arises from the $\left<\mathbf{u}_k^\prime \varphi_k \right>$ and $\left< \tilde{u}^\prime \varphi^\prime \right>$.  As in MPAS-Ocean, the former term can be parameterized either as Laplacian or Biharmonic diffusion,
+
+$$
+D^\varphi_{i,k} =  \kappa_2 \nabla^2 \varphi_{i,k} - \kappa_4 \nabla^4 \varphi_{i,k}.
 $$ (discrete-tracer-diff)
 
 #### Laplacian diffusion (del2)
 The Laplacian may be written as the divergence of the gradient,
 
 $$
- h_{i,k} \nabla \cdot \left( \kappa_{2,e,k} \nabla \varphi_{i,k} \right).
+\nabla \cdot \left(\tilde{h}_k \left<\varphi^\prime u^\prime \right>_k \right) = \nabla \cdot \left( \tilde{h}_{i,k} \kappa_{2,e,k} \nabla \varphi_{i,k} \right).
 $$ (discrete-tracer-del2)
 
 See [Omega V0 Section 3.3.2](OmegaV0ShallowWater.md#del2-tracer-diffusion) for details of this calculation.
@@ -879,38 +882,27 @@ See [Omega V0 Section 3.3.2](OmegaV0ShallowWater.md#del2-tracer-diffusion) for d
 The biharmonic is a Laplacian operator applied twice,
 
 $$
- - h_{i,k} \nabla \cdot \left( \kappa_{4,e,k} \nabla
+ -  \nabla \cdot \left( \kappa_{4,e,k} \nabla
 \right[
-\nabla \cdot \left(  \nabla \varphi_{i,k} \right)
+\nabla \cdot \left( \tilde{h}_{i,k} \nabla \varphi_{i,k} \right)
 \left]
  \right).
 $$ (discrete-tracer-del4)
 
-Each of these operators are written as horizontal stencils in the [Omega V0 Operator Formulation Section](OmegaV0ShallowWater.md#operator-formulation)
+Each of these operators are written as horizontal stencils in the [Omega V0 Operator Formulation Section](OmegaV0ShallowWater.md#operator-formulation).  Again we note that the variables in these equations are the layer average.
+
+#### Horizontal tracer diffusion across a sloping surface
+As with horizontal momentum dissipation, there is a turbulent flux of tracer across a sloping $\tilde{z}$ interface.  We interpret the $\left< \tilde{z}^\prime \varphi^\prime \right>$ as the projection of the horizontal turbulent flux across the sloping interface.  The form of the diffusion is similar, taking Laplacian diffusion as an example
+
+$$
+ \nabla \cdot \left( \tilde{h}_{i} \kappa_{2,e} \nabla \varphi_{i} \right)_k.
+$$ 
+
+While this is similar in form, this uses the reconstruction at the top of the layer and not the layer averages directly as in [](#discrete-tracer-del2).
 
 #### Vertical tracer diffusion
-As discussed above in the [momentum section](#vertical-momentum-diffusion), vertical derivatives may be written in terms of $z$ or $p$,
-
-$$
-\frac{\partial }{\partial z} \left( \kappa_v \frac{\partial {\bf \varphi}}{\partial z} \right)
-= \rho g^2 \frac{\partial }{\partial p} \left( \kappa_v \rho \frac{\partial {\bf \varphi}}{\partial p} \right)
-$$ (discrete-tracer-vertdiff)
-and $z$ is chosen. The second derivative stencil is
-
-$$
-h_{i,k} \frac{\partial }{\partial z} \left( \kappa_v \frac{\partial \varphi_{i,k}}{\partial z} \right)
-=
-\frac{h_{i,k}}{z_{i,k}^{top} - z_{i,k+1}^{top}} \left(
-\kappa_{i,k}^{top}
-\frac{\varphi_{i,k-1} - \varphi_k }{z_{i,k-1}^{mid} - z_k^{mid}}
- -
-\kappa_{i,k+1}^{top}
-\frac{\varphi_{i,k} - \varphi_{i,k+1} }{z_{i,k}^{mid} - z_{i,k+1}^{mid}}
-\right).
-$$ (discrete-tracer-vert-diff)
-
-Like the momentum term, this is applied using a tridiagonal solver in the
-[tridiagonal solver](TridiagonalSolver) in the implicit vertical mixing step.
+The vertical tracer diffusion arises from the $\rho_0\left(\left[\left<\varphi^\prime \tilde{w}_{tr}^\prime \right> \right]_k - \left[\left<\varphi^\prime \tilde{w}_{tr}^\prime \right> \right]_{k+1} \right)$ term.  Again, if a traditional down gradient parameterization is used $\kappa \frac{\partial \varphi}{\partial z}$ the vertical turbulent flux can be applied using a tridiagonal solver in the
+[tridiagonal solver](TridiagonalSolver) in the implicit vertical mixing step.  
 
 ### MPAS-Ocean Equations of Motion
 
@@ -943,7 +935,7 @@ $$ (mpaso-continuous-tracer)
 The layer thickness $h$, vertical velocity $w$, pressure $p$, and tracer $\varphi$, are cell-centered quantities, while the horizontal velocity ${\bf u}$ and $e$ superscript are variables interpolated to the cell edges.
 
 
-## 11. Variable Definitions
+## 12. Variable Definitions
 
 Table 1. Definition of variables. Geometric variables may be found in the [Omega V0 design document, Table 1](OmegaV0ShallowWater.md#variable-definitions)
 
@@ -997,7 +989,7 @@ Table 1. Definition of variables. Geometric variables may be found in the [Omega
 |$\omega$   | mass transport | kg/s/m^2      | cell | VerticalTransport |$\omega=\rho w$|
 
 
-## 12. Verification and Testing
+## 13. Verification and Testing
 
 Capability and testing are similar to [Petersen et al. 2015](http://www.sciencedirect.com/science/article/pii/S1463500314001796). The following tests are in idealized domains and do not require surface fluxes or surface restoring. For the following tests to show results comparable to those published with other models, the full dynamic sequence of density, pressure, momentum, and advection must work correctly. The successful completion of the following tests is a validation of the primitive equation functions in Omega 1.0. All of the following tests may exercise a linear equation of state or the nonlinear TEOS10. The first four tests quantify the anomalous mixing caused by the numerical schemes. The first five are on cartesian planes with regular hexagon meshes.
 
