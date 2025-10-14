@@ -176,6 +176,9 @@ module ocn_diagnostics_variables
       activeTracerVerticalAdvectionTopFlux,    &
       activeTracerVertMixTendency
 
+   ! Variables needed for the poleward moisture transport correction in FOSI
+   real (kind=RKIND) :: pN_t, pE_t, pS_t, alphaN, alphaE, alphaS
+
    real (kind=RKIND), pointer :: daysSinceStartOfSim
    real (kind=RKIND), pointer :: Time
    real (kind=RKIND), dimension(:), pointer :: Time_bnds

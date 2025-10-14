@@ -39,6 +39,7 @@ module ocn_time_integration_split
    use ocn_gm
    use ocn_submesoscale_eddies
 
+   use ocn_precip_factor_data
    use ocn_equation_of_state
    use ocn_vmix
    use ocn_vertical_advection
@@ -1799,6 +1800,10 @@ module ocn_time_integration_split
          call mpas_dmpar_field_halo_exch(domain, 'tendLayerThickness')
 
          call mpas_timer_stop("se halo thickness")
+
+         if (config_use_fosi_pmt_correction) then
+            call pme_get_at_time(domain, forcingPool)
+         end if
 
          call mpas_timer_start('se tracer tend', .false.)
          call ocn_tend_tracer(tendPool, statePool, forcingPool, &

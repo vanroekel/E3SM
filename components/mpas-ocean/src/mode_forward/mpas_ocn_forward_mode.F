@@ -44,6 +44,7 @@ module ocn_forward_mode
    use ocn_diagnostics_variables
    use ocn_test
    use ocn_mesh
+   use ocn_precip_factor_data
 
    use ocn_eddy_parameterization_helpers
    use ocn_thick_hadv
@@ -461,6 +462,11 @@ module ocn_forward_mode
               MPAS_LOG_ERR, masterOnly=.true., flushNow=.true.)
          return
       endif
+
+      ! Initialize the read for the pmt forcing for FOSI cases
+      if (config_use_fosi_pmt_correction) then
+         call pme_init_from_streams(domain%streamManager, 'pme_forcing',domain % dminfo % comm)
+      end if
 
       ! Initialize tracer tendencies
       call ocn_tracer_hmix_init(err_tmp)

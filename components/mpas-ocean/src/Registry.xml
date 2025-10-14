@@ -468,6 +468,20 @@
 					possible_values="small positive numbers not far from the default"
 		/>
 	</nml_record>
+	<nml_record name="fosi_pmt_correction" mode="forward">
+		<nml_option name="config_use_fosi_pmt_correction" type="logical" default_value=".false."
+					description="flag to enable the pmt based correction from Harrisosn et al 2022 - https://doi.org/10.1029/2021MS002888 it requires a file that is the integrate E-P from fully coupled E3SM simulations"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_fosi_pmt_latmax" type="real" default_value="40" units='degrees'
+		            description="northern latitude boundary for the integration, should be close to the change from precip dominant to evaporation dominant"
+					possible_values="latitudes near 40"
+		/>
+		<nml_option name="config_fosi_pmt_latmin" type="real" default_value="-40" units='degrees'
+					description="southern latitude boundary for the integration, should be close to the change from precip dominant to evaporation dominant.  Should match integration done in creating data file"
+					possible_values="latitudes near -40"
+		/>
+	</nml_record>
 	<nml_record name="eddy_parameterization" mode="forward">
 		<nml_option name="config_eddyMLD_dens_threshold" type="real" default_value="0.03" units="kg m^-3"
 					description="potential density change relative to surface for mixed layer depth threshold method.  This calculation is used for the Redi tapering, GM N2_dependent bolus kappa, and the submesoscale eddy parameterization"
@@ -1943,6 +1957,19 @@
 		</stream>
 
 		<!-- Forward mode streams -->
+		<stream name="pme_forcing"
+				type="input"
+				filename_template="pme_forcing.nc"
+				input_interval="initial_only"
+				immutable="true"
+				mode="forward">
+
+			<var name="time_forcing"/>
+			<var name="pmeN"/>
+			<var name="pmeS"/>
+			<var name="pmeE"/>
+		</stream>
+
 		<stream name="mesh"
 				type="input"
 				filename_template="mesh.nc"
@@ -2275,7 +2302,7 @@
 				packages="timeVaryingLandIceForcingPKG"
 				immutable="true">
 			<var name="landIcePressureForcing"/>
-			<var name="landIceFractionForcing"/>
+			<fvar name="landIceFractionForcing"/>
 			<var name="landIceFloatingFractionForcing"/>
 			<var name="landIceDraftForcing"/>
 		</stream>
@@ -2933,6 +2960,18 @@
 		<var name="daysSinceStartOfSim" type="real" dimensions="Time" units="days"
 			 description="Time since simulationStartTime, for plotting"
 	 	/>
+	    <var name="time_forcing" type="integer" dimensions="Time"
+             description="Time in the forcing file for PMT values"
+			 />
+		<var name="pmeN" type="real" dimensions="Time"
+			 description="northern domain E-P (equivalent to volume integrated transport of moisture)"
+		/>
+	    <var name="pmeE" type="real" dimensions="Time"
+			 description="equatorial domain E-P (equivalent to volume integrated transport of moisture)"
+		/>
+	    <var name="pmeS" type="real" dimensions="Time"
+			 description="southern domain E-P (equivalent to volume integrated transport of moisture)"
+		/>
 		<var name="salinitySurfaceRestoringTendency" type="real" dimensions="nCells Time" units="m 1.e-3 s^-1" packages="activeTracersSurfaceRestoringPKG"
 			 description="salinity tendency due to surface restoring"
 		/>
