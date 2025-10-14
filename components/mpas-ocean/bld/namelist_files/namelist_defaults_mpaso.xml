@@ -296,6 +296,11 @@
 <config_eke_alpha>-2.9e-3</config_eke_alpha>
 <config_eke_beta>0.008</config_eke_beta>
 
+<!-- fosi_pmt_correction -->
+<config_use_fosi_pmt_correction>.false.</config_use_fosi_pmt_correction>
+<config_fosi_pmt_latmax>40</config_fosi_pmt_latmax>
+<config_fosi_pmt_latmin>-40</config_fosi_pmt_latmin>
+
 <!-- eddy_parameterization -->
 <config_eddyMLD_dens_threshold>0.03</config_eddyMLD_dens_threshold>
 <config_eddyMLD_reference_depth>10</config_eddyMLD_reference_depth>

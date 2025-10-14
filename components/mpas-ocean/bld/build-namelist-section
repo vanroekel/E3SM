@@ -146,6 +146,14 @@ add_default($nl, 'config_eke_correction_enable');
 add_default($nl, 'config_eke_alpha');
 add_default($nl, 'config_eke_beta');
 
+#######################################
+# Namelist group: fosi_pmt_correction #
+#######################################
+
+add_default($nl, 'config_use_fosi_pmt_correction');
+add_default($nl, 'config_fosi_pmt_latmax');
+add_default($nl, 'config_fosi_pmt_latmin');
+
 #########################################
 # Namelist group: eddy_parameterization #
 #########################################

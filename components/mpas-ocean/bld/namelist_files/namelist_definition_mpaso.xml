@@ -705,6 +705,33 @@ Default: Defined in namelist_defaults.xml
 </entry>
 
 
+<!-- fosi_pmt_correction -->
+
+<entry id="config_use_fosi_pmt_correction" type="logical"
+	category="fosi_pmt_correction" group="fosi_pmt_correction">
+flag to enable the pmt based correction from Harrisosn et al 2022 - https://doi.org/10.1029/2021MS002888 it requires a file that is the integrate E-P from fully coupled E3SM simulations
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_fosi_pmt_latmax" type="real"
+	category="fosi_pmt_correction" group="fosi_pmt_correction">
+northern latitude boundary for the integration, should be close to the change from precip dominant to evaporation dominant
+
+Valid values: latitudes near 40
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_fosi_pmt_latmin" type="real"
+	category="fosi_pmt_correction" group="fosi_pmt_correction">
+southern latitude boundary for the integration, should be close to the change from precip dominant to evaporation dominant.  Should match integration done in creating data file
+
+Valid values: latitudes near -40
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
 <!-- eddy_parameterization -->
 
 <entry id="config_eddyMLD_dens_threshold" type="real"
