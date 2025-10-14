@@ -722,6 +722,20 @@ def buildnml(case, caseroot, compname):
                 lines.append('</stream>')
                 lines.append('')
 
+                lines.append('<stream name="pme_forcing"')
+                lines.append('       type="input"')
+                lines.append('       filename_template="{}/ocn/mpas-o/{}/pme_forcing.nc"'.format(din_loc_root, ocn_mask))
+                lines.append('       input_interval="initial_only"')
+                lines.append('       immutable="true"')
+                lines.append('       mode="forward"')
+                lines.append('')
+                lines.append('       <var name="time"/>')
+                lines.append('       <var name="pmeN"/>')
+                lines.append('       <var name="pmeS"/>')
+                lines.append('       <var name="pmeE"/>')
+                lines.append('</stream>')
+                lines.append('')
+
             if u_tidal_rms_file != '':
                 lines.append('<stream name="tidal_velocity_rms_parameterized"')
                 lines.append('       type="input"')
