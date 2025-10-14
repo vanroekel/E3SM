@@ -626,6 +626,14 @@ add_default($nl, 'config_eke_correction_enable');
 add_default($nl, 'config_eke_alpha');
 add_default($nl, 'config_eke_beta');
 
+#######################################
+# Namelist group: fosi_pmt_correction #
+#######################################
+
+add_default($nl, 'config_use_fosi_pmt_correction');
+add_default($nl, 'config_fosi_pmt_latmax');
+add_default($nl, 'config_fosi_pmt_latmin');
+
 #########################################
 # Namelist group: eddy_parameterization #
 #########################################
@@ -1907,6 +1915,7 @@ my @groups = qw(run_modes
                 submesoscale_eddy_parameterization
                 gm_eddy_parameterization
                 eddy_kinetic_energy_correction
+                fosi_pmt_correction
                 eddy_parameterization
                 cvmix
                 wave_coupling
