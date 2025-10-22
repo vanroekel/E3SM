@@ -334,6 +334,7 @@
       <value stream="presaero.SSP5-3.4">null</value>
       <value stream="presaero.SSP">$DIN_LOC_ROOT/atm/cam/chem/trop_mozart_aero/aero</value>
       <value stream="topo.observed">$DIN_LOC_ROOT/atm/datm7/topo_forcing</value>
+	  <value stream="pmt_calculated">$DIN_LOC_ROOT/atm/datm7/pmt_forcing</value>
       <value stream="topo.cplhist">null</value>
       <value stream="CFSv2.UV">$DIN_LOC_ROOT/wav/cfsv2</value>
       <value stream="CFSR.UV">$DIN_LOC_ROOT/wav/cfsr</value>
@@ -453,6 +454,7 @@
       <value stream="presaero.SSP5-3.4">null</value>
       <value stream="presaero.SSP5-8.5">aerodep_clm_SSP585_b.e21.BSSP585cmip6.f09_g17.CMIP6-SSP5-8.5.001_2014-2101_monthly_0.9x1.25_c190419.nc</value>
       <value stream="topo.observed">topodata_0.9x1.25_USGS_070110_stream_c151201.nc</value>
+	  <value stream="pmt_calculated">pmt_historical_v3.nc</value>
       <value stream="topo.cplhist">null</value>
       <value stream="CFSv2.UV">domain.ocn.CFSv2_CFSv2.200616.nc</value>
       <value stream="CFSR.UV">domain.ocn.CFSR_CFSR.210415.nc</value>
@@ -516,6 +518,12 @@
         area   area
         mask   mask
       </value>
+	  <value stream="pmt_calculated">
+	    time           time
+	    latitude       lat
+		longitude      lon
+		historical_pmt pmt
+	  </value>
       <value stream="co2tseries">
         time    time
         lonc    lon
@@ -610,6 +618,7 @@
       <value stream="presaero.SSP5-3.4">null</value>
       <value stream="presaero">$DIN_LOC_ROOT/atm/cam/chem/trop_mozart_aero/aero</value>
       <value stream="topo.observed">$DIN_LOC_ROOT/atm/datm7/topo_forcing</value>
+	  <value stream="pmt_calculated">$DIN_LOC_ROOT/atm/datm7/pmt_forcing</value>
       <value stream="topo.cplhist">$DATM_CPLHIST_DIR</value>
       <value stream="CFSv2.UV">$DIN_LOC_ROOT/wav/cfsv2</value>
       <value stream="CFSR.UV">$DIN_LOC_ROOT/wav/cfsr</value>
@@ -1514,6 +1523,7 @@
       <value stream="presaero.SSP5-3.4">null</value>
       <value stream="presaero.SSP5-8.5">aerodep_clm_SSP585_b.e21.BSSP585cmip6.f09_g17.CMIP6-SSP5-8.5.001_2014-2101_monthly_0.9x1.25_c190419.nc</value>
       <value stream="topo.observed">topodata_0.9x1.25_USGS_070110_stream_c151201.nc</value>
+	  <value stream="pmt_calculated">pmt_historical_v3.nc</value>
       <value stream="CFSv2.UV">sandy_wnd10m_ww3.nc</value>
       <value stream="CFSR.UV">wnd10mx0.5.gdas.200506.ww3.nc</value>
     </values>
@@ -2045,6 +2055,9 @@
       <value stream="topo.observed">
         TOPO topo
       </value>
+	  <value stream="pmt_calculated">
+	    historical_pmt pmt 
+	  </value>
       <value  stream="CFSv2.UV">
         U_GRD_L103  u
         V_GRD_L103  v
@@ -2103,6 +2116,7 @@
       <value stream="presaero.trans_1850-2000">1849</value>
       <value stream="presaero.SSP">2015</value>
       <value stream="topo.observed">1</value>
+	  <value stream="pmt_calculated">1</value>
       <value stream="topo.cplhist">$DATM_CPLHIST_YR_ALIGN</value>
       <value stream="CFSv2.UV">1</value>
       <value stream="CFSR.UV">1</value>
@@ -2183,6 +2197,7 @@
       <value stream="presaero.cesm2_omip" datm_mode="CORE2_IAF">1637</value>    <!-- 1948-(6-1)*(2009-1948+1)-1 -->
       <value stream="presaero.cesm2_omip" datm_mode="CORE_IAF_JRA.*2018">1652</value> <!-- 1958-(6-1)*(2018-1958+1)-1 -->
       <value stream="topo.observed">1</value>
+	  <value stream="pmt_calculated">1958</value>
       <value stream="topo.cplhist">$DATM_CPLHIST_YR_START</value>
       <value stream="CFSv2.UV">1</value>
       <value stream="CFSR.UV">1</value>
@@ -2266,6 +2281,7 @@
       <value stream="presaero.cesm2_omip" datm_mode="CORE2_IAF">2010</value>    <!-- 2009+1 -->
       <value stream="presaero.cesm2_omip" datm_mode="CORE_IAF_JRA.*2018">2019</value> <!-- 2018+1 -->
       <value stream="topo.observed">1</value>
+	  <value stream="pmt_calculated">2023</value>
       <value stream="topo.cplhist">$DATM_CPLHIST_YR_END</value>
       <value stream="CFSv2.UV">1</value>
       <value stream="CFSR.UV">1</value>
@@ -2621,6 +2637,7 @@
            steps, which is undesirable unless we truly want linear interpolation
            between multiple input values -->
       <value stream="topo.observed">lower</value>
+	  <value stream="pmt_calculated">linear</value>
       <value stream="CORE2_IAF.GISS.SWDN">coszen</value>
       <value stream="CORE_IAF_JRA.*.GISS.SWDN">coszen</value>
       <value stream="IAF_JRA_1p5.*.GISS.SWDN">coszen</value>

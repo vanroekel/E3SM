@@ -389,6 +389,8 @@ contains
     integer :: glc_nec
     integer :: glc_nzoc
 
+    logical :: fosi_pmt_read
+
     namelist /seq_cplflds_inparm/  &
          flds_co2a, flds_co2b, flds_co2c, flds_co2_dmsa, flds_wiso, flds_polar, flds_tf, &
          glc_nec, glc_nzoc, ice_ncat, seq_flds_i2o_per_cat, flds_bgc_oi, &
@@ -409,7 +411,7 @@ contains
 
     call seq_comm_setptrs(ID,mpicom=mpicom)
 
-    call seq_infodata_GetData(infodata, cime_model=cime_model)
+    call seq_infodata_GetData(infodata, cime_model=cime_model,fosi_pmt_read=fosi_pmt_read)
 
     !---------------------------------------------------------------------------
     ! Read in namelist for use cases
@@ -1479,6 +1481,17 @@ contains
     !-----------------------------
     ! atm<->ocn only exchange
     !-----------------------------
+
+    if (fosi_pmt_read) then
+      ! register array for calculated poleward moisture transport data
+      ! kg/s
+      call seq_flds_add(a2x_states,"Sa_pmt")
+      longname = 'implied poleward moisture transport'
+      stdname  = 'implied_pmt'
+      units    = 'kg/s'
+      attname  = 'Sa_pmt'
+      call metadata_set(attname, longname, stdname, units)
+    end if
 
     ! Sea level pressure (Pa)
     call seq_flds_add(a2x_states,"Sa_pslv")

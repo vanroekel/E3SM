@@ -1061,6 +1061,42 @@
     </values>
   </entry>
 
+  <entry id="fosi_pmt_read" modify_via_xml="FOSI_PMT_READ">
+	<type>logical</type>
+	<category>fosi</category>
+	<group>seq_infodata_inparm</group>
+	<desc>
+	  logical parameter that turns on the poleward moisture transport approach for forced cases
+	</desc>
+	<values>
+	  <value>$FOSI_PMT_READ</value>
+	</values>
+  </entry>
+
+  <entry id="fosi_pmt_min_lat" modify_via_xml="FOSI_PMT_MIN_LAT">
+	<type>real</type>
+	<category>fosi</category>
+	<group>seq_infodata_inparm</group>
+	<desc>
+	  minimum latitutde for poleward moisture transport, must match input file for datm
+	</desc>
+	<values>
+	  <value>$FOSI_PMT_MIN_LAT</value>
+	</values>
+  </entry>
+
+  <entry id="fosi_pmt_max_lat" modify_via_xml="FOSI_PMT_MAX_LAT">
+	<type>real</type>
+	<category>fosi</category>
+	<group>seq_infodata_inparm</group>
+	<desc>
+	  minimum latitutde for poleward moisture transport, must match input file for datm
+	</desc>
+	<values>
+	  <value>$FOSI_PMT_MAX_LAT</value>
+	</values>
+  </entry>
+
   <entry id="cpl_seq_option" modify_via_xml="CPL_SEQ_OPTION">
     <type>char</type>
     <category>expdef</category>

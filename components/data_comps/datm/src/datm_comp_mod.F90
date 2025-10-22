@@ -76,7 +76,7 @@ module datm_comp_mod
   data   dTarc      / 0.49_R8, 0.06_R8,-0.73_R8,  -0.89_R8,-0.77_R8,-1.02_R8, &
        -1.99_R8,-0.91_R8, 1.72_R8,   2.30_R8, 1.81_R8, 1.06_R8/
 
-  integer(IN) :: kz,ktopo,ku,kv,ktbot,kptem,kshum,kdens,kpbot,kpslv,klwdn
+  integer(IN) :: kz,ktopo,kpmt,ku,kv,ktbot,kptem,kshum,kdens,kpbot,kpslv,klwdn
   integer(IN) :: krc,krl,ksc,ksl,kswndr,kswndf,kswvdr,kswvdf,kswnet
   integer(IN) :: kanidr,kanidf,kavsdr,kavsdf
   integer(IN) :: stbot,swind,sz,spbot,sshum,stdew,srh,slwdn,sswdn,sswdndf,sswdndr
@@ -511,6 +511,7 @@ CONTAINS
        kdens = mct_aVect_indexRA(a2x,'Sa_dens')
        kpbot = mct_aVect_indexRA(a2x,'Sa_pbot')
        kpslv = mct_aVect_indexRA(a2x,'Sa_pslv')
+       kpmt  = mct_aVect_indexRA(a2x,'Sa_pmt')
        klwdn = mct_aVect_indexRA(a2x,'Faxa_lwdn')
        krc   = mct_aVect_indexRA(a2x,'Faxa_rainc')
        krl   = mct_aVect_indexRA(a2x,'Faxa_rainl')

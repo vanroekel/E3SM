@@ -8,6 +8,7 @@ module ocn_precip_factor_data
    use ocn_diagnostics_variables
    use mpi
    use ocn_mesh
+   use ocn_constants
    use mpas_global_sum_mod
 
    implicit none
@@ -18,7 +19,7 @@ module ocn_precip_factor_data
    integer                 :: ncid=-1, vid_time=-1, vid_pmeN=-1, vid_pmeE=-1, vid_pmeS=-1
    integer :: nTimes=0, myrank=-1, nprocs=-1
    integer, allocatable    :: timeYMD(:)        ! YYYYMMDD (int)
-   character(len=:), allocatable :: pme_file
+   character(len=StrKIND) :: pme_file
    real(RKIND),   allocatable :: tsec(:)          ! seconds since ref
    real(RKIND),   allocatable :: pN(:), pE(:), pS(:)
 
@@ -73,10 +74,6 @@ contains
       call MPI_Bcast(pE,     nTimes, mpi_real8, root, comm, ierr)
       call MPI_Bcast(pS,     nTimes, mpi_real8, root, comm, ierr)
 
-      print *, 'max/min pN = ',maxval(pN),minval(pN)
-      print *, 'max/min pS = ',maxval(pS),minval(pS)
-      print *, 'max/min pE = ',maxval(pE),minval(pE)
-      stop
       allocate(tsec(nTimes))
       call build_seconds_axis(timeYMD, CAL, tsec)
 
@@ -104,10 +101,15 @@ contains
 
       type(MPAS_Time_type) :: curTime
       real(RKIND) :: pmeN_t, pmeE_t, pmeS_t
+      real(RKIND) :: latMax, latMin, dtr
 
       integer :: Y,M,D, h,mi,s
       real(RKIND) :: tmodel, t0, t1
       integer :: Y1,M1,D1, Ya,Ma,Da
+
+      dtr = pi/180.0_RKIND
+      latMin = config_fosi_pmt_latmIn*dtr
+      latMax = config_fosi_pmt_latmax*dtr
 
       curTime = MPAS_get_clock_time(domain % clock, MPAS_NOW, ierr=ierr)
       ! Extract components from MPAS time (this exists in your branch)
@@ -174,25 +176,24 @@ contains
       reproIndexS(2) = 0
 
       do iCell=1,nCells
-         if (latCell(iCell) >= config_fosi_pmt_latmin .and. &
-             latCell(iCell) <= config_fosi_pmt_latmax) then
+         if (latCell(iCell) >= latMin .and. latCell(iCell) <= latMax) then
              reproIndexE(2) = reproIndexE(2) + 1
-             pEReproSum(reproIndexE(2),1) = rainFlux(iCell)
-             pEReproSum(reproIndexE(2),2) = areaCell(iCell)
-             eEReproSum(reproIndexE(2),1) = evaporationFlux(iCell)
-             eEReproSum(reproIndexE(2),2) = areaCell(iCell)
-         else if (latCell(iCell) > config_fosi_pmt_latmax) then
+             pEReproSum(reproIndexE(2),1) = rainFlux(iCell)*areaCell(iCell)
+!             pEReproSum(reproIndexE(2),2) = areaCell(iCell)
+             eEReproSum(reproIndexE(2),1) = -evaporationFlux(iCell)*areaCell(iCell)
+!             eEReproSum(reproIndexE(2),2) = areaCell(iCell)
+         else if (latCell(iCell) > latMax) then
              reproIndexN(2) = reproIndexN(2) + 1
-             pNReproSum(reproIndexN(2),1) = rainFlux(iCell)
-             pNReproSum(reproIndexN(2),2) = areaCell(iCell)
-             eNReproSum(reproIndexN(2),1) = evaporationFlux(iCell)
-             eNReproSum(reproIndexN(2),2) = areaCell(iCell)
+             pNReproSum(reproIndexN(2),1) = rainFlux(iCell)*areaCell(iCell)
+!             pNReproSum(reproIndexN(2),2) = areaCell(iCell)
+             eNReproSum(reproIndexN(2),1) = -evaporationFlux(iCell)*areaCell(iCell)
+!             eNReproSum(reproIndexN(2),2) = areaCell(iCell)
          else
              reproIndexS(2) = reproIndexS(2) + 1
-             pSReproSum(reproIndexS(2),1) = rainFlux(iCell)
-             pSReproSum(reproIndexS(2),2) = areaCell(iCell)
-             eSReproSum(reproIndexS(2),1) = evaporationFlux(iCell)
-             eSReproSum(reproIndexS(2),2) = areaCell(iCell)
+             pSReproSum(reproIndexS(2),1) = rainFlux(iCell)*areaCell(iCell)
+ !            pSReproSum(reproIndexS(2),2) = areaCell(iCell)
+             eSReproSum(reproIndexS(2),1) = -evaporationFlux(iCell)*areaCell(iCell)
+ !            eSReproSum(reproIndexS(2),2) = areaCell(iCell)
          end if
       end do
 
@@ -200,36 +201,36 @@ contains
       ! just need area once for each region
       reductions(1) = mpas_global_sum(pEReproSum(:,2),domain%dminfo%comm, reproIndexE)
       reductions(2) = mpas_global_sum(pEReproSum(:,1),domain%dminfo%comm,reproIndexE)
-      pSumE = reductions(2)/(reductions(1) + 1.0e-20_RKIND)
+      pSumE = reductions(2)!/(reductions(1) + 1.0e-20_RKIND)
 
       reductions(2) = mpas_global_sum(eEReproSum(:,1),domain%dminfo%comm,reproIndexE)
-      eSumE = reductions(2)/(reductions(1) + 1.0e-20_RKIND)
+      eSumE = reductions(2)!/(reductions(1) + 1.0e-20_RKIND)
 
       !now North region
       reductions(1) = mpas_global_sum(pNReproSum(:,2),domain%dminfo%comm,reproIndexN)
       reductions(2) = mpas_global_sum(pNReproSum(:,1),domain%dminfo%comm,reproIndexN)
-      pSumN = reductions(2)/(reductions(1) + 1.0e-20_RKIND)
+      pSumN = reductions(2)!/(reductions(1) + 1.0e-20_RKIND)
 
       reductions(2) = mpas_global_sum(eNReproSum(:,1),domain%dminfo%comm,reproIndexN)
-      eSumN = reductions(2)/(reductions(1) + 1.0e-20_RKIND)
+      eSumN = reductions(2)!/(reductions(1) + 1.0e-20_RKIND)
 
       ! now south region
       reductions(1) = mpas_global_sum(pSReproSum(:,2),domain%dminfo%comm,reproIndexS)
       reductions(2) = mpas_global_sum(pSReproSum(:,1),domain%dminfo%comm,reproIndexS)
-      pSumS = reductions(2)/(reductions(1) + 1.0e-20_RKIND)
+      pSumS = reductions(2)!/(reductions(1) + 1.0e-20_RKIND)
 
       reductions(2) = mpas_global_sum(eSReproSum(:,1),domain%dminfo%comm,reproIndexS)
-      eSumS = reductions(2)/(reductions(1) + 1.0e-20_RKIND)
+      eSumS = reductions(2)!/(reductions(1) + 1.0e-20_RKIND)
 
       !compute all the correction terms
-      corrE = (eSumE - (pmeN_t - pmeS_t))/pSumE
-      corrN = (eSumN - pmeN_t)/pSumN
-      corrS = (eSumS - pmeS_t)/pSumS
+      corrE = (eSumE - (pmeN_t + pmeS_t))/(1.0E-20_RKIND + pSumE)
+      corrN = (eSumN - pmeN_t)/(pSumN + 1.0E-20_RKIND)
+      corrS = (eSumS - pmeS_t)/(pSumS + 1.0E-20_RKIND)
 
       do iCell=1,nCells
-         if(latCell(iCell) >= config_fosi_pmt_latmax) then
+         if(latCell(iCell) >= latMax) then
             rainFlux(iCell) = corrN*rainFlux(iCell)
-         else if(latCell(iCell) <= config_fosi_pmt_latmin) then
+         else if(latCell(iCell) <= latMin) then
             rainFlux(iCell) = corrS*rainFlux(iCell)
          else
             rainFlux(iCell) = corrE*rainFlux(iCell)

@@ -1055,7 +1055,7 @@ CONTAINS
        reprosum_diffmax, reprosum_recompute,                              &
        mct_usealltoall, mct_usevector, max_cplstep_time, model_doi_url,   &
        glc_valid_input, nlmaps_verbosity, nlmaps_atm2srf_conserve,        &
-       nlmaps_exclude_fields, rmean_rmv_ice_runoff)
+       nlmaps_exclude_fields, rmean_rmv_ice_runoff, fosi_pmt_read)
 
 
     implicit none
@@ -1081,6 +1081,7 @@ CONTAINS
     character(len=*),       optional, intent(OUT) :: restart_pfile           ! Restart pointer file
     character(len=*),       optional, intent(OUT) :: restart_file            ! Restart file pathname
     logical,                optional, intent(OUT) :: single_column
+    logical,                optional, intent(OUT) :: fosi_pmt_read
     real (SHR_KIND_R8),     optional, intent(OUT) :: scmlat
     real (SHR_KIND_R8),     optional, intent(OUT) :: scmlon
     logical,                optional, intent(OUT) :: scm_multcols
@@ -1271,6 +1272,7 @@ CONTAINS
     if ( present(restart_pfile)  ) restart_pfile  = infodata%restart_pfile
     if ( present(restart_file)   ) restart_file   = infodata%restart_file
     if ( present(single_column)  ) single_column  = infodata%single_column
+    if ( present(fosi_pmt_read)  ) fosi_pmt_read  = infodata%fosi_pmt_read
     if ( present(scm_multcols)   ) scm_multcols   = infodata%scm_multcols
     if ( present(scmlat)         ) scmlat         = infodata%scmlat
     if ( present(scmlon)         ) scmlon         = infodata%scmlon

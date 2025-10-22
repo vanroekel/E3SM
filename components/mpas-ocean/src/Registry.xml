@@ -1964,10 +1964,6 @@
 				immutable="true"
 				mode="forward">
 
-			<var name="time_forcing"/>
-			<var name="pmeN"/>
-			<var name="pmeS"/>
-			<var name="pmeE"/>
 		</stream>
 
 		<stream name="mesh"

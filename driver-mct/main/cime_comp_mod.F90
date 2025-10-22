@@ -687,6 +687,14 @@ module cime_comp_mod
   type (RpointerMgr_t) :: rpointer_mgr
 
   !----------------------------------------------------------------------------
+  ! indices for the poleward moisture transport FOSI calculation
+  !----------------------------------------------------------------------------
+
+  integer :: index_x2l_Faxa_rainc
+  integer :: index_x2a_Faxx_evap
+  integer :: index_x2l_Faxa_rainl
+
+  !----------------------------------------------------------------------------
   ! misc
   !----------------------------------------------------------------------------
 
@@ -2547,6 +2555,7 @@ contains
     character(len=CL)     :: drv_resume_file      ! The restart (resume) file
     character(len=CL), pointer :: resume_files(:) ! Component resume files
 
+    logical               :: fosi_pmt_read
     logical               :: lnd2glc_averaged_now ! Whether lnd2glc averages were taken this timestep
     logical               :: prep_glc_accum_avg_called ! Whether prep_glc_accum_avg has been called this timestep
     integer               :: i, nodeId
@@ -2568,7 +2577,7 @@ contains
     call t_startf ('CPL:cime_run_init')
     hashint = 0
     drv_resume=.FALSE.
-
+    fosi_pmt_read = .FALSE.
     call seq_infodata_putData(infodata,atm_phase=1,lnd_phase=1,ocn_phase=1,ice_phase=1)
     call seq_timemgr_EClockGetData( EClock_d, stepno=begstep)
     call seq_timemgr_EClockGetData( EClock_d, dtime=dtime)
@@ -3162,6 +3171,15 @@ contains
              call cime_run_ocn_setup_send()
           end if
        endif
+
+       !----------------------------------------------------------
+       !| FOSI calculate precip factor
+       !----------------------------------------------------------
+
+       call seq_infodata_getData(infodata,fosi_pmt_read=fosi_pmt_read)
+       if (fosi_pmt_read) then
+          call calc_precip_factor_with_pmt(infodata)
+       end if
 
        !----------------------------------------------------------
        !| ATM SETUP-SEND
@@ -4765,7 +4783,109 @@ contains
 
 !----------------------------------------------------------------------------------
 
-  subroutine cime_run_calc_budgets2(in_cplrun)
+  subroutine calc_precip_factor_with_pmt()
+    type(mct_aVect), pointer :: a2x_a             ! model to drv bundle
+    type(mct_aVect), pointer :: x2a_a
+    character(CL)            :: atm_gnam          ! atm grid
+    integer(in)              :: lSize             ! size of aVect
+    integer(in)              :: kLat              ! index of lat field in aVect
+    integer(in)              :: kl,ka,ko,ki       ! fraction indices
+    integer                  :: n
+    logical,save             :: first_time    = .true.
+    type(mct_ggrid), pointer :: dom_a
+
+    character(*),parameter :: subName = '(calc_precip_factor_with_pmt) '
+
+    real(r8) :: pSumE_L, pSumN_L, pSumS_L, eSumE_L, eSumN_L, eSumS_L
+    real(r8) :: pSumE_G, pSumE_G, pSumS_G, eSumE_G, eSumN_G, eSumS_G
+    real(r8) :: pCorrE, pCorrS, pCorrN, pmtN, pmtS, pmtE
+
+    dom_a => component_get_dom_cx(atm(ens1))
+    a2x_a => component_get_c2x_cx(atm(ens1))
+    x2a_a => component_get_x2c_cx(atm(ens1))
+
+    kArea = mct_aVect_indexRA(dom_a%data,'aream')
+    kLat  = mct_aVect_indexRA(dom_a%data,'lat')
+
+    if(first_time) then
+      index_a2x_Faxa_rainc   = mct_aVect_indexRA(a2x_a,'Faxa_rainc')
+      index_a2x_Faxa_rainl   = mct_aVect_indexRA(a2x_a,'Faxa_rainl')
+      index_x2a_Faxx_evap    = mct_aVect_indexRA(x2a_a,'Faxx_evap')
+      index_a2x_pmt          = mct_aVect_indexRA(a2x_a,'Sa_pmt')
+      first_time = .false.
+    end if
+
+    pSumN_L = 0.0_r8
+    pSumS_L = 0.0_r8
+    pSumE_L = 0.0_r8
+    eSumE_L = 0.0_r8
+    eSumS_L = 0.0_r8
+    eSumN_L = 0.0_r8
+
+    pSumN_G = 0.0_r8
+    pSumE_G = 0.0_r8
+    pSumS_G = 0.0_r8
+    eSumN_G = 0.0_r8
+    eSumE_G = 0.0_r8
+    eSumS_G = 0.0_r8
+
+    lSize = mct_avect_lsize(a2x,a)
+    do n=1,lsize
+       if (dom_a%data%rAttr(kLat,n) > 40.0_r8) then ! FIXME change this to a parameter
+          pSumN_L = pSumN_L + dom_a%data%rAttr(kArea,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n))
+          eSumN_L = eSumN_L + dom_a%data%rAttr(kArea,n)*x2a_a%rAttr(index_x2a_Faxx_evap,n)
+       else if (dom_a%data%rAttr(kLat,n) -40.0_r8) then
+          pSumS_L = pSumS_L + dom_a%data%rAttr(kArea,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n))
+          eSumS_L = eSumS_L + dom_a%data%rAttr(kArea,n)*x2a_a%rAttr(index_x2a_Faxx_evap,n)
+       else
+          pSumE_L = pSumE_L + dom_a%data%rAttr(kArea,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n))
+          eSumE_L = eSumE_L + dom_a%data%rAttr(kArea,n)*x2a_a%rAttr(index_x2a_Faxx_evap,n)
+       end if
+    end do
+
+    call seq_comm_setptrs(CPLID,mpicom=mpicom)
+    call shr_mpi_sum(pSumN_L,pSumN_G,mpicom,subName)
+    call shr_mpi_sum(pSumE_L,pSumE_G,mpicom,subName)
+    call shr_mpi_sum(pSumS_L,pSumS_G,mpicom,subName)
+    call shr_mpi_sum(eSumN_L,eSumN_G,mpicom,subName)
+    call shr_mpi_sum(eSumE_L,eSumE_G,mpicom,subName)
+    call shr_mpi_sum(eSumS_L,eSumS_G,mpicom,subName)
+
+    do n=1,lSize
+       if (dom_a%data%rAttr(kLat,n) > 40.0_r8) then
+          pmtN = dom_a%data%rAttr(index_a2x_pmt,n)
+       else if (dom_a%data%rAttr(kLat,n) -40.0_r8) then
+          pmtS = dom_a%data%rAttr(index_a2x_pmt,n)
+       else
+          pmtE = dom_a%data%rAttr(index_a2x_pmt,n)
+       end if
+    end do
+
+    pCorrN = (eSumN_G - pmtN) / (pSumN_G + 1.0e-20_r8)
+    pCorrS = (eSumS_G - pmtS) / (pSumS_G + 1.0e-20_r8)
+    pCorrE = (eSumE_G - (pmtN+pmtS)) / (pSumE + 1.0e-20_r8)
+
+    do n=1,lSize
+       if (dom_a%data%rAttr(kLat,n) > 40.0_r8) then
+         dom_a%data%rAttr(index_Faxa_rainc,n) = pCorrN*dom_a%data%rAttr(index_Faxa_rainc,n)
+         dom_a%data%rAttr(index_Faxa_rainl,n) = pCorrN*dom_a%data%rAttr(index_Faxa_rainl,n)
+       else if (dom_a%data%rAttr(kLat,n) -40.0_r8) then
+         dom_a%data%rAttr(index_Faxa_rainc,n) = pCorrS*dom_a%data%rAttr(index_Faxa_rainc,n)
+         dom_a%data%rAttr(index_Faxa_rainl,n) = pCorrS*dom_a%data%rAttr(index_Faxa_rainl,n)
+       else
+         dom_a%data%rAttr(index_Faxa_rainc,n) = pCorrE*dom_a%data%rAttr(index_Faxa_rainc,n)
+         dom_a%data%rAttr(index_Faxa_rainl,n) = pCorrE*dom_a%data%rAttr(index_Faxa_rainl,n)
+       end if
+    end do
+
+  end subroutine calc_precip_factor_with_pmt
+
+!----------------------------------------------------------------------------------
+
+  subroutine cime_run_calc_budgets2()
 
     !----------------------------------------------------------
     ! Budget with new fractions

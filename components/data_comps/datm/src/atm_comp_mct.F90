@@ -77,6 +77,7 @@ CONTAINS
     logical           :: read_restart              ! start from restart
     integer(IN)       :: ierr                      ! error code
     logical           :: scmMode = .false.         ! single column mode
+    logical           :: fosi_pmt_read = .false.   ! flag to read poleward moisture transport climo
     real(R8)          :: scmLat  = shr_const_SPVAL ! single column lat
     real(R8)          :: scmLon  = shr_const_SPVAL ! single column lon
     real(R8)          :: orbEccen                  ! orb eccentricity (unit-less)
@@ -112,7 +113,8 @@ CONTAINS
          orb_mvelpp=orbMvelpp, &
          orb_lambm0=orbLambm0,&
          orb_obliqr=orbObliqr, &
-         read_restart=read_restart)
+         read_restart=read_restart, &
+         fosi_pmt_read=fosi_pmt_read)
 
     ! Determine instance information
     inst_name   = seq_comm_name(compid)
