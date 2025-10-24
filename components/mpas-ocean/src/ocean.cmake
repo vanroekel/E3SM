@@ -45,7 +45,6 @@ list(APPEND RAW_SOURCES
   core_ocean/shared/mpas_ocn_diagnostics_variables.F
   core_ocean/shared/mpas_ocn_mesh.F
   core_ocean/shared/mpas_ocn_thick_ale.F
-  core_ocean/shared/mpas_ocn_precip_factor_data.F
   core_ocean/shared/mpas_ocn_equation_of_state.F
   core_ocean/shared/mpas_ocn_equation_of_state_jm.F
   core_ocean/shared/mpas_ocn_equation_of_state_linear.F
