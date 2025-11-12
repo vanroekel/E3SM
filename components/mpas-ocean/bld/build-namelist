@@ -1813,6 +1813,8 @@ add_default($nl, 'config_AM_mixedLayerHeatBudget_compute_interval');
 add_default($nl, 'config_AM_mixedLayerHeatBudget_output_stream');
 add_default($nl, 'config_AM_mixedLayerHeatBudget_compute_on_startup');
 add_default($nl, 'config_AM_mixedLayerHeatBudget_write_on_startup');
+add_default($nl, 'config_depth_type');
+add_default($nl, 'config_depth_critical_dep');
 
 ########################################
 # Namelist group: AM_sedimentFluxIndex #

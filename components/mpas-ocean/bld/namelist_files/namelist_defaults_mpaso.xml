@@ -1275,6 +1275,8 @@
 <config_AM_mixedLayerHeatBudget_output_stream>'mixedLayerHeatBudgetOutput'</config_AM_mixedLayerHeatBudget_output_stream>
 <config_AM_mixedLayerHeatBudget_compute_on_startup>.false.</config_AM_mixedLayerHeatBudget_compute_on_startup>
 <config_AM_mixedLayerHeatBudget_write_on_startup>.false.</config_AM_mixedLayerHeatBudget_write_on_startup>
+<config_depth_type>'mld'</config_depth_type>
+<config_depth_critical_dep>50</config_depth_critical_dep>
 
 <!-- AM_sedimentFluxIndex -->
 <config_AM_sedimentFluxIndex_enable>.false.</config_AM_sedimentFluxIndex_enable>

@@ -19,6 +19,14 @@
 			description="Logical flag determining if an analysis member write occurs on start-up."
 			possible_values=".true. or .false."
 		/>
+	    <nml_option name="config_depth_type" type="character" default_value='mld'
+			description="choice of integration bound; valid values are: 'mld', 'bld', 'constant'"
+			possible_values="'mld', 'bld', 'constant'"
+		/>
+		<nml_option name="config_depth_critical_dep" type="real" default_value="50"
+			description="depth over which to integrate for the option 'constant'"
+			possible_values="values greater than zero"
+		/>
 	</nml_record>
 	<packages>
 		<package name="mixedLayerHeatBudgetAMPKG" description="This package includes variables required for the mixedLayerHeatBudget analysis member."/>

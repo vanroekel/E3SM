@@ -6376,6 +6376,21 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_depth_type" type="character"
+  category="AM_mixedLayerHeatBudget" group="AM_mixedLayerHeatBudget">
+String of the depth integral type
+
+Valid values: 'mld', 'bld', 'constant'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_depth_critical_dep" type="real"
+  category="AM_mixedLayerHeatBudget" group="AM_mixedLayerHeatBudget">
+Depth over which to integrate the budget - only applies to 'constant' option
+
+Valid values: values greater than zero
+Default: Defined in namelist_defaults.xml
+</entry>
 
 <!-- AM_sedimentFluxIndex -->
 
