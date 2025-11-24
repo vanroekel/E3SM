@@ -31,6 +31,7 @@ module datm_comp_mod
   use datm_shr_mod   , only: factorfn       ! namelist input
   use datm_shr_mod   , only: iradsw         ! namelist input
   use datm_shr_mod   , only: nullstr
+  use datm_shr_mod   , only: fosi_pmt_min_lat, fosi_pmt_max_lat
 
 #ifdef HAVE_MOAB
   use iso_c_binding
@@ -103,7 +104,7 @@ module datm_comp_mod
   real(R8), pointer    :: winddFactor(:)
   real(R8), pointer    :: qsatFactor(:)
 
-  integer(IN),parameter :: ktrans  = 77
+  integer(IN),parameter :: ktrans  = 78
 
   character(16),parameter  :: avofld(1:ktrans) = &
        (/"Sa_z            ","Sa_topo         ", &
@@ -129,7 +130,7 @@ module datm_comp_mod
                                 ! isotopic forcing
        "Faxa_rainc_18O  ","Faxa_rainc_HDO  ","Faxa_rainl_18O  ","Faxa_rainl_HDO  ",&
        "Faxa_snowc_18O  ","Faxa_snowc_HDO  ","Faxa_snowl_18O  ","Faxa_snowl_HDO  ",&
-       "Sa_shum_16O     ","Sa_shum_18O     ","Sa_shum_HDO     " &
+       "Sa_shum_16O     ","Sa_shum_18O     ","Sa_shum_HDO     ","Sa_pmt          " &
        /)
 
   character(16),parameter  :: avifld(1:ktrans) = &
@@ -156,7 +157,7 @@ module datm_comp_mod
                                 ! isotopic forcing
        "rainc_18O       ","rainc_HDO       ","rainl_18O       ","rainl_HDO       ", &
        "snowc_18O       ","snowc_HDO       ","snowl_18O       ","snowl_HDO       ", &
-       "shum_16O        ","shum_18O        ","shum_HDO        " &
+       "shum_16O        ","shum_18O        ","shum_HDO        ","pmt             " &
        /)
 
   ! The stofld and stifld lists are used for fields that are read but not passed to the

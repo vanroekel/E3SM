@@ -42,6 +42,9 @@ module datm_shr_mod
   integer(IN)   , public :: iradsw                ! radiation interval
   character(CL) , public :: factorFn              ! file containing correction factors
   logical       , public :: presaero              ! true => send valid prescribe aero fields to coupler
+  logical       , public :: fosi_pmt_read ! true => read PMT data from a prepared file 
+  real(r8)      , public :: fosi_pmt_min_lat
+  real(r8)      , public :: fosi_pmt_max_lat
 
   ! variables obtained from namelist read
   character(CL) , public :: rest_file             ! restart filename
@@ -85,7 +88,8 @@ CONTAINS
     !----- define namelist -----
     namelist / datm_nml / &
          decomp, iradsw, factorFn, restfilm, restfils, presaero, bias_correct, &
-         anomaly_forcing, force_prognostic_true, wiso_datm
+         anomaly_forcing, force_prognostic_true, wiso_datm, &
+         fosi_pmt_min_lat, fosi_pmt_max_lat
 
     !----------------------------------------------------------------------------
     ! Determine input filenamname
@@ -103,6 +107,8 @@ CONTAINS
     restfilm = trim(nullstr)
     restfils = trim(nullstr)
     presaero = .false.
+    fosi_pmt_min_lat = -40.
+    fosi_pmt_max_lat = 40.
     force_prognostic_true = .false.
     if (my_task == master_task) then
        nunit = shr_file_getUnit() ! get unused unit number
@@ -126,6 +132,9 @@ CONTAINS
        write(logunit,F01) 'inst_index  =  ',inst_index
        write(logunit,F00) 'inst_name   =  ',trim(inst_name)
        write(logunit,F00) 'inst_suffix =  ',trim(inst_suffix)
+       write(logunit,F00) 'pmt_min_lat = ',fosi_pmt_min_lat
+       write(logunit,F00) 'pmt_max_lat = ',fosi_pmt_max_lat
+
        call shr_sys_flush(logunit)
     endif
     call shr_mpi_bcast(decomp,mpicom,'decomp')
@@ -136,6 +145,8 @@ CONTAINS
     call shr_mpi_bcast(presaero,mpicom,'presaero')
     call shr_mpi_bcast(force_prognostic_true,mpicom,'force_prognostic_true')
     call shr_mpi_bcast(wiso_datm, mpicom, 'wiso_datm')
+    call shr_mpi_bcast(fosi_pmt_min_lat, mpicom, 'fosi_pmt_min_lat')
+    call shr_mpi_bcast(fosi_pmt_max_lat, mpicom, 'fosi_pmt_max_lat')
 
     rest_file = trim(restfilm)
     rest_file_strm = trim(restfils)

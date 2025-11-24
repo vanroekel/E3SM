@@ -255,6 +255,9 @@ MODULE seq_infodata_mod
      logical                 :: glc_g2lupdate   ! update glc2lnd fields in lnd model
      real(SHR_KIND_R8)       :: max_cplstep_time ! abort if cplstep time exceeds this value
      real(SHR_KIND_R8)       :: rmean_rmv_ice_runoff ! running mean of removed Antarctic ice runoff
+     logical                 :: fosi_pmt_read
+     real(SHR_KIND_R8)       :: fosi_pmt_max_lat
+     real(SHR_KIND_R8)       :: fosi_pmt_min_lat
      !--- set from restart file ---
      character(SHR_KIND_CL)  :: rest_case_name  ! Short case identification
      !--- set by driver and may be time varying
@@ -815,6 +818,9 @@ CONTAINS
        infodata%wav_phase     = 1
        infodata%iac_phase     = 1
        infodata%atm_aero      = .false.
+       infodata%fosi_pmt_read = .false.
+       infodata%fosi_pmt_min_lat = -40.0
+       infodata%fosi_pmt_max_lat = 40.0
        infodata%glc_g2lupdate = .false.
        infodata%glc_valid_input = .true.
        infodata%rmean_rmv_ice_runoff = -1.0_SHR_KIND_R8
@@ -1055,7 +1061,8 @@ CONTAINS
        reprosum_diffmax, reprosum_recompute,                              &
        mct_usealltoall, mct_usevector, max_cplstep_time, model_doi_url,   &
        glc_valid_input, nlmaps_verbosity, nlmaps_atm2srf_conserve,        &
-       nlmaps_exclude_fields, rmean_rmv_ice_runoff, fosi_pmt_read)
+       nlmaps_exclude_fields, rmean_rmv_ice_runoff, fosi_pmt_read,        &
+       fosi_pmt_min_lat, fosi_pmt_max_lat)
 
 
     implicit none
@@ -1082,6 +1089,8 @@ CONTAINS
     character(len=*),       optional, intent(OUT) :: restart_file            ! Restart file pathname
     logical,                optional, intent(OUT) :: single_column
     logical,                optional, intent(OUT) :: fosi_pmt_read
+    real(SHR_KIND_R8),      optional, intent(OUT) :: fosi_pmt_min_lat
+    real(SHR_KIND_R8),      optional, intent(OUT) :: fosi_pmt_max_lat
     real (SHR_KIND_R8),     optional, intent(OUT) :: scmlat
     real (SHR_KIND_R8),     optional, intent(OUT) :: scmlon
     logical,                optional, intent(OUT) :: scm_multcols
@@ -1273,6 +1282,8 @@ CONTAINS
     if ( present(restart_file)   ) restart_file   = infodata%restart_file
     if ( present(single_column)  ) single_column  = infodata%single_column
     if ( present(fosi_pmt_read)  ) fosi_pmt_read  = infodata%fosi_pmt_read
+    if ( present(fosi_pmt_min_lat)) fosi_pmt_min_lat = infodata%fosi_pmt_min_lat
+    if ( present(fosi_pmt_max_lat)) fosi_pmt_max_lat = infodata%fosi_pmt_max_lat
     if ( present(scm_multcols)   ) scm_multcols   = infodata%scm_multcols
     if ( present(scmlat)         ) scmlat         = infodata%scmlat
     if ( present(scmlon)         ) scmlon         = infodata%scmlon
@@ -1621,7 +1632,8 @@ CONTAINS
        reprosum_diffmax, reprosum_recompute,                              &
        mct_usealltoall, mct_usevector, glc_valid_input,                   &
        nlmaps_verbosity, nlmaps_atm2srf_conserve, nlmaps_exclude_fields,  &
-       rmean_rmv_ice_runoff)
+       rmean_rmv_ice_runoff, fosi_pmt_read, fosi_pmt_min_lat,             &
+       fosi_pmt_max_lat)
 
 
     implicit none
@@ -1806,6 +1818,9 @@ CONTAINS
     integer(SHR_KIND_IN),   optional, intent(IN) :: esp_phase             ! esp phase
     logical,                optional, intent(IN) :: atm_aero              ! atm aerosols
     logical,                optional, intent(IN) :: glc_g2lupdate         ! update glc2lnd fields in lnd model
+    logical,                optional, intent(IN) :: fosi_pmt_read
+    real(SHR_KIND_R8),       optional, intent(IN) :: fosi_pmt_min_lat
+    real(SHR_KIND_R8),       optional, intent(IN) :: fosi_pmt_max_lat
     logical,                optional, intent(IN) :: glc_valid_input
     real(SHR_KIND_R8),      optional, intent(IN)    :: rmean_rmv_ice_runoff ! running mean of removed Antarctic ice runoff
 
@@ -1994,6 +2009,9 @@ CONTAINS
     if ( present(iac_phase)      ) infodata%iac_phase      = iac_phase
     if ( present(esp_phase)      ) infodata%esp_phase      = esp_phase
     if ( present(atm_aero)       ) infodata%atm_aero       = atm_aero
+    if ( present(fosi_pmt_read)  ) infodata%fosi_pmt_read  = fosi_pmt_read
+    if ( present(fosi_pmt_min_lat) ) infodata%fosi_pmt_min_lat = fosi_pmt_min_lat
+    if ( present(fosi_pmt_max_lat) ) infodata%fosi_pmt_max_lat = fosi_pmt_max_lat
     if ( present(glc_g2lupdate)  ) infodata%glc_g2lupdate  = glc_g2lupdate
     if ( present(glc_valid_input) ) infodata%glc_valid_input = glc_valid_input
     if ( present(rmean_rmv_ice_runoff)    ) infodata%rmean_rmv_ice_runoff    = rmean_rmv_ice_runoff
@@ -2310,6 +2328,9 @@ CONTAINS
     call shr_mpi_bcast(infodata%wav_phase,               mpicom)
     call shr_mpi_bcast(infodata%iac_phase,               mpicom)
     call shr_mpi_bcast(infodata%atm_aero,                mpicom)
+    call shr_mpi_bcast(infodata%fosi_pmt_read,           mpicom)
+    call shr_mpi_bcast(infodata%fosi_pmt_max_lat,        mpicom)
+    call shr_mpi_bcast(infodata%fosi_pmt_min_lat,        mpicom)
     call shr_mpi_bcast(infodata%glc_g2lupdate,           mpicom)
     call shr_mpi_bcast(infodata%glc_valid_input,         mpicom)
     call shr_mpi_bcast(infodata%model_doi_url,           mpicom)

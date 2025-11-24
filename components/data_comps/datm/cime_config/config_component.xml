@@ -255,7 +255,25 @@ data (see cime issue #3653 -- https://github.com/ESMCI/cime/issues/3653).
     <file>env_run.xml</file>
     <desc>directory for coupler history data mode (only used for when DATM_MODE is E3SMWCv2)</desc>
   </entry>
-  
+
+  <entry id="FOSI_PMT_MIN_LAT">
+	<type>real</type>
+	<valid_values></valid_values>
+	<default_value>-40.0</default_value>
+	<group>run_component_datm</group>
+	<file>env_run.xml</file>
+	<desc>minimum latitude for P-E integral MUST match data file read in</desc>
+  </entry>
+
+  <entry id="FOSI_PMT_MAX_LAT">
+	<type>real</type>
+	<valid_values></valid_values>
+	<default_value>40.0</default_value>
+	<group>run_component_datm</group>
+	<file>env_run.xml</file>
+	<desc>maximum latitude for P-E integral MUS match data file read in</desc>
+  </entry>
+
   <entry id="DATM_E3SMWCv2_YR_ALIGN">
     <type>integer</type>
     <valid_values></valid_values>

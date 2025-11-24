@@ -25,13 +25,14 @@ module cime_comp_mod
   use shr_kind_mod,      only: cs => SHR_KIND_CS
   use shr_kind_mod,      only: cl => SHR_KIND_CL
   use shr_sys_mod,       only: shr_sys_abort, shr_sys_flush, shr_sys_irtc
-  use shr_const_mod,     only: shr_const_cday
+  use shr_const_mod,     only: shr_const_pi, shr_const_rearth, shr_const_cday
   use shr_file_mod,      only: shr_file_setLogLevel, shr_file_setLogUnit
   use shr_file_mod,      only: shr_file_setIO, shr_file_getUnit, shr_file_freeUnit
   use shr_scam_mod,      only: shr_scam_checkSurface
   use shr_map_mod,       only: shr_map_setDopole
-  use shr_mpi_mod,       only: shr_mpi_min, shr_mpi_max
+  use shr_mpi_mod,       only: shr_mpi_min, shr_mpi_max, shr_mpi_sum
   use shr_mpi_mod,       only: shr_mpi_bcast, shr_mpi_commrank, shr_mpi_commsize
+  use seq_comm_mct, only: logunit, cplid, seq_comm_setptrs, seq_comm_clean
   use shr_mem_mod,       only: shr_mem_init, shr_mem_getusage
   use shr_cal_mod,       only: shr_cal_date2ymd, shr_cal_ymd2date, shr_cal_advdateInt
   use shr_cal_mod,       only: shr_cal_ymds2rday_offset
@@ -42,6 +43,8 @@ module cime_comp_mod
   use mct_mod            ! mct_ wrappers for mct lib
   use perf_mod
   use ESMF
+  use component_type_mod, only : COMPONENT_GET_DOM_CX, COMPONENT_GET_C2X_CX, &
+       COMPONENT_GET_X2C_CX, COMPONENT_TYPE
 
   !----------------------------------------------------------------------------
   ! component model interfaces (init, run, final methods)
@@ -470,6 +473,9 @@ module cime_comp_mod
   logical  :: aqua_planet            ! aqua planet mode
   real(r8) :: nextsw_cday            ! radiation control
   logical  :: atm_aero               ! atm provides aerosol data
+  logical               :: fosi_pmt_read
+  real(r8)              :: fosi_pmt_min_lat
+  real(r8)              :: fosi_pmt_max_lat
 
   character(CL) :: cpl_seq_option    ! coupler sequencing option
   logical  :: skip_ocean_run         ! skip the ocean model first pass
@@ -690,9 +696,18 @@ module cime_comp_mod
   ! indices for the poleward moisture transport FOSI calculation
   !----------------------------------------------------------------------------
 
-  integer :: index_x2l_Faxa_rainc
+  integer :: index_a2x_Faxa_rainc
   integer :: index_x2a_Faxx_evap
+  integer :: index_a2x_Faxa_rainl
+  integer :: index_a2x_Faxa_snowl
+  integer :: index_a2x_Faxa_snowc
+  integer :: index_a2x_pmt
+  integer :: index_l2x_Fall_evap
+  integer :: index_x2o_Foxx_evap
+  integer :: index_i2x_Faii_evap
+  integer :: index_x2l_Faxa_rainc
   integer :: index_x2l_Faxa_rainl
+  integer :: index_x2o_Faxa_rain
 
   !----------------------------------------------------------------------------
   ! misc
@@ -701,6 +716,8 @@ module cime_comp_mod
   integer, parameter :: ens1=1         ! use first instance of ensemble only
   integer, parameter :: fix1=1         ! temporary hard-coding to first ensemble, needs to be fixed
   integer :: eai, eli, eoi, eii, egi, eri, ewi, eei, exi, efi, ezi  ! component instance counters
+
+  integer :: output_counter
 
   !----------------------------------------------------------------------------
   ! formats
@@ -1236,7 +1253,8 @@ contains
          max_cplstep_time=max_cplstep_time         , &
          nlmaps_verbosity=nlmaps_verbosity         , &
          nlmaps_atm2srf_conserve=nlmaps_atm2srf_conserve, &
-         nlmaps_exclude_fields=nlmaps_exclude_fields)
+         nlmaps_exclude_fields=nlmaps_exclude_fields, &
+         fosi_pmt_read=fosi_pmt_read)
 
     ! above - cpl_decomp is set to pass the cpl_decomp value to seq_mctext_decomp
     ! (via a use statement)
@@ -1482,6 +1500,8 @@ contains
     call t_startf('CPL:cime_init')
     call t_adj_detailf(+1)
 
+    output_counter = 0
+
     call t_startf('CPL:init_comps')
     if (iamroot_CPLID )then
        write(logunit,*) ' '
@@ -1706,7 +1726,10 @@ contains
          ocn_nx=ocn_nx, ocn_ny=ocn_ny,          &
          wav_nx=wav_nx, wav_ny=wav_ny,          &
          iac_nx=iac_nx, iac_ny=iac_ny,          &
-         atm_aero=atm_aero )
+         atm_aero=atm_aero,                     &
+         fosi_pmt_read=fosi_pmt_read,           &
+         fosi_pmt_min_lat=fosi_pmt_min_lat,     &
+         fosi_pmt_max_lat=fosi_pmt_max_lat)
 
     ! Initialize the rpointer manager. This is called after the restart routine
     ! because we need to be further along in initialization to fully initialize
@@ -2555,7 +2578,6 @@ contains
     character(len=CL)     :: drv_resume_file      ! The restart (resume) file
     character(len=CL), pointer :: resume_files(:) ! Component resume files
 
-    logical               :: fosi_pmt_read
     logical               :: lnd2glc_averaged_now ! Whether lnd2glc averages were taken this timestep
     logical               :: prep_glc_accum_avg_called ! Whether prep_glc_accum_avg has been called this timestep
     integer               :: i, nodeId
@@ -2577,7 +2599,6 @@ contains
     call t_startf ('CPL:cime_run_init')
     hashint = 0
     drv_resume=.FALSE.
-    fosi_pmt_read = .FALSE.
     call seq_infodata_putData(infodata,atm_phase=1,lnd_phase=1,ocn_phase=1,ice_phase=1)
     call seq_timemgr_EClockGetData( EClock_d, stepno=begstep)
     call seq_timemgr_EClockGetData( EClock_d, dtime=dtime)
@@ -2893,6 +2914,14 @@ contains
        endif
 
        call t_stopf ('CPL:CLOCK_ADVANCE')
+       !----------------------------------------------------------
+       !| FOSI calculate precip factor
+       !----------------------------------------------------------
+
+       if (fosi_pmt_read .and. iamin_CPLID) then
+          call calc_precip_factor_with_pmt(fosi_pmt_min_lat,fosi_pmt_max_lat)
+       end if
+
 
        !----------------------------------------------------------
        !| IAC SETUP-SEND
@@ -3171,15 +3200,6 @@ contains
              call cime_run_ocn_setup_send()
           end if
        endif
-
-       !----------------------------------------------------------
-       !| FOSI calculate precip factor
-       !----------------------------------------------------------
-
-       call seq_infodata_getData(infodata,fosi_pmt_read=fosi_pmt_read)
-       if (fosi_pmt_read) then
-          call calc_precip_factor_with_pmt(infodata)
-       end if
 
        !----------------------------------------------------------
        !| ATM SETUP-SEND
@@ -4783,34 +4803,71 @@ contains
 
 !----------------------------------------------------------------------------------
 
-  subroutine calc_precip_factor_with_pmt()
+  subroutine calc_precip_factor_with_pmt(min_lat,max_lat)
     type(mct_aVect), pointer :: a2x_a             ! model to drv bundle
-    type(mct_aVect), pointer :: x2a_a
+    type(mct_aVect), pointer :: l2x_l, x2l_l
+    type(mct_aVect), pointer :: i2x_i
+    type(mct_aVect), pointer :: x2o_o
     character(CL)            :: atm_gnam          ! atm grid
-    integer(in)              :: lSize             ! size of aVect
-    integer(in)              :: kLat              ! index of lat field in aVect
-    integer(in)              :: kl,ka,ko,ki       ! fraction indices
+    integer              :: lSize             ! size of aVect
+    integer              :: kLat_a, kLat_l, kLat_i, kLat_o
+    integer              :: kl,ka,ko,ki       ! fraction indices
+    integer                  :: kArea_a, kArea_l, kArea_i, kArea_o
     integer                  :: n
+    integer              :: mpicom
+    integer :: pairs_send(2,3), pairs_root(2,3)
     logical,save             :: first_time    = .true.
-    type(mct_ggrid), pointer :: dom_a
+    real(r8)                  :: min_lat, earth_area, pi4, max_lat
+    integer :: ierr, nprocs, myrank, i
+    integer, parameter :: NCAT=3
+    integer :: roots(NCAT)
+    real(r8) :: outvals(NCAT), buf
+
+    real(r8) :: val(3)
+    type(mct_ggrid), pointer :: dom_a, dom_l, dom_i, dom_o
 
     character(*),parameter :: subName = '(calc_precip_factor_with_pmt) '
 
     real(r8) :: pSumE_L, pSumN_L, pSumS_L, eSumE_L, eSumN_L, eSumS_L
-    real(r8) :: pSumE_G, pSumE_G, pSumS_G, eSumE_G, eSumN_G, eSumS_G
+    real(r8) :: pSumN_G, pSumE_G, pSumS_G, eSumE_G, eSumN_G, eSumS_G
     real(r8) :: pCorrE, pCorrS, pCorrN, pmtN, pmtS, pmtE
 
-    dom_a => component_get_dom_cx(atm(ens1))
-    a2x_a => component_get_c2x_cx(atm(ens1))
-    x2a_a => component_get_x2c_cx(atm(ens1))
+    min_lat = -40.0_r8
+    max_lat = 40.0_r8
 
-    kArea = mct_aVect_indexRA(dom_a%data,'aream')
-    kLat  = mct_aVect_indexRA(dom_a%data,'lat')
+    pi4 = 4.0_r8*shr_const_pi
+
+    dom_a => component_get_dom_cx(atm(ens1))
+    dom_l => component_get_dom_cx(lnd(ens1))
+    dom_i => component_get_dom_cx(ice(ens1))
+    dom_o => component_get_dom_cx(ocn(ens1))
+    a2x_a => component_get_c2x_cx(atm(ens1))
+    l2x_l => component_get_c2x_cx(lnd(ens1))
+    i2x_i => component_get_c2x_cx(ice(ens1))
+    x2o_o => component_get_x2c_cx(ocn(ens1))
+    x2l_l => component_get_x2c_cx(lnd(ens1))
+
+    kArea_a = mct_aVect_indexRA(dom_a%data,'aream')
+    kLat_a  = mct_aVect_indexRA(dom_a%data,'lat')
+    kArea_l = mct_aVect_indexRA(dom_l%data,'aream')
+    kLat_l  = mct_aVect_indexRA(dom_l%data,'lat')
+    kArea_o = mct_aVect_indexRA(dom_o%data,'aream')
+    kLat_o  = mct_aVect_indexRA(dom_o%data,'lat')
+    kArea_i = mct_aVect_indexRA(dom_i%data,'aream')
+    kLat_i  = mct_aVect_indexRA(dom_i%data,'lat')
+
 
     if(first_time) then
       index_a2x_Faxa_rainc   = mct_aVect_indexRA(a2x_a,'Faxa_rainc')
       index_a2x_Faxa_rainl   = mct_aVect_indexRA(a2x_a,'Faxa_rainl')
-      index_x2a_Faxx_evap    = mct_aVect_indexRA(x2a_a,'Faxx_evap')
+      index_a2x_Faxa_snowc   = mct_aVect_indexRA(a2x_a,'Faxa_snowc')
+      index_a2x_Faxa_snowl   = mct_aVect_indexRA(a2x_a,'Faxa_snowl')
+      index_x2l_Faxa_rainc   = mct_aVect_indexRA(x2l_l,'Faxa_rainc')
+      index_x2l_Faxa_rainl   = mct_aVect_indexRA(x2l_l,'Faxa_rainl')
+      index_l2x_Fall_evap    = mct_aVect_indexRA(l2x_l,'Fall_evap')
+      index_x2o_Foxx_evap    = mct_aVect_indexRA(x2o_o,'Foxx_evap')
+      index_i2x_Faii_evap    = mct_aVect_indexRA(i2x_i,'Faii_evap')
+      index_x2o_Faxa_rain    = mct_aVect_indexRA(x2o_o,'Faxa_rain')
       index_a2x_pmt          = mct_aVect_indexRA(a2x_a,'Sa_pmt')
       first_time = .false.
     end if
@@ -4829,63 +4886,144 @@ contains
     eSumE_G = 0.0_r8
     eSumS_G = 0.0_r8
 
-    lSize = mct_avect_lsize(a2x,a)
+    ! Sum atmosphere precipitation, evaporation is not calculated for FOSI cases
+    lSize = mct_avect_lsize(a2x_a)
     do n=1,lsize
-       if (dom_a%data%rAttr(kLat,n) > 40.0_r8) then ! FIXME change this to a parameter
-          pSumN_L = pSumN_L + dom_a%data%rAttr(kArea,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
-                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n))
-          eSumN_L = eSumN_L + dom_a%data%rAttr(kArea,n)*x2a_a%rAttr(index_x2a_Faxx_evap,n)
-       else if (dom_a%data%rAttr(kLat,n) -40.0_r8) then
-          pSumS_L = pSumS_L + dom_a%data%rAttr(kArea,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
-                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n))
-          eSumS_L = eSumS_L + dom_a%data%rAttr(kArea,n)*x2a_a%rAttr(index_x2a_Faxx_evap,n)
+       if (dom_a%data%rAttr(kLat_a,n) > max_lat) then ! FIXME change this to a parameter
+          pSumN_L = pSumN_L + dom_a%data%rAttr(kArea_a,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_snowl,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_snowc,n))
+       else if (dom_a%data%rAttr(kLat_a,n) < min_lat) then
+          pSumS_L = pSumS_L + dom_a%data%rAttr(kArea_a,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_snowc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_snowl,n))
        else
-          pSumE_L = pSumE_L + dom_a%data%rAttr(kArea,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
-                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n))
-          eSumE_L = eSumE_L + dom_a%data%rAttr(kArea,n)*x2a_a%rAttr(index_x2a_Faxx_evap,n)
+          pSumE_L = pSumE_L + dom_a%data%rAttr(kArea_a,n)*(a2x_a%rAttr(index_a2x_Faxa_rainc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_rainl,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_snowc,n) &
+                                    +a2x_a%rAttr(index_a2x_Faxa_snowl,n))
        end if
     end do
+
+    ! next land, sign definition appears to be water flux down for evap, so switch
+    lsize = mct_avect_lsize(l2x_l)
+    do n=1,lsize
+       if (dom_l%data%rAttr(kLat_l,n) > max_lat) then ! FIXME change this to a parameter
+          eSumN_L = eSumN_L - dom_l%data%rAttr(kArea_l,n)*l2x_l%rAttr(index_l2x_Fall_evap,n)
+       else if (dom_l%data%rAttr(kLat_l,n) < min_lat) then
+          eSumS_L = eSumS_L - dom_l%data%rAttr(kArea_l,n)*l2x_l%rAttr(index_l2x_Fall_evap,n)
+       else
+          eSumE_L = eSumE_L - dom_l%data%rAttr(kArea_l,n)*l2x_l%rAttr(index_l2x_Fall_evap,n)
+       end if
+    end do
+
+    ! next ocn, do not reset eSums
+    lsize = mct_avect_lsize(x2o_o)
+    do n=1,lsize
+       if (dom_o%data%rAttr(kLat_o,n) > max_lat) then ! FIXME change this to a parameter
+          eSumN_L = eSumN_L - dom_o%data%rAttr(kArea_o,n)*x2o_o%rAttr(index_x2o_Foxx_evap,n)
+       else if (dom_o%data%rAttr(kLat_o,n) < min_lat) then
+          eSumS_L = eSumS_L - dom_o%data%rAttr(kArea_o,n)*x2o_o%rAttr(index_x2o_Foxx_evap,n)
+       else
+          eSumE_L = eSumE_L - dom_o%data%rAttr(kArea_o,n)*x2o_o%rAttr(index_x2o_Foxx_evap,n)
+       end if
+    end do
+
+    ! next ice, do not reset eSums
+    lsize = mct_avect_lsize(i2x_i)
+    do n=1,lsize
+       if (dom_i%data%rAttr(kLat_i,n) > max_lat) then ! FIXME change this to a parameter
+          eSumN_L = eSumN_L - dom_i%data%rAttr(kArea_i,n)*i2x_i%rAttr(index_i2x_Faii_evap,n)
+       else if (dom_i%data%rAttr(kLat_i,n) < min_lat) then
+          eSumS_L = eSumS_L - dom_i%data%rAttr(kArea_i,n)*i2x_i%rAttr(index_i2x_Faii_evap,n)
+       else
+          eSumE_L = eSumE_L - dom_i%data%rAttr(kArea_i,n)*i2x_i%rAttr(index_i2x_Faii_evap,n)
+       end if
+    end do
+
+    ! convert area to m2 from rad2
+    pSumN_L = shr_const_rearth**2*pSumN_L
+    pSumE_L = shr_const_rearth**2*pSumE_L
+    pSumS_L = shr_const_rearth**2*pSumS_L
+    eSumN_L = shr_const_rearth**2*eSumN_L
+    eSumE_L = shr_const_rearth**2*eSumE_L
+    eSumS_L = shr_const_rearth**2*eSumS_L
 
     call seq_comm_setptrs(CPLID,mpicom=mpicom)
-    call shr_mpi_sum(pSumN_L,pSumN_G,mpicom,subName)
-    call shr_mpi_sum(pSumE_L,pSumE_G,mpicom,subName)
-    call shr_mpi_sum(pSumS_L,pSumS_G,mpicom,subName)
-    call shr_mpi_sum(eSumN_L,eSumN_G,mpicom,subName)
-    call shr_mpi_sum(eSumE_L,eSumE_G,mpicom,subName)
-    call shr_mpi_sum(eSumS_L,eSumS_G,mpicom,subName)
+    call shr_mpi_sum(pSumN_L,pSumN_G,mpicom,subName,all=.true.)
+    call shr_mpi_sum(pSumE_L,pSumE_G,mpicom,subName,all=.true.)
+    call shr_mpi_sum(pSumS_L,pSumS_G,mpicom,subName,all=.true.)
+    call shr_mpi_sum(eSumN_L,eSumN_G,mpicom,subName,all=.true.)
+    call shr_mpi_sum(eSumE_L,eSumE_G,mpicom,subName,all=.true.)
+    call shr_mpi_sum(eSumS_L,eSumS_G,mpicom,subName,all=.true.)
 
+
+    lsize = mct_avect_lsize(a2x_a)
     do n=1,lSize
-       if (dom_a%data%rAttr(kLat,n) > 40.0_r8) then
-          pmtN = dom_a%data%rAttr(index_a2x_pmt,n)
-       else if (dom_a%data%rAttr(kLat,n) -40.0_r8) then
-          pmtS = dom_a%data%rAttr(index_a2x_pmt,n)
+       if (eSumN_G > 0 .and. dom_a%data%rAttr(kLat_a,n) > max_lat) then
+         pCorrN = (eSumN_G - a2x_a%rAttr(index_a2x_pmt,n)/pi4) / (pSumN_G + 1.0e-20_r8)
+         if(pCorrN < 0) then
+           print *, 'ERROR, north correction is negative'
+           print *, eSumN_G, a2x_a%rAttr(index_a2x_pmt,n)/pi4, pSumN_G
+           stop
+         endif
+
+         a2x_a%rAttr(index_a2x_Faxa_rainc,n) = pCorrN*a2x_a%rAttr(index_a2x_Faxa_rainc,n)
+         a2x_a%rAttr(index_a2x_Faxa_rainl,n) = pCorrN*a2x_a%rAttr(index_a2x_Faxa_rainl,n)
+         a2x_a%rAttr(index_a2x_Faxa_snowc,n) = pCorrN*a2x_a%rAttr(index_a2x_Faxa_snowc,n)
+         a2x_a%rAttr(index_a2x_Faxa_snowl,n) = pCorrN*a2x_a%rAttr(index_a2x_Faxa_snowl,n)
+       else if (eSumS_G > 0 .and. dom_a%data%rAttr(kLat_a,n) < min_lat) then
+         pCorrS = (eSumS_G - a2x_a%rAttr(index_a2x_pmt,n)/pi4) / (pSumS_G + 1.0e-20_r8)
+         if(pCorrS < 0) then
+           print *, 'ERROR sourth correction is negative'
+           print *, eSumS_G, a2x_a%rAttr(index_a2x_pmt,n)/pi4, pSumS_G
+           stop
+         end if
+         a2x_a%rAttr(index_a2x_Faxa_rainc,n) = pCorrS*a2x_a%rAttr(index_a2x_Faxa_rainc,n)
+         a2x_a%rAttr(index_a2x_Faxa_rainl,n) = pCorrS*a2x_a%rAttr(index_a2x_Faxa_rainl,n)
+         a2x_a%rAttr(index_a2x_Faxa_snowc,n) = pCorrS*a2x_a%rAttr(index_a2x_Faxa_snowc,n)
+         a2x_a%rAttr(index_a2x_Faxa_snowl,n) = pCorrS*a2x_a%rAttr(index_a2x_Faxa_snowl,n)
        else
-          pmtE = dom_a%data%rAttr(index_a2x_pmt,n)
+         if(eSumE_G > 0) then
+         pCorrE = (eSumE_G + a2x_a%rAttr(index_a2x_pmt,n)/pi4) / (pSumE_G + 1.0e-20_r8)
+         if(pCorrE < 0) then
+           print *, 'ERROR equator correction is negative'
+           print *, eSumE_g, a2x_a%rAttr(index_a2x_pmt,n)/pi4, pSumE_G
+           stop
+         endif
+         a2x_a%rAttr(index_a2x_Faxa_rainc,n) = pCorrE*a2x_a%rAttr(index_a2x_Faxa_rainc,n)
+         a2x_a%rAttr(index_a2x_Faxa_rainl,n) = pCorrE*a2x_a%rAttr(index_a2x_Faxa_rainl,n)
+         a2x_a%rAttr(index_a2x_Faxa_snowc,n) = pCorrE*a2x_a%rAttr(index_a2x_Faxa_snowc,n)
+         a2x_a%rAttr(index_a2x_Faxa_snowl,n) = pCorrE*a2x_a%rAttr(index_a2x_Faxa_snowl,n)
        end if
+     endif
     end do
 
-    pCorrN = (eSumN_G - pmtN) / (pSumN_G + 1.0e-20_r8)
-    pCorrS = (eSumS_G - pmtS) / (pSumS_G + 1.0e-20_r8)
-    pCorrE = (eSumE_G - (pmtN+pmtS)) / (pSumE + 1.0e-20_r8)
+    output_counter = output_counter + 1
 
-    do n=1,lSize
-       if (dom_a%data%rAttr(kLat,n) > 40.0_r8) then
-         dom_a%data%rAttr(index_Faxa_rainc,n) = pCorrN*dom_a%data%rAttr(index_Faxa_rainc,n)
-         dom_a%data%rAttr(index_Faxa_rainl,n) = pCorrN*dom_a%data%rAttr(index_Faxa_rainl,n)
-       else if (dom_a%data%rAttr(kLat,n) -40.0_r8) then
-         dom_a%data%rAttr(index_Faxa_rainc,n) = pCorrS*dom_a%data%rAttr(index_Faxa_rainc,n)
-         dom_a%data%rAttr(index_Faxa_rainl,n) = pCorrS*dom_a%data%rAttr(index_Faxa_rainl,n)
-       else
-         dom_a%data%rAttr(index_Faxa_rainc,n) = pCorrE*dom_a%data%rAttr(index_Faxa_rainc,n)
-         dom_a%data%rAttr(index_Faxa_rainl,n) = pCorrE*dom_a%data%rAttr(index_Faxa_rainl,n)
-       end if
-    end do
+    if (output_counter > 50 .and. iamroot_CPLID) then
+      write(logunit,*) 'evap north = ',eSumN_g
+      write(logunit,*) 'precip north = ',pSumN_g
+      write(logunit,*) 'pcorr north = ',pCorrN
+      write(logunit,*) '*************** South Next *************'
+      write(logunit,*) 'evap south = ',eSumS_g
+      write(logunit,*) 'precip south = ',pSumS_g
+      write(logunit,*) 'pcorr south = ',pCorrS
+      write(logunit,*) '*************** equator Next *************'
+      write(logunit,*) 'evap equator = ',eSumE_g
+      write(logunit,*) 'precip equator = ',pSumE_g
+      write(logunit,*) 'pcorr equator = ',pCorrE
+      write(logunit,*) '*************** end  *************'
+      output_counter = 0
+    end if
 
   end subroutine calc_precip_factor_with_pmt
 
 !----------------------------------------------------------------------------------
 
-  subroutine cime_run_calc_budgets2()
+  subroutine cime_run_calc_budgets2(in_cplrun)
 
     !----------------------------------------------------------
     ! Budget with new fractions

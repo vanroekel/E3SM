@@ -197,6 +197,15 @@
     <desc>Turn on the passing of ocean thermal forcing fields through the coupler</desc>
   </entry>
 
+  <entry id="FOSI_PMT_READ">
+    <type>logical</type>
+    <valid_values>TRUE,FALSE</valid_values>
+    <default_value>FALSE</default_value>
+    <group>run_flags</group>
+    <file>env_run.xml</file>
+    <desc>logical to enable reading of PMT values precalculated for the mesh</desc>
+  </entry>
+
   <entry id="TFREEZE_SALTWATER_OPTION">
     <type>char</type>
     <valid_values>minus1p8,linear_salt,mushy</valid_values>

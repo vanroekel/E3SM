@@ -334,7 +334,7 @@
       <value stream="presaero.SSP5-3.4">null</value>
       <value stream="presaero.SSP">$DIN_LOC_ROOT/atm/cam/chem/trop_mozart_aero/aero</value>
       <value stream="topo.observed">$DIN_LOC_ROOT/atm/datm7/topo_forcing</value>
-	  <value stream="pmt_calculated">$DIN_LOC_ROOT/atm/datm7/pmt_forcing</value>
+	  <value stream="pmt_calculated">$DIN_LOC_ROOT/atm/datm7/JRA55</value>
       <value stream="topo.cplhist">null</value>
       <value stream="CFSv2.UV">$DIN_LOC_ROOT/wav/cfsv2</value>
       <value stream="CFSR.UV">$DIN_LOC_ROOT/wav/cfsr</value>
@@ -454,7 +454,7 @@
       <value stream="presaero.SSP5-3.4">null</value>
       <value stream="presaero.SSP5-8.5">aerodep_clm_SSP585_b.e21.BSSP585cmip6.f09_g17.CMIP6-SSP5-8.5.001_2014-2101_monthly_0.9x1.25_c190419.nc</value>
       <value stream="topo.observed">topodata_0.9x1.25_USGS_070110_stream_c151201.nc</value>
-	  <value stream="pmt_calculated">pmt_historical_v3.nc</value>
+	  <value stream="pmt_calculated">domain.atm.TL319.151007.nc</value>
       <value stream="topo.cplhist">null</value>
       <value stream="CFSv2.UV">domain.ocn.CFSv2_CFSv2.200616.nc</value>
       <value stream="CFSR.UV">domain.ocn.CFSR_CFSR.210415.nc</value>
@@ -518,12 +518,6 @@
         area   area
         mask   mask
       </value>
-	  <value stream="pmt_calculated">
-	    time           time
-	    latitude       lat
-		longitude      lon
-		historical_pmt pmt
-	  </value>
       <value stream="co2tseries">
         time    time
         lonc    lon
@@ -2055,9 +2049,9 @@
       <value stream="topo.observed">
         TOPO topo
       </value>
-	  <value stream="pmt_calculated">
-	    historical_pmt pmt 
-	  </value>
+      <value stream="pmt_calculated">
+        historical_pmt pmt 
+      </value>
       <value  stream="CFSv2.UV">
         U_GRD_L103  u
         V_GRD_L103  v
@@ -2939,6 +2933,30 @@
     <values>
       <value>.false.</value>
       <value datm_mode="CLM_QIAN_WISO">.true.</value>
+    </values>
+  </entry>
+
+  <entry id="fosi_pmt_min_lat" modify_via_xml="FOSI_PMT_MIN_LAT">
+    <type>real</type>
+    <category>fosi</category>
+    <group>data_nml</group>
+    <desc>
+      minimum latitutde for poleward moisture transport, must match input file for datm
+    </desc>
+    <values>
+      <value>-40.</value>
+    </values>
+  </entry>
+
+  <entry id="fosi_pmt_max_lat" modify_via_xml="FOSI_PMT_MAX_LAT">
+    <type>real</type>
+    <category>fosi</category>
+    <group>data_nml</group>
+    <desc>
+      minimum latitutde for poleward moisture transport, must match input file for datm
+    </desc>
+    <values>
+      <value>40.0</value>
     </values>
   </entry>
 

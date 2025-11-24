@@ -294,12 +294,12 @@ contains
     use shr_mpi_mod,    only : shr_mpi_bcast
     use glc_elevclass_mod, only : glc_elevclass_init
     use glc_zocnclass_mod, only : glc_zocnclass_init
-    use seq_infodata_mod, only : seq_infodata_type, seq_infodata_getdata
+    use seq_infodata_mod, only : seq_infodata_type, seq_infodata_getdata, seq_infodata_putData
 
     ! !INPUT/OUTPUT PARAMETERS:
     character(len=*), intent(in) :: nmlfile   ! Name-list filename
     integer         , intent(in) :: ID        ! seq_comm ID
-    type(seq_infodata_type), intent(in) :: infodata
+    type(seq_infodata_type), intent(inout) :: infodata
 
     ! !LOCAL VARIABLES:
     integer :: mpicom             ! MPI communicator
@@ -396,7 +396,7 @@ contains
          glc_nec, glc_nzoc, ice_ncat, seq_flds_i2o_per_cat, flds_bgc_oi, &
          nan_check_component_fields, rof_heat, atm_flux_method, atm_gustiness, &
          rof2ocn_nutrients, lnd_rof_two_way, ocn_rof_two_way, rof_sed, &
-         wav_ocn_coup
+         wav_ocn_coup, fosi_pmt_read
 
     ! user specified new fields
     integer,  parameter :: nfldmax = 200
@@ -411,7 +411,7 @@ contains
 
     call seq_comm_setptrs(ID,mpicom=mpicom)
 
-    call seq_infodata_GetData(infodata, cime_model=cime_model,fosi_pmt_read=fosi_pmt_read)
+!    call seq_infodata_GetData(infodata, cime_model=cime_model,fosi_pmt_read=fosi_pmt_read)
 
     !---------------------------------------------------------------------------
     ! Read in namelist for use cases
@@ -429,6 +429,7 @@ contains
        flds_wiso = .false.
        flds_polar = .false.
        flds_tf = .false.
+       fosi_pmt_read = .false.
        glc_nec   = 0
        glc_nzoc  = 0
        ice_ncat  = 1
@@ -479,10 +480,12 @@ contains
     call shr_mpi_bcast(ocn_rof_two_way,   mpicom)
     call shr_mpi_bcast(rof_sed,   mpicom)
     call shr_mpi_bcast(wav_ocn_coup, mpicom)
+    call shr_mpi_bcast(fosi_pmt_read, mpicom)
 
     call glc_elevclass_init(glc_nec)
     call glc_zocnclass_init(glc_nzoc)
 
+    call seq_infodata_putdata(infodata,fosi_pmt_read=fosi_pmt_read)
     !---------------------------------------------------------------------------
     ! Read in namelists for user specified new fields
     !---------------------------------------------------------------------------

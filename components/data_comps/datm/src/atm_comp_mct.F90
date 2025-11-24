@@ -15,7 +15,7 @@ module atm_comp_mct
   use shr_file_mod    , only: shr_file_freeunit
   use datm_comp_mod   , only: datm_comp_init, datm_comp_run, datm_comp_final
   use datm_shr_mod    , only: datm_shr_read_namelists
-  use datm_shr_mod    , only: presaero
+  use datm_shr_mod    , only: presaero, fosi_pmt_min_lat, fosi_pmt_max_lat
   use seq_flds_mod    , only: seq_flds_a2x_fields, seq_flds_x2a_fields
 
 #ifdef HAVE_MOAB
@@ -77,7 +77,6 @@ CONTAINS
     logical           :: read_restart              ! start from restart
     integer(IN)       :: ierr                      ! error code
     logical           :: scmMode = .false.         ! single column mode
-    logical           :: fosi_pmt_read = .false.   ! flag to read poleward moisture transport climo
     real(R8)          :: scmLat  = shr_const_SPVAL ! single column lat
     real(R8)          :: scmLon  = shr_const_SPVAL ! single column lon
     real(R8)          :: orbEccen                  ! orb eccentricity (unit-less)
@@ -113,8 +112,7 @@ CONTAINS
          orb_mvelpp=orbMvelpp, &
          orb_lambm0=orbLambm0,&
          orb_obliqr=orbObliqr, &
-         read_restart=read_restart, &
-         fosi_pmt_read=fosi_pmt_read)
+         read_restart=read_restart)
 
     ! Determine instance information
     inst_name   = seq_comm_name(compid)
@@ -202,7 +200,9 @@ CONTAINS
             atm_nx=SDATM%nxg, &
             atm_ny=SDATM%nyg, &
             atm_aero=presaero, &
-            nextsw_cday=nextsw_cday )
+            nextsw_cday=nextsw_cday, &
+            fosi_pmt_min_lat=fosi_pmt_min_lat, &
+            fosi_pmt_max_lat=fosi_pmt_max_lat )
     else
        call seq_infodata_PutData(infodata, &
             nextsw_cday=nextsw_cday )
