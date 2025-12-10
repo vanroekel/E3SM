@@ -168,7 +168,9 @@ contains
                                                       potentialDensitySum, RiTemp,              &
                                                       layerThicknessSum, layerThicknessEdgeSum, &
                                                       tangentialVelocitySum
-      real (kind=RKIND), dimension(:), allocatable, target :: RiSmoothed, BVFSmoothed, OBLDepths, interfaceForcings
+      real (kind=RKIND), dimension(:), allocatable, target :: RiSmoothed, BVFSmoothed, OBLDepths, &
+                               interfaceForcings, strat_param_num, strat_param_denom
+
       logical :: bulkRichardsonFlag
 
       real (kind=RKIND) :: langmuirEnhancementFactor, alphaAngle
@@ -319,6 +321,8 @@ contains
       allocate(surfaceAverageIndex(nVertLevels))
       allocate(deltaVelocitySquared(nVertLevels))
       allocate(layerThicknessSum(nVertLevels))
+      allocate(strat_param_num(nVertLevels))
+      allocate(strat_param_denom(nVertLevels))
       allocate(layerThicknessEdgeSum(nVertLevels))
 
       do k = 1, nVertLevels
@@ -343,7 +347,7 @@ contains
 !      !$omp         surfaceAverageIndex, sfc_layer_depth, kav, i, iEdge, tangentialVelocitySum, &
 !      !$omp         normalVelocitySum, layerThicknessEdgeSum, normalVelocityAv, delU2, potentialDensitySum, &
 !      !$omp         layerThicknessSum, blTemp, zonalWavenumberCoeff, meridionalWavenumberCoeff, &
-!      !$omp         tangentialVelocityAv) &
+!      !$omp         tangentialVelocityAv,strat_param_num, strat_param_denom) &
 !      !$omp firstprivate(cvmix_variables, Nsqr_iface, turbulentScalarVelocityScale)
       do iCell = 1, nCells
 
@@ -437,19 +441,22 @@ contains
          if (kpp_stage == 2) then
          if (config_use_cvmix_ddiff) then
             !fill in the density ratio numerator and denominator
-            cvmix_variables % strat_param_num(:) = 0.0_RKIND
-            cvmix_variables % strat_param_denom(:) = 1.0E-15_RKIND
+            strat_param_num(:) = 0.0_RKIND
+            strat_param_denom(:) = 1.0E-15_RKIND
             do k = minLevelCell(iCell), maxLevelCell(iCell)-1
                dlt = layerThickness(k,iCell) + layerThickness(k+1,iCell)
                avg_alpha = (layerThickness(k,iCell)*thermExpCoeff(k,iCell) + &
                              layerThickness(k+1,iCell)*thermExpCoeff(k+1,iCell)) / dlt
                avg_beta = (layerThickness(k,iCell)*salineContractCoeff(k,iCell) + &
                            layerThickness(k+1,iCell)*salineContractCoeff(k+1,iCell)) / dlt
-               cvmix_variables % strat_param_num(k) = avg_alpha*(activeTracers(1,k,iCell) - &
+               strat_param_num(k) = avg_alpha*(activeTracers(1,k,iCell) - &
                                                       activeTracers(1,k+1,iCell))/(0.5_RKIND*dlt)
-               cvmix_variables % strat_param_denom(k) = avg_beta*(activeTracers(2,k,iCell) - &
+               strat_param_denom(k) = avg_beta*(activeTracers(2,k,iCell) - &
                                                         activeTracers(2,k+1,iCell))/(0.5_RKIND*dlt)
             end do
+
+            cvmix_variables % strat_param_num => strat_param_num
+            cvmix_variables % strat_param_denom => strat_param_denom
 
             call cvmix_coeffs_ddiff( &
                  cvmix_variables, &
@@ -873,6 +880,8 @@ contains
       deallocate(deltaVelocitySquared)
       deallocate(layerThicknessEdgeSum)
       deallocate(layerThicknessSum)
+      deallocate(strat_param_num)
+      deallocate(strat_param_denom)
 
       deallocate(OBLDepths)
       deallocate(interfaceForcings)
@@ -1059,7 +1068,7 @@ contains
       ! initialize double diffusion
       !  (at present, double diffusion can only use CVMix default parameter settings)
       !
-      if (config_use_cvmix_double_diffusion) then
+      if (config_use_cvmix_ddiff) then
         call cvmix_init_ddiff(cvmix_ddiff_params, &
                               strat_param_max=config_cvmix_ddiff_den_ratio_param_max, &
                               kappa_ddiff_s=config_cvmix_ddiff_kappa_diff_s, &
