@@ -16,13 +16,23 @@
 
 namespace OMEGA {
 
-ShearMix::ShearMix(const HorzMesh *Mesh, const VertCoord *VCoord)
-    : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell),
-      GeomZMid(VCoord->GeomZMid), NEdgesOnCell(Mesh->NEdgesOnCell),
-      AreaCell(Mesh->AreaCell), EdgesOnCell(Mesh->EdgesOnCell),
-      DvEdge(Mesh->DvEdge), DcEdge(Mesh->DcEdge) {}
+ShearMix::ShearMix(const VertCoord *VCoord)
+    : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
 
 ConvectiveMix::ConvectiveMix(const VertCoord *VCoord)
+    : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
+
+GradRichardsonNum::GradRichardsonNum(const HorzMesh *Mesh,
+                                     const VertCoord *VCoord)
+    : NVertLayers(VCoord->NVertLayers), ZMid(VCoord->ZMid),
+      NEdgesOnCell(Mesh->NEdgesOnCell), EdgesOnCell(Mesh->EdgesOnCell),
+      CellsOnCell(Mesh->CellsOnCell), MinLayerCell(VCoord->MinLayerCell),
+      MaxLayerCell(VCoord->MaxLayerCell),
+      MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop), DcEdge(Mesh->DcEdge),
+      DvEdge(Mesh->DvEdge) {}
+
+OneTwoOneFilter::OneTwoOneFilter(const VertCoord *VCoord)
     : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
 
 /// Constructor for VertMix
@@ -30,10 +40,15 @@ VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
                  const HorzMesh *Mesh,    ///< [in] Horizontal mesh
                  const VertCoord *VCoord  ///< [in] Vertical coordinate
                  )
-    : ComputeVertMixConv(VCoord), ComputeVertMixShear(Mesh, VCoord), Name(Name),
-      Mesh(Mesh), VCoord(VCoord) {
-   VertDiff = Array2DReal("VertDiff", Mesh->NCellsSize, VCoord->NVertLayers);
-   VertVisc = Array2DReal("VertVisc", Mesh->NCellsSize, VCoord->NVertLayers);
+    : ComputeVertMixConv(VCoord), ComputeVertMixShear(VCoord),
+      ComputeGradRichardsonNum(Mesh, VCoord), ComputeOneTwoOneFilter(VCoord),
+      Name(Name), Mesh(Mesh), VCoord(VCoord) {
+   VertDiff = Array2DReal("VertDiff", Mesh->NCellsAll, VCoord->NVertLayers);
+   VertVisc = Array2DReal("VertVisc", Mesh->NCellsAll, VCoord->NVertLayers);
+   GradRichNum =
+       Array2DReal("GradRichNum", Mesh->NCellsAll, VCoord->NVertLayers);
+   GradRichNumSmoothed =
+       Array2DReal("GradRichNumSmoothed", Mesh->NCellsAll, VCoord->NVertLayers);
 
    defineFields();
 }
@@ -54,7 +69,7 @@ void VertMix::destroyInstance() {
 }
 
 /// Initializes the VertMix (Vertical Mixing Coefficients) class and its
-/// options. it ASSUMES that HorzMesh was initialized and initializes the
+/// options. It ASSUMES that HorzMesh was initialized and initializes the
 /// VertMix class by using the default mesh, reading the config file, and
 /// setting parameters for the background, convective, and/or shear mixing
 /// routines. Returns 0 on success, or an error code if any required option is
@@ -136,22 +151,27 @@ void VertMix::init() {
       LOG_INFO("VertMix::init: Shear mixing is disabled.");
    } else {
       LOG_INFO("VertMix::init: Shear mixing is enabled.");
-      Err += ShearConfig.get("NuZero",
-                             DefVertMix->ComputeVertMixShear.ShearNuZero);
+      Err += ShearConfig.get("BaseShearValue",
+                             DefVertMix->ComputeVertMixShear.BaseShearValue);
+      CHECK_ERROR_ABORT(Err, "VertMix::init: Parameter Shear:BaseShearValue "
+                             "not found in ShearConfig");
+
+      Err += ShearConfig.get("RiCrit",
+                             DefVertMix->ComputeVertMixShear.ShearRiCrit);
       CHECK_ERROR_ABORT(
           Err,
-          "VertMix::init: Parameter Shear:NuZero not found in ShearConfig");
-
-      Err +=
-          ShearConfig.get("Alpha", DefVertMix->ComputeVertMixShear.ShearAlpha);
-      CHECK_ERROR_ABORT(
-          Err, "VertMix::init: Parameter Shear:Alpha not found in ShearConfig");
+          "VertMix::init: Parameter Shear:RiCrit not found in ShearConfig");
 
       Err += ShearConfig.get("Exponent",
                              DefVertMix->ComputeVertMixShear.ShearExponent);
       CHECK_ERROR_ABORT(
           Err,
           "VertMix::init: Parameter Shear:Exponent not found in ShearConfig");
+
+      Err += ShearConfig.get("RiSmoothLoops",
+                             DefVertMix->ComputeVertMixShear.RiSmoothLoops);
+      CHECK_ERROR_ABORT(Err, "VertMix::init: Parameter Shear:RiSmoothLoops not "
+                             "found in ShearConfig");
    }
 } // end init
 
@@ -161,18 +181,28 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                              const Array2DReal &BruntVaisalaFreqSq) {
    OMEGA_SCOPE(LocVertDiff, VertDiff); /// Create a local view for computation
    OMEGA_SCOPE(LocVertVisc, VertVisc); /// Create a local view for computation
+   OMEGA_SCOPE(LocGradRichNum,
+               GradRichNum); /// Local view for computation
    OMEGA_SCOPE(
        LocComputeVertMixConv,
        ComputeVertMixConv); /// Local view for Convective VertMix computation
    OMEGA_SCOPE(
        LocComputeVertMixShear,
        ComputeVertMixShear); /// Local view for Shear VertMix computation
+   OMEGA_SCOPE(
+       LocComputeGradRichardsonNum,
+       ComputeGradRichardsonNum); /// Local view for GradRichNum computation
+   OMEGA_SCOPE(LocOneTwoOneFilter,
+               ComputeOneTwoOneFilter); /// Local view for 1-2-1 filter
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
+   OMEGA_SCOPE(NVertLayers, VCoord->NVertLayers);
 
    /// Initialize VertDiff and VertVisc to background values
    deepCopy(LocVertDiff, BackDiff);
    deepCopy(LocVertVisc, BackVisc);
+   deepCopy(LocGradRichNum, 100.0_Real);
+   deepCopy(GradRichNumSmoothed, 100.0_Real);
 
    /// Dispatch to the correct VertMix calculation
    if (LocComputeVertMixShear.Enabled && LocComputeVertMixConv.Enabled) {
@@ -185,16 +215,38 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
 
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
-                    LocComputeVertMixShear(
-                        LocVertDiff, LocVertVisc, ICell, KChunk, NormalVelocity,
-                        TangentialVelocity, BruntVaisalaFreqSq);
                     LocComputeVertMixConv(LocVertDiff, LocVertVisc, ICell,
                                           KChunk, BruntVaisalaFreqSq);
+                    LocComputeGradRichardsonNum(
+                        LocGradRichNum, ICell, KChunk, NormalVelocity,
+                        TangentialVelocity, BruntVaisalaFreqSq);
                  });
+             LocGradRichNum(ICell, 0) = LocGradRichNum(ICell, 1);
+             LocGradRichNum(ICell, NVertLayers) =
+                 LocGradRichNum(ICell, NVertLayers - 1);
           });
-   } else if (LocComputeVertMixShear.Enabled) {
+      deepCopy(GradRichNumSmoothed, LocGradRichNum);
+      for (int SmoothLoop = 0;
+           SmoothLoop < LocComputeVertMixShear.RiSmoothLoops; ++SmoothLoop) {
+         parallelForOuter(
+             "VertMix-ConvPlusShear", {Mesh->NCellsAll},
+             KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
+                const int KMin   = MinLayerCell(ICell);
+                const int KMax   = MaxLayerCell(ICell);
+                const int KRange = vertRangeChunked(KMin, KMax);
+                parallelForInner(
+                    Team, KRange, INNER_LAMBDA(int KChunk) {
+                       if (SmoothLoop == 0)
+                          LocOneTwoOneFilter(GradRichNumSmoothed, ICell, KChunk,
+                                             LocGradRichNum);
+                       else
+                          LocOneTwoOneFilter(GradRichNumSmoothed, ICell, KChunk,
+                                             GradRichNumSmoothed);
+                    });
+             });
+      }
       parallelForOuter(
-          "VertMix-ShearOnly", {Mesh->NCellsAll},
+          "VertMix-ConvPlusShear", {Mesh->NCellsAll},
           KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
              const int KMin   = MinLayerCell(ICell);
              const int KMax   = MaxLayerCell(ICell);
@@ -202,9 +254,58 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
 
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
-                    LocComputeVertMixShear(
-                        LocVertDiff, LocVertVisc, ICell, KChunk, NormalVelocity,
+                    LocComputeVertMixShear(LocVertDiff, LocVertVisc, ICell,
+                                           KChunk, GradRichNumSmoothed);
+                 });
+          });
+   } else if (LocComputeVertMixShear.Enabled) {
+      parallelForOuter(
+          "VertMix-ConvPlusShear", {Mesh->NCellsAll},
+          KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
+             const int KMin   = MinLayerCell(ICell);
+             const int KMax   = MaxLayerCell(ICell);
+             const int KRange = vertRangeChunked(KMin, KMax);
+
+             parallelForInner(
+                 Team, KRange, INNER_LAMBDA(int KChunk) {
+                    LocComputeGradRichardsonNum(
+                        LocGradRichNum, ICell, KChunk, NormalVelocity,
                         TangentialVelocity, BruntVaisalaFreqSq);
+                 });
+             LocGradRichNum(ICell, 0) = LocGradRichNum(ICell, 1);
+             LocGradRichNum(ICell, NVertLayers) =
+                 LocGradRichNum(ICell, NVertLayers - 1);
+          });
+      deepCopy(GradRichNumSmoothed, LocGradRichNum);
+      for (int SmoothLoop = 0;
+           SmoothLoop < LocComputeVertMixShear.RiSmoothLoops; ++SmoothLoop) {
+         parallelForOuter(
+             "VertMix-ConvPlusShear", {Mesh->NCellsAll},
+             KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
+                const int KMin   = MinLayerCell(ICell);
+                const int KMax   = MaxLayerCell(ICell);
+                const int KRange = vertRangeChunked(KMin, KMax);
+                parallelForInner(
+                    Team, KRange, INNER_LAMBDA(int KChunk) {
+                       if (SmoothLoop == 0)
+                          LocOneTwoOneFilter(GradRichNumSmoothed, ICell, KChunk,
+                                             LocGradRichNum);
+                       else
+                          LocOneTwoOneFilter(GradRichNumSmoothed, ICell, KChunk,
+                                             GradRichNumSmoothed);
+                    });
+             });
+      }
+      parallelForOuter(
+          "VertMix-ConvPlusShear", {Mesh->NCellsAll},
+          KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
+             const int KMin   = MinLayerCell(ICell);
+             const int KMax   = MaxLayerCell(ICell);
+             const int KRange = vertRangeChunked(KMin, KMax);
+             parallelForInner(
+                 Team, KRange, INNER_LAMBDA(int KChunk) {
+                    LocComputeVertMixShear(LocVertDiff, LocVertVisc, ICell,
+                                           KChunk, GradRichNumSmoothed);
                  });
           });
    } else if (LocComputeVertMixConv.Enabled) {
@@ -221,24 +322,27 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                                           KChunk, BruntVaisalaFreqSq);
                  });
           });
-   } else {
-      parallelFor(
-          "VertMix-Background", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
-             LocVertDiff(ICell, 0) = 0.0_Real;
-             LocVertVisc(ICell, 0) = 0.0_Real;
-          });
    }
+   parallelFor(
+       "VertMix-Surface", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+          LocVertDiff(ICell, 0) = 0.0_Real;
+          LocVertVisc(ICell, 0) = 0.0_Real;
+       });
 }
 
 /// Define IO fields and metadata for output
 void VertMix::defineFields() {
 
    /// Set field names (append Name if not default)
-   VertDiffFldName = "VertDiff";
-   VertViscFldName = "VertVisc";
+   VertDiffFldName            = "VertDiff";
+   VertViscFldName            = "VertVisc";
+   GradRichNumFldName         = "GradRichNum";
+   GradRichNumSmoothedFldName = "GradRichNumSmoothed";
    if (Name != "Default") {
       VertDiffFldName.append(Name);
       VertViscFldName.append(Name);
+      GradRichNumFldName.append(Name);
+      GradRichNumSmoothedFldName.append(Name);
    }
 
    /// Create fields for state variables
@@ -274,6 +378,30 @@ void VertMix::defineFields() {
                      NDims,     // Number of dimensions
                      DimNames   // Dimension names
        );
+   /// Create and register the GradRichNum field
+   auto GradRichNumField =
+       Field::create(GradRichNumFldName,                     // Field name
+                     "Gradient Richardson number",           // Long Name
+                     "dimensionless",                        // Units
+                     "sea_water_gradient_richardson_number", // CF-ish Name
+                     std::numeric_limits<Real>::min(),       // Min valid value
+                     std::numeric_limits<Real>::max(),       // Max valid value
+                     FillValue, // Scalar used for undefined entries
+                     NDims,     // Number of dimensions
+                     DimNames   // Dimension names
+       );
+   /// Create and register the GradRichNumSmoothed field
+   auto GradRichNumSmoothedField = Field::create(
+       GradRichNumSmoothedFldName,                      // Field name
+       "Smoothed Gradient Richardson number",           // Long Name
+       "dimensionless",                                 // Units
+       "sea_water_gradient_richardson_number_smoothed", // CF-ish Name
+       std::numeric_limits<Real>::min(),                // Min valid value
+       std::numeric_limits<Real>::max(),                // Max valid value
+       FillValue, // Scalar used for undefined entries
+       NDims,     // Number of dimensions
+       DimNames   // Dimension names
+   );
 
    // Create a field group for the vertmix-specific state fields
    VertMixGroupName = "VertMix";
@@ -285,10 +413,14 @@ void VertMix::defineFields() {
    // Add fields to the VertMix group
    VertMixGroup->addField(VertDiffFldName);
    VertMixGroup->addField(VertViscFldName);
+   VertMixGroup->addField(GradRichNumFldName);
+   VertMixGroup->addField(GradRichNumSmoothedFldName);
 
    // Attach Kokkos views to the fields
    VertDiffField->attachData<Array2DReal>(VertDiff);
    VertViscField->attachData<Array2DReal>(VertVisc);
+   GradRichNumField->attachData<Array2DReal>(GradRichNum);
+   GradRichNumSmoothedField->attachData<Array2DReal>(GradRichNumSmoothed);
 
 } // end defineIOFields
 

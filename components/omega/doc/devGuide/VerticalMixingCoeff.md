@@ -2,12 +2,12 @@
 
 # Vertical Mixing Coefficients
 
-Omega includes a `VertMix` class that provides functions that compute `VertDiff` and `VertVisc`, the
-vertical diffusivity and viscosity, where both are defined at the center of the cell and top of the layer.
+Omega includes a `VertMix` class that provides functions that compute `VertDiff`, `VertVisc`, `GradRichNum`, and `GradRichNumSmoothed`, the
+vertical diffusivity and viscosity, the gradient Richardson number, a smoothed gradient Richardson number, where all are defined at the center of the cell and top of the layer.
 Currently the values of `VertDiff` and `VertVisc` are calculated using the linear combination of three options: (1) a
 constant background mixing value, (2) a convective instability mixing value, and (3) a Richardson
-number dependent shear mixing value from the [Pacanowski and Philander (1981)](https://journals.ametsoc.org/view/journals/phoc/11/11/1520-0485_1981_011_1443_povmin_2_0_co_2.xml) parameterization. These options are linearly additive. In the future, additional additive options will be implemented, such as the K Profile Parameterization [(KPP; Large et al., 1994)](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/94rg01872). For both the convective and shear mixing values `BruntVaisalaFreqSq` is needed, which
-is calculated by the `EOS` class.
+number dependent shear mixing value from the [Large et al (1994)](https://agupubs.onlinelibrary.wiley.com/doi/epdf/10.1029/94RG01872) or LMD94 interior shear parameterization. These options are linearly additive. In the future, additional additive options will be implemented, such as the K Profile Parameterization [(KPP; Large et al., 1994)](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/94rg01872). For both the convective and shear mixing values `BruntVaisalaFreq` is needed, which
+is calculated by the `EOS` class. `GradRichNum` is smoothed using a 1-2-1 filter to produce `GradRichNumSmoothed` which is used by the LMD94 shear mixing formulation.
 
 ## Initialization and Usage
 
@@ -37,9 +37,10 @@ VertMix:
     TriggerBVF: 0.0
   Shear:
     Enable: true
-    NuZero: 0.005
-    Alpha: 5.0
-    Exponent: 2.0
+    BaseShearValue: 0.005
+    RiCrit: 0.7
+    Exponent: 3.0
+    RiSmoothLoops: 3
 ```
 
 ## Class Structure
@@ -48,6 +49,8 @@ VertMix:
 
 - `VertDiff`: 2D array storing vertical diffusivity coefficients (m²/s)
 - `VertVisc`: 2D array storing vertical viscosity coefficients (m²/s)
+- `GradRichNum`: 2D array storing the gradient Richardson number
+- `GradRichNumSmoothed`: 2D array storing the smoothed gradient Richardson number
 
 ### Mixing Parameters
 
@@ -62,9 +65,10 @@ VertMix:
 
 3. Shear Mixing:
    - `EnableShearMix`: Flag to enable/disable shear mixing (Default: True)
-   - `ShearNuZero`: Base coefficient for Pacanowski-Philander scheme (Default: 0.005)
-   - `ShearAlpha`: Alpha parameter for P-P scheme (Default: 5.0)
-   - `ShearExponent`: Exponent parameter for P-P scheme (Default: 2.0)
+   - `BaseShearValue`: Base values of shear for the LMD94 interior shear mixing formulation (Default: 0.005)
+   - `RiCrit`: Critical Richerson number for the LMB94 formulation (Default: 0.7)
+   - `ShearExponent`: Exponent parameter number for the LMB94 formulation (Default: 3.0)
+   - `RiSmoothLoops`: Number of 1-2-1 filter passes to apply to the gradient Richardson number smoothing (Default: 3)
 
 ## Core Functionality (Vertical Mixing Coefficient Calculation)
 
@@ -75,8 +79,3 @@ void computeVertMix(const Array2DReal &NormalVelocity,
                    const Array2DReal &TangentialVelocity,
                    const Array2DReal &BruntVaisalaFreqSq);
 ```
-
-This method combines the effects of:
-- Background mixing (constant coefficients)
-- Convective mixing (triggered by static instability)
-- Shear instability driven mixing (Pacanowski-Philander scheme; to be changed to [Large et al., 1994](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/94rg01872) shear mixing scheme in a later development)
