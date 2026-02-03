@@ -66,7 +66,7 @@ class ShearMix {
    Real ShearRiCrit = 0.7;      ///< Critical Richardson number of LMG94
    Real ShearExponent =
        3.0; /// Exponent value used interior shear mixing calculation of LMG94
-   I4 RiSmoothLoops = 2; ///< Number of smoothing loops for Richardson number
+   I4 RiSmoothLoops = 3; ///< Number of smoothing loops for Richardson number
 
    /// Constructor for ShearMix
    ShearMix(const VertCoord *VCoord);
