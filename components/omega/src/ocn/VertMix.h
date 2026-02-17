@@ -43,14 +43,12 @@ class ConvectiveMix {
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
-         if (K == 0) {
-            VertVisc(ICell, K) = 0.0_Real;
-            VertDiff(ICell, K) = 0.0_Real;
-         } else {
-            if (BruntVaisalaFreqSq(ICell, K) < ConvTriggerBVF) {
-               VertDiff(ICell, K) += ConvDiff;
-               VertVisc(ICell, K) += ConvDiff;
-            }
+         if (K <= MinLayerCell(ICell) || K >= MaxLayerCell(ICell))
+            continue;
+
+         if (BruntVaisalaFreqSq(ICell, K) < ConvTriggerBVF) {
+            VertDiff(ICell, K) += ConvDiff;
+            VertVisc(ICell, K) += ConvDiff;
          }
       }
    }
@@ -84,33 +82,31 @@ class ShearMix {
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
-         if (K == 0) {
-            VertVisc(ICell, K) = 0.0_Real;
-            VertDiff(ICell, K) = 0.0_Real;
+         if (K <= MinLayerCell(ICell) || K >= MaxLayerCell(ICell))
+            continue;
+
+         if (GradRichNumSmoothed(ICell, K) < 0.0_Real) {
+            VertDiff(ICell, K) += BaseShearValue;
+            VertVisc(ICell, K) += BaseShearValue;
+         } else if (GradRichNumSmoothed(ICell, K) >= 0.0_Real &&
+                    GradRichNumSmoothed(ICell, K) < ShearRiCrit) {
+            VertDiff(ICell, K) +=
+                Kokkos::pow(
+                    1.0_Real -
+                        (GradRichNumSmoothed(ICell, K) / ShearRiCrit) *
+                            (GradRichNumSmoothed(ICell, K) / ShearRiCrit),
+                    ShearExponent) *
+                BaseShearValue;
+            VertVisc(ICell, K) +=
+                Kokkos::pow(
+                    1.0_Real -
+                        (GradRichNumSmoothed(ICell, K) / ShearRiCrit) *
+                            (GradRichNumSmoothed(ICell, K) / ShearRiCrit),
+                    ShearExponent) *
+                BaseShearValue;
          } else {
-            if (GradRichNumSmoothed(ICell, K) < 0.0_Real) {
-               VertDiff(ICell, K) += BaseShearValue;
-               VertVisc(ICell, K) += BaseShearValue;
-            } else if (GradRichNumSmoothed(ICell, K) >= 0.0_Real &&
-                       GradRichNumSmoothed(ICell, K) < ShearRiCrit) {
-               VertDiff(ICell, K) +=
-                   Kokkos::pow(
-                       1.0_Real -
-                           (GradRichNumSmoothed(ICell, K) / ShearRiCrit) *
-                               (GradRichNumSmoothed(ICell, K) / ShearRiCrit),
-                       ShearExponent) *
-                   BaseShearValue;
-               VertVisc(ICell, K) +=
-                   Kokkos::pow(
-                       1.0_Real -
-                           (GradRichNumSmoothed(ICell, K) / ShearRiCrit) *
-                               (GradRichNumSmoothed(ICell, K) / ShearRiCrit),
-                       ShearExponent) *
-                   BaseShearValue;
-            } else {
-               VertDiff(ICell, K) += 0.0_Real;
-               VertVisc(ICell, K) += 0.0_Real;
-            }
+            VertDiff(ICell, K) += 0.0_Real;
+            VertVisc(ICell, K) += 0.0_Real;
          }
       }
    }
@@ -152,21 +148,30 @@ class GradRichardsonNum {
          I4 JCell = CellsOnCell(ICell, J);
          for (int KVec = 0; KVec < KLen; ++KVec) {
             const I4 K = KStart + KVec;
-            if (K < 1 || K >= NVertLayers)
-               continue;
+            I4 K1      = K - 1;
+            I4 K2      = K;
+
+            if (K <= MinLayerCell(ICell)) {
+               K1 = K;
+               K2 = K + 1;
+            }
+            if (K >= MaxLayerCell(ICell)) {
+               K1 = K - 2;
+               K2 = K - 1;
+            }
 
             Real DNormVel =
-                NormalVelocity(JEdge, K - 1) - NormalVelocity(JEdge, K);
+                NormalVelocity(JEdge, K1) - NormalVelocity(JEdge, K2);
             Real DTanVel =
-                TangentialVelocity(JEdge, K - 1) - TangentialVelocity(JEdge, K);
-            Real DzEdge = 0.5_Real * (ZMid(ICell, K - 1) + ZMid(JCell, K - 1) -
-                                      ZMid(ICell, K) - ZMid(JCell, K));
+                TangentialVelocity(JEdge, K1) - TangentialVelocity(JEdge, K2);
+            Real DzEdge = 0.5_Real * (ZMid(ICell, K1) + ZMid(JCell, K1) -
+                                      (ZMid(ICell, K2) + ZMid(JCell, K2)));
             Real ShearSquared =
                 (DNormVel * DNormVel + DTanVel * DTanVel) / (DzEdge * DzEdge);
             Real RiEdge =
                 Kokkos::max(0.0_Real,
-                            0.5_Real * (BruntVaisalaFreqSq(ICell, K) +
-                                        BruntVaisalaFreqSq(JCell, K))) /
+                            0.5_Real * (BruntVaisalaFreqSq(ICell, K2) +
+                                        BruntVaisalaFreqSq(JCell, K2))) /
                 (ShearSquared + 1.0e-12_Real);
 
             Real Weight        = 0.25_Real * DcEdge(JEdge) * DvEdge(JEdge);
@@ -213,14 +218,14 @@ class OneTwoOneFilter {
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
-         if (K < MinLayerCell(ICell) || K > MaxLayerCell(ICell)) {
-            VarOut(ICell, K) = VarIn(ICell, K);
-         } else {
+         if (K > MinLayerCell(ICell) && K < MaxLayerCell(ICell) - 1) {
             // apply 1-2-1 filter
             VarOut(ICell, K) =
                 (VarIn(ICell, K - 1) + 2.0_Real * VarIn(ICell, K) +
                  VarIn(ICell, K + 1)) /
                 4.0_Real;
+         } else {
+            VarOut(ICell, K) = VarIn(ICell, K);
          }
       }
    }

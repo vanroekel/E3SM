@@ -116,6 +116,9 @@ void testGradRichNum() {
    OMEGA_SCOPE(DcEdge, Mesh->DcEdge);
    OMEGA_SCOPE(DvEdge, Mesh->DvEdge);
    OMEGA_SCOPE(CellsOnCell, Mesh->CellsOnCell);
+   OMEGA_SCOPE(CellsOnEdge, Mesh->CellsOnEdge);
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
+   OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
 
    /// Get VertMix instance to test
    VertMix *TestVertMix = VertMix::getInstance();
@@ -137,6 +140,12 @@ void testGradRichNum() {
           ZMid(ICell, K)      = -K;
           NEdgesOnCell(ICell) = 5;
           AreaCell(ICell)     = 3.6e10_Real;
+       });
+
+   parallelFor(
+       "setMinMax", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+          MinLayerCell(ICell) = 0;
+          MaxLayerCell(ICell) = VCoord->NVertLayers;
        });
 
    // filling CellsOnCell with simple mapping for this test
@@ -163,8 +172,8 @@ void testGradRichNum() {
    TestVertMix->computeVertMix(NormalVelEdge, TangVelEdge,
                                BruntVaisalaFreqSqCell);
 
-   const auto &MinLayerCell = VCoord->MinLayerCell;
-   const auto &MaxLayerCell = VCoord->MaxLayerCell;
+   // const auto &MinLayerCell = VCoord->MinLayerCell;
+   // const auto &MaxLayerCell = VCoord->MaxLayerCell;
 
    /// Check all array values against expected value
    int NumMismatches = 0;
@@ -237,15 +246,17 @@ void testOneTwoOneFilter() {
    parallelFor(
        "populateArrays", {NCellsAll, NVertLayers},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          if (K > 0) {
-             GradRichNum(ICell, K) = -1.0 * GradRichNum(ICell, K - 1);
+          if (K % 2 == 0) {
+             GradRichNum(ICell, K) = 1.0;
+          } else {
+             GradRichNum(ICell, K) = -1.0;
           }
        });
 
    parallelFor(
        "setMinMax", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
-          MinLayerCell(ICell) = 1;                       // avoid K=0 boundary
-          MaxLayerCell(ICell) = VCoord->NVertLayers - 2; // avoid top boundary
+          MinLayerCell(ICell) = 0;
+          MaxLayerCell(ICell) = VCoord->NVertLayers - 1;
        });
 
    // Apply the 1-2-1 filter to each cell
@@ -269,14 +280,14 @@ void testOneTwoOneFilter() {
               Team, KRange,
               INNER_LAMBDA(int KOff, int &InnerCount) {
                  const int K = KMin + KOff;
-                 if (K >= 1 && K < NVertLayers - 1) {
+                 if (K > MinLayerCell(ICell) && K < MaxLayerCell(ICell) - 1) {
                     // Interior layers should be smoothed to 0.0
                     if (!isApprox(GradRichNumSmoothed(ICell, K), 0.0_Real,
                                   RTol))
                        InnerCount++;
                  } else {
-                    // Boundary layers (K==0 or K==NVertLayers-1) should be the
-                    // same as input
+                    // Boundary layers (K==0 or K==NVertLayers - 1) should be
+                    // the same as input
                     if (!isApprox(GradRichNumSmoothed(ICell, K),
                                   GradRichNum(ICell, K), RTol))
                        InnerCount++;
@@ -295,7 +306,7 @@ void testOneTwoOneFilter() {
       auto GradRichNumSmoothedH = createHostMirrorCopy(GradRichNumSmoothed);
       for (int I = 0; I < NCellsAll; ++I) {
          for (int K = 0; K < NVertLayers; ++K) {
-            if (K >= 1 && K < NVertLayers - 1) {
+            if (K > MinLayerCell(I) && K < MaxLayerCell(I) - 1) {
                // Interior layers should be smoothed to 0.0
                if (!isApprox(GradRichNumSmoothedH(I, K), 0.0, RTol))
                   LOG_ERROR("TestVertMix: GradRichNumSmoothed Bad Value: "
