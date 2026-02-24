@@ -165,6 +165,8 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerSurfaceFluxTendency
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerNonLocalTendency
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerHorMixTendency
+   real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerIntRestoreTendency
+   real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerFrazilTendency
    real (kind=RKIND), dimension(:,:), pointer :: temperatureShortWaveTendency
    real (kind=RKIND), dimension(:), pointer :: RediKappa
 
@@ -172,8 +174,6 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:,:), pointer, contiguous :: &
       activeTracerHorizontalAdvectionTendency, &
       activeTracerVerticalAdvectionTendency,   &
-      activeTracerHorizontalAdvectionEdgeFlux, &
-      activeTracerVerticalAdvectionTopFlux,    &
       activeTracerVertMixTendency
 
    real (kind=RKIND), pointer :: daysSinceStartOfSim
@@ -336,11 +336,11 @@ contains
                   'activeTracerHorMixTendency', &
                    activeTracerHorMixTendency)
          call mpas_pool_get_array(diagnosticsPool, &
-                  'activeTracerVerticalAdvectionTopFlux', &
-                   activeTracerVerticalAdvectionTopFlux)
+                  'activeTracerIntRestoreTendency', &
+                  activeTracerIntRestoreTendency)
          call mpas_pool_get_array(diagnosticsPool, &
-                  'activeTracerHorizontalAdvectionEdgeFlux', &
-                   activeTracerHorizontalAdvectionEdgeFlux)
+                  'activeTracerFrazilTendency', &
+                  activeTracerFrazilTendency)
          call mpas_pool_get_array(diagnosticsPool, &
                   'activeTracerHorizontalAdvectionTendency', &
                    activeTracerHorizontalAdvectionTendency)
@@ -906,10 +906,10 @@ contains
          !$acc                   temperatureShortWaveTendency,            &
          !$acc                   activeTracerNonLocalTendency,            &
          !$acc                   activeTracerSurfaceFluxTendency,         &
-         !$acc                   activeTracerVerticalAdvectionTopFlux,    &
          !$acc                   activeTracerVerticalAdvectionTendency,   &
+         !$acc                   activeTracerIntRestoreTendency,          &
+         !$acc                   activeTracerFrazilTendency,              &
          !$acc                   activeTracerHorizontalAdvectionTendency, &
-         !$acc                   activeTracerHorizontalAdvectionEdgeFlux  &
          !$acc                   )
       end if
       if ( config_use_activeTracers_surface_restoring ) then
@@ -1168,10 +1168,10 @@ contains
          !$acc                   temperatureShortWaveTendency,            &
          !$acc                   activeTracerNonLocalTendency,            &
          !$acc                   activeTracerSurfaceFluxTendency,         &
-         !$acc                   activeTracerVerticalAdvectionTopFlux,    &
          !$acc                   activeTracerVerticalAdvectionTendency,   &
+         !$acc                   activeTracerIntRestoreTendency,          &
+         !$acc                   activeTracerFrazilTendency,              &
          !$acc                   activeTracerHorizontalAdvectionTendency, &
-         !$acc                   activeTracerHorizontalAdvectionEdgeFlux  &
          !$acc                   )
       end if
       if ( config_use_activeTracers_surface_restoring ) then
@@ -1374,10 +1374,10 @@ contains
                  temperatureShortWaveTendency,            &
                  activeTracerNonLocalTendency,            &
                  activeTracerSurfaceFluxTendency,         &
-                 activeTracerVerticalAdvectionTopFlux,    &
                  activeTracerVerticalAdvectionTendency,   &
-                 activeTracerHorizontalAdvectionTendency, &
-                 activeTracerHorizontalAdvectionEdgeFlux)
+                 activeTracerIntRestoreTendency,          &
+                 activeTracerFrazilTendency,              &
+                 activeTracerHorizontalAdvectionTendency)
       end if
       if ( config_use_activeTracers_surface_restoring ) then
          nullify(salinitySurfaceRestoringTendency)

@@ -566,27 +566,6 @@ module ocn_tracer_advection_mono
            nEdges = nEdgesHalo(2)
 #ifdef MPAS_OPENACC
            !$acc parallel loop private(k) &
-           !$acc    present(activeTracerHorizontalAdvectionEdgeFlux, &
-           !$acc            minLevelEdgeBot, maxLevelEdgeTop, &
-           !$acc            lowOrderFlx, highOrderFlx, dvEdge)
-#else
-           !$omp parallel
-           !$omp do schedule(runtime) private(k)
-#endif
-           do iEdge = 1,nEdges
-           do k = minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
-              ! Save u*h*T flux on edge for analysis. This variable will be
-              ! divided by h at the end of the time step.
-              activeTracerHorizontalAdvectionEdgeFlux(iTracer,k,iEdge) = &
-                 (lowOrderFlx(k,iEdge) + highOrderFlx(k,iEdge))/dvEdge(iEdge)
-           enddo
-           enddo
-#ifndef MPAS_OPENACC
-           !$omp end do
-#endif
-
-#ifdef MPAS_OPENACC
-           !$acc parallel loop private(k) &
            !$acc    present(activeTracerHorizontalAdvectionTendency, &
            !$acc            minLevelCell, maxLevelCell, workTend)
 #else
@@ -885,7 +864,6 @@ module ocn_tracer_advection_mono
 #ifdef MPAS_OPENACC
            !$acc parallel loop &
            !$acc    present(lowOrderFlx, highOrderFlx, workTend, &
-           !$acc            activeTracerVerticalAdvectionTopFlux, &
            !$acc            activeTracerVerticalAdvectionTendency, &
            !$acc            minLevelCell, maxLevelCell) &
            !$acc    private(k, kmin, kmax)
@@ -896,10 +874,6 @@ module ocn_tracer_advection_mono
            do iCell = 1, nCellsOwned
               kmin = minLevelCell(iCell)
               kmax = maxLevelCell(iCell)
-              do k = kmin+1,kmax
-                 activeTracerVerticalAdvectionTopFlux(iTracer,k,iCell) = &
-                    lowOrderFlx(k,iCell) + highOrderFlx(k,iCell)
-              end do
               do k = kmin,kmax
                  activeTracerVerticalAdvectionTendency(iTracer,k,iCell) = &
                     workTend(k,iCell)

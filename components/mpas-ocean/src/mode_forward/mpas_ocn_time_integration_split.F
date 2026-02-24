@@ -2025,7 +2025,6 @@ module ocn_time_integration_split
             !$acc   present(layerThicknessCur) &
             !$acc   present(minLevelEdgeBot, maxLevelEdgeTop) &
             !$acc   present(layerThickEdgeFlux) &
-            !$acc   present(activeTracerHorizontalAdvectionEdgeFlux) &
             !$acc   present(layerThicknessNew) &
             !$acc   present(activeTracerHorizontalAdvectionTendency) &
             !$acc   present(activeTracerVerticalAdvectionTendency) &
@@ -2056,100 +2055,6 @@ module ocn_time_integration_split
 #ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
-#endif
-
-            if (config_compute_active_tracer_budgets) then
-
-#ifdef MPAS_OPENACC
-               !$acc loop gang
-#else
-               !$omp parallel
-               !$omp do schedule(runtime) private(k)
-#endif
-               do iEdge = 1, nEdgesAll
-#ifdef MPAS_OPENACC
-               !$acc loop seq
-#endif
-               do k= minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
-#ifdef MPAS_OPENACC
-               !$acc loop vector
-#endif
-                  do iTracer = 1, size(activeTracerHorizontalAdvectionEdgeFlux,1)
-                     activeTracerHorizontalAdvectionEdgeFlux(iTracer,k,iEdge) = &
-                     activeTracerHorizontalAdvectionEdgeFlux(iTracer,k,iEdge) / &
-                          layerThickEdgeFlux(k,iEdge)
-                  enddo
-               enddo
-               enddo
-#ifndef MPAS_OPENACC
-               !$omp end do
-#endif
-
-#ifdef MPAS_OPENACC
-               !$acc loop gang
-#else
-               !$omp do schedule(runtime) private(k)
-#endif
-               do iCell = 1, nCellsAll
-               do k= minLevelCell(iCell), maxLevelCell(iCell)
-#ifdef MPAS_OPENACC
-               !$acc loop vector
-                  do iTracer = 1, size(activeTracerHorizontalAdvectionTendency,1)
-                     activeTracerHorizontalAdvectionTendency(iTracer,k,iCell) = &
-                     activeTracerHorizontalAdvectionTendency(iTracer,k,iCell) / &
-                               layerThicknessNew(k,iCell)
-
-                     activeTracerVerticalAdvectionTendency(iTracer,k,iCell) = &
-                     activeTracerVerticalAdvectionTendency(iTracer,k,iCell) / &
-                               layerThicknessNew(k,iCell)
-
-                     activeTracerHorMixTendency(iTracer,k,iCell) = &
-                     activeTracerHorMixTendency(iTracer,k,iCell) / &
-                                layerThicknessNew(k,iCell)
-
-                     activeTracerSurfaceFluxTendency(iTracer,k,iCell) = &
-                     activeTracerSurfaceFluxTendency(iTracer,k,iCell) / &
-                                layerThicknessNew(k,iCell)
-
-                     activeTracerNonLocalTendency(iTracer,k,iCell) = &
-                     activeTracerNonLocalTendency(iTracer,k,iCell) / &
-                                layerThicknessNew(k,iCell)
-                  end do
-#else
-                  activeTracerHorizontalAdvectionTendency(:,k,iCell) = &
-                  activeTracerHorizontalAdvectionTendency(:,k,iCell) / &
-                            layerThicknessNew(k,iCell)
-
-                  activeTracerVerticalAdvectionTendency(:,k,iCell) = &
-                  activeTracerVerticalAdvectionTendency(:,k,iCell) / &
-                            layerThicknessNew(k,iCell)
-
-                  activeTracerHorMixTendency(:,k,iCell) = &
-                  activeTracerHorMixTendency(:,k,iCell) / &
-                             layerThicknessNew(k,iCell)
-
-                  activeTracerSurfaceFluxTendency(:,k,iCell) = &
-                  activeTracerSurfaceFluxTendency(:,k,iCell) / &
-                             layerThicknessNew(k,iCell)
-
-                  activeTracerNonLocalTendency(:,k,iCell) = &
-                  activeTracerNonLocalTendency(:,k,iCell) / &
-                             layerThicknessNew(k,iCell)
-#endif
-
-                  temperatureShortWaveTendency(k,iCell) = &
-                  temperatureShortWaveTendency(k,iCell) / &
-                             layerThicknessNew(k,iCell)
-               end do
-               end do
-#ifndef MPAS_OPENACC
-               !$omp end do
-               !$omp end parallel
-#endif
-            endif
-
-#ifdef MPAS_OPENACC
-            !$acc end parallel
 #endif
 
 ! This tracer block is still computed on the CPU

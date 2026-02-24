@@ -2942,71 +2942,71 @@
 		/>
 		<var_array name="activeTracerSurfaceFluxTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
 
-			<var name="temperatureSurfaceFluxTendency" array_group="activeTracerSfcFluxTendGroup" units="C s^-1" name_in_code="temperatureSurfaceFluxTendency"
-				description="potential temperature tendency due to surface fluxes"
+			<var name="temperatureSurfaceFluxTendency" array_group="activeTracerSfcFluxTendGroup" units="m C s^-1" name_in_code="temperatureSurfaceFluxTendency"
+				description="layer thickness weighted potential temperature tendency due to surface fluxes"
 			/>
-			<var name="salinitySurfaceFluxTendency" array_group="activeTracerSfcFluxTendGroup" units="1.e-3 s^-1" name_in_code="salinitySurfaceFluxTendency"
-				description="salinity tendency due to surface fluxes"
+			<var name="salinitySurfaceFluxTendency" array_group="activeTracerSfcFluxTendGroup" units="m 1.e-3 s^-1" name_in_code="salinitySurfaceFluxTendency"
+				description="layer thickness weighted salinity tendency due to surface fluxes"
 			/>
 		</var_array>
-		<var name="temperatureShortWaveTendency" dimensions="nVertLevels nCells Time" units="C s^-1" packages="tracerBudget" name_in_code="temperatureShortWaveTendency" type="real"
-				 description="potential temperature tendency due to penetrating shortwave"
+		<var name="temperatureShortWaveTendency" dimensions="nVertLevels nCells Time" units="m C s^-1" packages="tracerBudget" name_in_code="temperatureShortWaveTendency" type="real"
+				 description="layer thickness weighted potential temperature tendency due to penetrating shortwave"
 				 missing_value="FILLVAL" missing_value_mask="cellMask"
 		/>
 		<var_array name="activeTracerHorMixTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
-			<var name="temperatureHorMixTendency" array_group="activeTracerHmixTendGroup" units="C s^-1" name_in_code="temperatureHorMixTendency"
-				description="potential temperature tendency due to horizontal mixing (including Redi)"
+			<var name="temperatureHorMixTendency" array_group="activeTracerHmixTendGroup" units="m C s^-1" name_in_code="temperatureHorMixTendency"
+				description="layer thickness weighted potential temperature tendency due to horizontal mixing (including Redi)"
 			/>
-			<var name="salinityHorMixTendency" array_group="activeTracerHmixTendGroup" units="1.e-3 s^-1" name_in_code="salinityHorMixTendency"
-				description="salinity tendency due to horizontal mixing (including Redi)"
+			<var name="salinityHorMixTendency" array_group="activeTracerHmixTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityHorMixTendency"
+				description="layer thickness weighted salinity tendency due to horizontal mixing (including Redi)"
 			/>
 		</var_array>
 		<var_array name="activeTracerNonLocalTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
-			<var name="temperatureNonLocalTendency" array_group="activeTracerNLTendGroup" units="C s^-1" name_in_code="temperatureNonLocalTendency"
-				 description="potential temperature tendency due to kpp non-local flux"
+			<var name="temperatureNonLocalTendency" array_group="activeTracerNLTendGroup" units="m C s^-1" name_in_code="temperatureNonLocalTendency"
+				 description="layer thickness weighted potential temperature tendency due to kpp non-local flux"
 			/>
-			<var name="salinityNonLocalTendency" array_group="activeTracerNLTendGroup" units="1.e-3 s^-1" name_in_code="salinityNonLocalTendency"
-				 description="salinity tendency due to kpp non-local flux"
-			/>
-		</var_array>
-		<var_array name="activeTracerVerticalAdvectionTopFlux" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
-			<var name="temperatureVerticalAdvectionTopFlux" array_group="activeTracerVertTopFluxGroup" units="C m s^-1" name_in_code="temperatureVerticalAdvectionTopFlux"
-				description="potential temperature vertical advective flux through top of cell"
-			/>
-			<var name="salinityVerticalAdvectionTopFlux" array_group="activeTracerVertTopFluxGroup" units="1.e-3 m s^-1" name_in_code="salinityVerticalAdvectionTopFlux"
-				description="salinity advective vertical advective flux through top of cell"
-			/>
-		</var_array>
-		<var_array name="activeTracerHorizontalAdvectionEdgeFlux" type="real" dimensions="nVertLevels nEdges Time" packages="tracerBudget">
-			<var name="temperatureHorizontalAdvectionEdgeFlux" array_group="activeTracerHorAdvEdgeFluxGroup" units="C m s^-1" name_in_code="temperatureHorizontalAdvectionEdgeFlux"
-				description="potential temperature advective flux due to horizontal advection through edges"
-			/>
-			<var name="salinityHorizontalAdvectionEdgeFlux" array_group="activeTracerHorAdvEdgeFluxGroup" units="1.e-3 m s^-1" name_in_code="salinityHorizontalAdvectionEdgeFlux"
-				description="salinity advective flux due to horizontal advection through edges"
+			<var name="salinityNonLocalTendency" array_group="activeTracerNLTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityNonLocalTendency"
+				 description="layer thickness weighted salinity tendency due to kpp non-local flux"
 			/>
 		</var_array>
 		<var_array name="activeTracerHorizontalAdvectionTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
-			<var name="temperatureHorizontalAdvectionTendency" array_group="activeTracerHorAdvTendGroup" units="C s^-1" name_in_code="temperatureHorizontaldvectionTendency"
-				description="potential temperature tendency due to horizontal advection"
+			<var name="temperatureHorizontalAdvectionTendency" array_group="activeTracerHorAdvTendGroup" units="m C s^-1" name_in_code="temperatureHorizontaldvectionTendency"
+				description="layer thickness weighted potential temperature tendency due to horizontal advection"
 			/>
-			<var name="salinityHorizontalAdvectionTendency" array_group="activeTracerHorAdvTendGroup" units="1.e-3 s^-1" name_in_code="salinityHorizontalAdvectionTendency"
-				description="salinity tendency due to horizontal advection"
+			<var name="salinityHorizontalAdvectionTendency" array_group="activeTracerHorAdvTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityHorizontalAdvectionTendency"
+				description="layer thickness weighted salinity tendency due to horizontal advection"
 			/>
 		</var_array>
 		<var_array name="activeTracerVerticalAdvectionTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
-			<var name="temperatureVerticalAdvectionTendency" array_group="activeTracerVertAdvTendGroup" units="C s^-1" name_in_code="temperatureVerticalAdvectionTendency"
-				description="potential temperature tendency due to vertical advection"
+			<var name="temperatureVerticalAdvectionTendency" array_group="activeTracerVertAdvTendGroup" units="m C s^-1" name_in_code="temperatureVerticalAdvectionTendency"
+				description="layer thickness weighted potential temperature tendency due to vertical advection"
 			/>
-			<var name="salinityVerticalAdvectionTendency" array_group="activeTracerVertAdvTendGroup" units="1.e-3 s^-1" name_in_code="salinityVerticalAdvectionTendency"
-				description="salinity tendency due to vertical advection"
+			<var name="salinityVerticalAdvectionTendency" array_group="activeTracerVertAdvTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityVerticalAdvectionTendency"
+				description="layer thickness weighted salinity tendency due to vertical advection"
 			/>
 		</var_array>
 		<var_array name="activeTracerVertMixTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
-			<var name="temperatureVertMixTendency" array_group="activeTracerVertMixTendGroup" units="C s^-1" name_in_code="temperatureVertMixTendency"
-				 description="potential temperature tendency due to vertical mixing"
+			<var name="temperatureVertMixTendency" array_group="activeTracerVertMixTendGroup" units="m C s^-1" name_in_code="temperatureVertMixTendency"
+				 description="layer thickness weighted potential temperature tendency due to vertical mixing"
 			/>
-			<var name="salinityVertMixTendency" array_group="activeTracerVertMixTendGroup" units="1.e-3 s^-1" name_in_code="salinityVertMixTendency"
-				 description="salinity tendency due to vertical mixing"
+			<var name="salinityVertMixTendency" array_group="activeTracerVertMixTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityVertMixTendency"
+				 description="layer thickness weighted salinity tendency due to vertical mixing"
+			/>
+		</var_array>
+		<var_array name="activeTracerFrazilTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
+			<var name="temperatureFrazilTendency" array_group="activeTracerFrazilTendGroup" units="m C s^-1" name_in_code="temperatureFrazilTendency"
+				 description="layer thickness weighted potential temperature tendency due to frazil formation"
+			/>
+			<var name="salinityFrazilTendency" array_group="activeTracerFrazilTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityFrazilTendency"
+				 description="layer thickness weighted salinity tendency due to frazil formation"
+			/>
+		</var_array>
+		<var_array name="activeTracerIntRestoreTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
+			<var name="temperatureIntRestoreTendency" array_group="activeTracerIntRestoreTendGroup" units="m C s^-1" name_in_code="temperatureIntRestoreTendency"
+				 description="layer thickness weighted potential temperature tendency due to interior restoring"
+			/>
+			<var name="salinityIntRestoreTendency" array_group="activeTracerIntRestoreTendGroup" units="m 1.e-3 s^-1" name_in_code="salinityIntRestoreTendency"
+				 description="layer thickness weighted salinity tendency due to interior restoring"
 			/>
 		</var_array>
 		<var_array name="tracersSurfaceValue" type="real" dimensions="nCells Time">
