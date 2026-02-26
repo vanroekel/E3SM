@@ -156,7 +156,6 @@
 			<var name="longWaveHeatFluxDown"/>
 			<var name="seaIceHeatFlux"/>
 			<var name="shortWaveHeatFlux"/>
-			<var name="frazilTemperatureTendency"/>
 			<var name="evaporationFlux"/>
 			<var name="seaIceSalinityFlux"/>
 			<var name="seaIceFreshWaterFlux"/>

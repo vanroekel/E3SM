@@ -166,15 +166,16 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerNonLocalTendency
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerHorMixTendency
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerIntRestoreTendency
-   real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerFrazilTendency
    real (kind=RKIND), dimension(:,:), pointer :: temperatureShortWaveTendency
    real (kind=RKIND), dimension(:), pointer :: RediKappa
 
    ! pointers for tendencies used in diagnostic budget computation
    real (kind=RKIND), dimension(:,:,:), pointer, contiguous :: &
       activeTracerHorizontalAdvectionTendency, &
+      activeTracerVerticalAdvectionTopFlux,    &
       activeTracerVerticalAdvectionTendency,   &
-      activeTracerVertMixTendency
+      activeTracerVertMixTendency,             &
+      activeTracerFrazilTendency
 
    real (kind=RKIND), pointer :: daysSinceStartOfSim
    real (kind=RKIND), pointer :: Time
@@ -341,9 +342,21 @@ contains
          call mpas_pool_get_array(diagnosticsPool, &
                   'activeTracerFrazilTendency', &
                   activeTracerFrazilTendency)
+         ! Debug: verify association, shape and contiguity to help track segfaults
+         if ( associated(activeTracerFrazilTendency) ) then
+            write(*,*) 'DEBUG: activeTracerFrazilTendency associated, shape=', shape(activeTracerFrazilTendency)
+            if (.not. is_contiguous(activeTracerFrazilTendency)) then
+               write(*,*) 'DEBUG: activeTracerFrazilTendency is NOT contiguous'
+            end if
+         else
+            write(*,*) 'DEBUG: activeTracerFrazilTendency is NOT associated after mpas_pool_get_array'
+         end if
          call mpas_pool_get_array(diagnosticsPool, &
                   'activeTracerHorizontalAdvectionTendency', &
                    activeTracerHorizontalAdvectionTendency)
+         call mpas_pool_get_array(diagnosticsPool, &
+                  'activeTracerVerticalAdvectionTopFlux', &
+                   activeTracerVerticalAdvectionTopFlux)
          call mpas_pool_get_array(diagnosticsPool, &
                   'activeTracerVerticalAdvectionTendency',  &
                    activeTracerVerticalAdvectionTendency)
@@ -907,6 +920,7 @@ contains
          !$acc                   activeTracerNonLocalTendency,            &
          !$acc                   activeTracerSurfaceFluxTendency,         &
          !$acc                   activeTracerVerticalAdvectionTendency,   &
+         !$acc                   activeTracerVerticalAdvectionTopFlux,    &
          !$acc                   activeTracerIntRestoreTendency,          &
          !$acc                   activeTracerFrazilTendency,              &
          !$acc                   activeTracerHorizontalAdvectionTendency, &
@@ -1169,6 +1183,7 @@ contains
          !$acc                   activeTracerNonLocalTendency,            &
          !$acc                   activeTracerSurfaceFluxTendency,         &
          !$acc                   activeTracerVerticalAdvectionTendency,   &
+         !$acc                   activeTracerVerticalAdvectionTopFlux,    &
          !$acc                   activeTracerIntRestoreTendency,          &
          !$acc                   activeTracerFrazilTendency,              &
          !$acc                   activeTracerHorizontalAdvectionTendency, &
@@ -1375,6 +1390,7 @@ contains
                  activeTracerNonLocalTendency,            &
                  activeTracerSurfaceFluxTendency,         &
                  activeTracerVerticalAdvectionTendency,   &
+                 activeTracerVerticalAdvectionTopFlux,    &
                  activeTracerIntRestoreTendency,          &
                  activeTracerFrazilTendency,              &
                  activeTracerHorizontalAdvectionTendency)

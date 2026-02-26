@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="0.0"?>
 <registry model="mpas" core="ocean" core_abbrev="ocn" version="7.0">
 
 	<dims>
@@ -3001,6 +3001,14 @@
 				 description="layer thickness weighted salinity tendency due to frazil formation"
 			/>
 		</var_array>
+		<var_array name="activeTracerVerticalAdvectionTopFlux" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
+			<var name="temperatureVerticalAdvectionTopFlux" array_group="activeTracerVertTopFluxGroup" units="C m s^-1" name_in_code="temperatureVerticalAdvectionTopFlux"
+				description="potential temperature vertical advective flux through top of cell"
+			/>
+			<var name="salinityVerticalAdvectionTopFlux" array_group="activeTracerVertTopFluxGroup" units="1.e-3 m s^-1" name_in_code="salinityVerticalAdvectionTopFlux"
+				description="salinity advective vertical advective flux through top of cell"
+			/>
+		</var_array>
 		<var_array name="activeTracerIntRestoreTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
 			<var name="temperatureIntRestoreTendency" array_group="activeTracerIntRestoreTendGroup" units="m C s^-1" name_in_code="temperatureIntRestoreTendency"
 				 description="layer thickness weighted potential temperature tendency due to interior restoring"
@@ -4305,14 +4313,6 @@
 		<!-- Output fields for forcing due to frazil ice -->
 		<var name="frazilLayerThicknessTendency" type="real" dimensions="nVertLevels nCells Time" units="m s^-1"
 			 description="layer thickness tendency due to frazil processes"
-			 packages="frazilIce"
-		/>
-		<var name="frazilTemperatureTendency" type="real" dimensions="nVertLevels nCells Time" units="m C s^-1"
-			 description="temperature tendency due to frazil processes"
-			 packages="frazilIce"
-		/>
-		<var name="frazilSalinityTendency" type="real" dimensions="nVertLevels nCells Time" units="m 1.e-3 s^-1"
-			 description="salinity tendency due to frazil processes"
 			 packages="frazilIce"
 		/>
 		<var name="frazilSurfacePressure" type="real" dimensions="nCells Time" units="Pa"

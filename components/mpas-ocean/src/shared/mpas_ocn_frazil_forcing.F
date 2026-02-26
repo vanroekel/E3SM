@@ -269,9 +269,6 @@ contains
       integer, pointer, dimension(:) :: nCellsArray
       integer, pointer, dimension(:) :: minLevelCell, maxLevelCell
 
-      real (kind=RKIND), dimension(:,:), pointer :: frazilTemperatureTendency
-      real (kind=RKIND), dimension(:,:), pointer :: frazilSalinityTendency
-
       err = 0
 
       if ( .not. frazilFormationOn ) return
@@ -286,8 +283,6 @@ contains
 
       call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(forcingPool, 'frazilTemperatureTendency', frazilTemperatureTendency)
-      call mpas_pool_get_array(forcingPool, 'frazilSalinityTendency', frazilSalinityTendency)
 
       ! frazil fields are needed only over 0 and 1 halos
       nCells = nCellsArray( 2 )
@@ -298,8 +293,9 @@ contains
       do iCell = 1, nCells
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           activeTracersTend(indexTemperature,k,iCell) = activeTracersTend(indexTemperature,k,iCell) &
-                                                      + frazilTemperatureTendency(k,iCell)
-          activeTracersTend(indexSalinity,k,iCell) = activeTracersTend(indexSalinity,k,iCell) + frazilSalinityTendency(k,iCell)
+                                                      + activeTracerFrazilTendency(index_temperature,k,iCell) 
+          activeTracersTend(indexSalinity,k,iCell) = activeTracersTend(indexSalinity,k,iCell) &
+                                                     + activeTracerFrazilTendency(index_salinity,k,iCell)
         end do
       end do
       !$omp end do
@@ -446,8 +442,6 @@ contains
       type (mpas_pool_type), pointer :: tracersPool
 
       real (kind=RKIND), dimension(:,:), pointer :: frazilLayerThicknessTendency
-      real (kind=RKIND), dimension(:,:), pointer :: frazilTemperatureTendency
-      real (kind=RKIND), dimension(:,:), pointer :: frazilSalinityTendency
       real (kind=RKIND), dimension(:), pointer :: frazilSurfacePressure
       real (kind=RKIND), dimension(:), pointer :: lowSalinityFrazilIce
       integer, dimension(:), pointer :: landIceMask, landIceFloatingMask
@@ -521,8 +515,6 @@ contains
       call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassOld, 1)
       call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
       call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
-      call mpas_pool_get_array(forcingPool, 'frazilTemperatureTendency', frazilTemperatureTendency)
-      call mpas_pool_get_array(forcingPool, 'frazilSalinityTendency', frazilSalinityTendency)
       call mpas_pool_get_array(forcingPool, 'frazilLayerThicknessTendency', frazilLayerThicknessTendency)
       call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
       call mpas_pool_get_array(forcingPool, 'lowSalinityFrazilIce', lowSalinityFrazilIce)
@@ -535,8 +527,7 @@ contains
       call mpas_get_timeInterval(timeStep, dt=dt)
 
       ! initialize frazil tendency fields
-      frazilTemperatureTendency = 0.0_RKIND
-      frazilSalinityTendency = 0.0_RKIND
+      activeTracerFrazilTendency = 0.0_RKIND
       frazilLayerThicknessTendency = 0.0_RKIND
 
       ! initialize frazil salinity conservation field
@@ -647,10 +638,10 @@ contains
             frazilLayerThicknessTendency(k,iCell) = - newFrazilIceThickness * config_frazil_ice_density / density(k,iCell) / dt
 
             ! salt is extracted with the frazil
-            frazilSalinityTendency(k,iCell) = - newThicknessWeightedSaltContent / dt
+            activeTracerFrazilTendency(index_salinity,k,iCell) = - newThicknessWeightedSaltContent / dt
 
             ! ocean fluid temperature is warmed due to creation of frazil
-            frazilTemperatureTendency(k,iCell) =  + ( newFrazilIceThickness * config_frazil_heat_of_fusion &
+            activeTracerFrazilTendency(index_temperature,k,iCell) =  + ( newFrazilIceThickness * config_frazil_heat_of_fusion &
                                                * config_frazil_ice_density ) / (config_specific_heat_sea_water * rho_sw) / dt
 
             ! keep track of sum of frazil ice
@@ -685,15 +676,15 @@ contains
                                                     / density(k,iCell) / dt
 
               ! salt is released into ocean with the melting frazil
-              frazilSalinityTendency(k,iCell) = + meltedThicknessWeightedSaltContent/ dt
+              activeTracerFrazilTendency(index_salinity,k,iCell) = + meltedThicknessWeightedSaltContent/ dt
 
               ! ocean fluid temperature is cooled due to melting of frazil
-              frazilTemperatureTendency(k,iCell) = - ( meltedFrazilIceThickness * config_frazil_heat_of_fusion &
-                                                 * config_frazil_ice_density ) / (config_specific_heat_sea_water * rho_sw) &
-                                                 / dt
+              activeTracerFrazilTendency(index_temperature,k,iCell) = - ( meltedFrazilIceThickness * &
+                                                 config_frazil_heat_of_fusion * config_frazil_ice_density ) &
+                                                 / (config_specific_heat_sea_water * rho_sw) / dt
 
               ! ocean fluid temperature is modified due to mixing of existing water with meltwater at the freezing point
-              frazilTemperatureTendency(k,iCell) = frazilTemperatureTendency(k,iCell) + &
+              activeTracerFrzilTendency(index_temperature,k,iCell) = activeTracerFrazilTendency(index_temperature,k,iCell) + &
                    meltedFrazilIceThickness * oceanFreezingTemperature / dt
 
               ! keep track of new frazil ice
@@ -737,7 +728,8 @@ contains
             accumulatedFrazilIceSalinityNew(iCell) = accumulatedFrazilIceSalinityOld(iCell) + max(0.0_RKIND, sumNewThicknessWeightedSaltContent)
            else
             !salt expelled at the surface
-            frazilSalinityTendency(minLevelCell(iCell),iCell) = frazilSalinityTendency(minLevelCell(iCell),iCell) + &
+            activeTracerFrazilTendency(index_salinity,minLevelCell(iCell),iCell) = &
+                activeTracerFrazilTendency(index_salinity,minLevelCell(iCell),iCell) + &
                 max(0.0_RKIND,(sumNewThicknessWeightedSaltContent -  newThicknessWeightedSaltContent) ) / dt
             accumulatedFrazilIceSalinityNew(iCell) = accumulatedFrazilIceSalinityOld(iCell) + newThicknessWeightedSaltContent
            endif

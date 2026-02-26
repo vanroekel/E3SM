@@ -1440,47 +1440,10 @@ contains
             call mpas_timer_stop("non-local flux from KPP")
          end if ! KPP
 
-         if (computeBudgets) then
-            ! compute budget contribution by taking the difference
-            ! of the total tendency before and after the call
-            ! here we store the before value for later subtraction
-            !$omp parallel
-            !$omp do schedule(runtime) private(k,n)
-            do iCell = 1, nCellsAll
-            do k=1,nVertLevels
-            do n=1,nTracersGroup
-               activeTracerFrazilTendency(n,k,iCell) = &
-                          tracerGroupTend(n,k,iCell)
-            enddo
-            enddo
-            enddo
-            !$omp end do
-            !$omp end parallel
-         endif ! compute budgets
-
          ! Compute tracer tendency due to production/destruction of
          ! frazil ice
          call ocn_frazil_forcing_tracers(meshPool, tracersPool, &
                      groupName, forcingPool, tracerGroupTend, ecosysFrazilForcingPool, err)
-
-         if (computeBudgets) then
-            ! compute budget contribution by taking the difference
-            ! of the total tendency before and after the call
-            ! here we store the before value for later subtraction
-            !$omp parallel
-            !$omp do schedule(runtime) private(k,n)
-            do iCell = 1, nCellsAll
-            do k=1,nVertLevels
-            do n=1,nTracersGroup
-               activeTracerFrazilTendency(n,k,iCell) = &
-                          tracerGroupTend(n,k,iCell) - &
-                          activeTracerFrazilTendency(n,k,iCell)
-            enddo
-            enddo
-            enddo
-            !$omp end do
-            !$omp end parallel
-         endif ! compute budgets
 
       end if ! config use flag on
       end if ! active only

@@ -75,6 +75,7 @@ module ocn_core
       call mpas_log_write( ' *****************************************************************************')
 
       if ( trim(config_ocean_run_mode) == 'forward' ) then
+         call mpas_log_write('DEBUG: calling ocn_forward_mode_init from driver', MPAS_LOG_OUT, masterOnly=.true., flushNow=.true.)
          ierr = ocn_forward_mode_init(domain, startTimeStamp)
       else if ( trim(config_ocean_run_mode) == 'analysis' ) then
          ierr = ocn_analysis_mode_init(domain, startTimeStamp)

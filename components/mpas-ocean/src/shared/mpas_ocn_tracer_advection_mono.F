@@ -864,6 +864,7 @@ module ocn_tracer_advection_mono
 #ifdef MPAS_OPENACC
            !$acc parallel loop &
            !$acc    present(lowOrderFlx, highOrderFlx, workTend, &
+           !$acc            activeTracerVerticalAdvectionTopFlux, &
            !$acc            activeTracerVerticalAdvectionTendency, &
            !$acc            minLevelCell, maxLevelCell) &
            !$acc    private(k, kmin, kmax)
@@ -874,6 +875,10 @@ module ocn_tracer_advection_mono
            do iCell = 1, nCellsOwned
               kmin = minLevelCell(iCell)
               kmax = maxLevelCell(iCell)
+              do k = kmin+1,kmax
+                 activeTracerVerticalAdvectionTopFlux(iTracer,k,iCell) = &
+                    lowOrderFlx(k,iCell) + highOrderFlx(k,iCell)
+              end do
               do k = kmin,kmax
                  activeTracerVerticalAdvectionTendency(iTracer,k,iCell) = &
                     workTend(k,iCell)

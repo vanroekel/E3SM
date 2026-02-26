@@ -186,6 +186,8 @@ module ocn_forward_mode
       ! Initialize variables needed for all
       !-----------------------------------------------------------------
       ierr = 0
+         ! Quick debug trace to help locate where init aborts
+         call mpas_log_write('DEBUG: entering ocn_forward_mode_init', MPAS_LOG_OUT, masterOnly=.true., flushNow=.true.)
 
       ! Setup ocean config pool
       call ocn_config_init(domain % configs)
@@ -212,6 +214,7 @@ module ocn_forward_mode
       !-----------------------------------------------------------------
 
       ! Read mesh data for model
+         call mpas_log_write('DEBUG: about to call MPAS_stream_mgr_read(mesh)', MPAS_LOG_OUT, masterOnly=.true., flushNow=.true.)
       call mpas_timer_start('io_read')
       call MPAS_stream_mgr_read(domain%streamManager, streamID='mesh', &
                              whence=MPAS_STREAM_NEAREST, ierr=err_tmp)
@@ -235,6 +238,9 @@ module ocn_forward_mode
       else
          call MPAS_stream_mgr_read(domain % streamManager, &
                                    streamID='input', ierr=err_tmp)
+            call mpas_log_write('DEBUG: about to call MPAS_stream_mgr_read(restart/input)', MPAS_LOG_OUT, masterOnly=.true., flushNow=.true.)
+            call MPAS_stream_mgr_read(domain % streamManager, &
+                                      streamID='input', ierr=err_tmp)
       end if
       if (err_tmp /= 0) then
          call mpas_log_write('Error reading initial state in init', &
@@ -249,6 +255,7 @@ module ocn_forward_mode
       if (ierr /= 0) return
 
       call mpas_timer_start('reset_io_alarms')
+         call mpas_log_write('DEBUG: about to reset io alarms (output)', MPAS_LOG_OUT, masterOnly=.true., flushNow=.true.)
       call mpas_stream_mgr_reset_alarms(domain%streamManager, &
                                         streamID='input', ierr=err_tmp)
       call mpas_stream_mgr_reset_alarms(domain%streamManager, &
@@ -264,6 +271,7 @@ module ocn_forward_mode
 
       ! Read the remaining input streams
       call mpas_timer_start('io_read')
+         call mpas_log_write('DEBUG: about to read remaining input streams', MPAS_LOG_OUT, masterOnly=.true., flushNow=.true.)
       call mpas_stream_mgr_read(domain%streamManager, ierr=err_tmp)
       ierr = ior(ierr, err_tmp)
       call mpas_timer_stop('io_read')
