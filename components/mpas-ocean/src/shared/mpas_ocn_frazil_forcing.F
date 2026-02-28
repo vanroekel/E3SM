@@ -293,9 +293,9 @@ contains
       do iCell = 1, nCells
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           activeTracersTend(indexTemperature,k,iCell) = activeTracersTend(indexTemperature,k,iCell) &
-                                                      + activeTracerFrazilTendency(index_temperature,k,iCell) 
+                                                      + activeTracerFrazilTendency(indexTemperature,k,iCell) 
           activeTracersTend(indexSalinity,k,iCell) = activeTracersTend(indexSalinity,k,iCell) &
-                                                     + activeTracerFrazilTendency(index_salinity,k,iCell)
+                                                     + activeTracerFrazilTendency(indexSalinity,k,iCell)
         end do
       end do
       !$omp end do
@@ -638,10 +638,10 @@ contains
             frazilLayerThicknessTendency(k,iCell) = - newFrazilIceThickness * config_frazil_ice_density / density(k,iCell) / dt
 
             ! salt is extracted with the frazil
-            activeTracerFrazilTendency(index_salinity,k,iCell) = - newThicknessWeightedSaltContent / dt
+            activeTracerFrazilTendency(indexSalinity,k,iCell) = - newThicknessWeightedSaltContent / dt
 
             ! ocean fluid temperature is warmed due to creation of frazil
-            activeTracerFrazilTendency(index_temperature,k,iCell) =  + ( newFrazilIceThickness * config_frazil_heat_of_fusion &
+            activeTracerFrazilTendency(indexTemperature,k,iCell) =  + ( newFrazilIceThickness * config_frazil_heat_of_fusion &
                                                * config_frazil_ice_density ) / (config_specific_heat_sea_water * rho_sw) / dt
 
             ! keep track of sum of frazil ice
@@ -676,15 +676,15 @@ contains
                                                     / density(k,iCell) / dt
 
               ! salt is released into ocean with the melting frazil
-              activeTracerFrazilTendency(index_salinity,k,iCell) = + meltedThicknessWeightedSaltContent/ dt
+              activeTracerFrazilTendency(indexSalinity,k,iCell) = + meltedThicknessWeightedSaltContent/ dt
 
               ! ocean fluid temperature is cooled due to melting of frazil
-              activeTracerFrazilTendency(index_temperature,k,iCell) = - ( meltedFrazilIceThickness * &
+              activeTracerFrazilTendency(indexTemperature,k,iCell) = - ( meltedFrazilIceThickness * &
                                                  config_frazil_heat_of_fusion * config_frazil_ice_density ) &
                                                  / (config_specific_heat_sea_water * rho_sw) / dt
 
               ! ocean fluid temperature is modified due to mixing of existing water with meltwater at the freezing point
-              activeTracerFrzilTendency(index_temperature,k,iCell) = activeTracerFrazilTendency(index_temperature,k,iCell) + &
+              activeTracerFrazilTendency(indexTemperature,k,iCell) = activeTracerFrazilTendency(indexTemperature,k,iCell) + &
                    meltedFrazilIceThickness * oceanFreezingTemperature / dt
 
               ! keep track of new frazil ice
@@ -728,8 +728,8 @@ contains
             accumulatedFrazilIceSalinityNew(iCell) = accumulatedFrazilIceSalinityOld(iCell) + max(0.0_RKIND, sumNewThicknessWeightedSaltContent)
            else
             !salt expelled at the surface
-            activeTracerFrazilTendency(index_salinity,minLevelCell(iCell),iCell) = &
-                activeTracerFrazilTendency(index_salinity,minLevelCell(iCell),iCell) + &
+            activeTracerFrazilTendency(indexSalinity,minLevelCell(iCell),iCell) = &
+                activeTracerFrazilTendency(indexSalinity,minLevelCell(iCell),iCell) + &
                 max(0.0_RKIND,(sumNewThicknessWeightedSaltContent -  newThicknessWeightedSaltContent) ) / dt
             accumulatedFrazilIceSalinityNew(iCell) = accumulatedFrazilIceSalinityOld(iCell) + newThicknessWeightedSaltContent
            endif
