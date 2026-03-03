@@ -577,3 +577,14 @@ add_omega_test(
     ocn/SfcCouplingTest.cpp
     "-n;8"
 )
+
+##########################
+# Submeso Eddies test
+##########################
+
+add_omega_test(
+    SUBMESOEDDIES_TEST
+    testSubmesoEddies.exe
+    ocn/SubmesoEddiesTest.cpp
+    "-n;1"
+)
