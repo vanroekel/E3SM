@@ -98,6 +98,22 @@ Real KPPProfileG(Real sigma) {
    return sigma * (1.0 + 2.0 * sigma);
 }
 
+/// @brief G_pnl(sigma) - Parabolic non-local flux profile
+/// Used only for non-local tracer flux when matching option is
+/// "ParabolicNonLocal". This must NOT be used for KPP viscosity/diffusivity.
+///
+/// @param sigma Normalized vertical position (-z/h), 0 at surface, -1 at base
+/// @return Dimensionless non-local profile value
+KOKKOS_INLINE_FUNCTION
+Real KPPProfileGParabolicNonLocal(Real sigma) {
+   sigma = Kokkos::fmax(-1.0, Kokkos::fmin(0.0, sigma));
+
+   // Simple parabolic profile in [0,1] coordinate with nonzero surface value.
+   // mu = -sigma, so mu=0 at surface and mu=1 at OBL base.
+   Real mu = -sigma;
+   return 1.0 - mu * mu;
+}
+
 /// @brief M1(sigma) - Momentum mixing profile function
 /// Multiplies friction velocity and turbulent velocity scale
 /// REFERENCES: Large et al. (1994) Eq. (11)

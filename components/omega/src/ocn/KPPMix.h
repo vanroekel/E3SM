@@ -95,14 +95,13 @@ class KPPMix {
    Real StopOBLSearchMult  = 1.0; ///< Safety multiplier for search
    Real SurfaceLayerExtent = 0.1; ///< Surface layer fraction of OBL
 
-   KPP::OBLDepthScheme OBLDepthScheme =
-       KPP::OBLDepthScheme::SimpleShapes; ///< OBL matching method
-
    bool UseLangmuirCirculation = true; ///< Apply wave enhancement
    bool UseNonLocalFlux        = true; ///< Apply non-local tracer flux
 
    Real BackgroundVisc = 1.0e-4; ///< Background viscosity below OBL (m²/s)
    Real BackgroundDiff = 1.0e-5; ///< Background diffusivity below OBL (m²/s)
+
+   std::string OBLDepthSchemeStr = "SimpleShapes"; ///< OBL scheme: SimpleShapes or MatchBoth
 
    // Field names for I/O
    std::string VertDiffFldName;
@@ -127,7 +126,10 @@ class KPPMix {
    const VertCoord *VCoord;
 
    /// @brief Stage 1: Compute OBL depth
-   void computeOBLDepth(const Array1DReal &SurfaceFrictionVelocity,
+  void computeOBLDepth(const Array2DReal &PotentialDensity,
+                const Array2DReal &NormalVelocity,
+                const Array2DReal &TangentialVelocity,
+                const Array1DReal &SurfaceFrictionVelocity,
                         const Array1DReal &SurfaceBuoyancyFlux,
                         const Array2DReal &BruntVaisalaFreqSq,
                         const Array1DReal &IceFraction,
@@ -136,7 +138,9 @@ class KPPMix {
    /// @brief Stage 2: Compute mixing coefficients
    void computeMixingCoefficients(const Array2DReal &PotentialDensity,
                                   const Array2DReal &NormalVelocity,
-                                  const Array2DReal &TangentialVelocity);
+                                  const Array2DReal &TangentialVelocity,
+                                  const Array1DReal &SurfaceFrictionVelocity,
+                                  const Array1DReal &SurfaceBuoyancyFlux);
 
    /// @brief Register fields with I/O system
    void defineFields();

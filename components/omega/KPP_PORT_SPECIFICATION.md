@@ -97,6 +97,10 @@ New files in `src/ocn/`:
 - `SurfaceBuoyancyFlux[nCells]` - Surface buoyancy flux (m²/s³)
 - `BruntVaisalaFreqSq[nCells][nLevels+1]` - N² at interfaces (s⁻²)
 - `IceFraction[nCells]` - Sea ice coverage (0-1)
+  - Used to disable Langmuir enhancement when ≥ 0.05
+  - Used to apply minimum OBL depth constraint when ≥ 0.15
+- `LandIceMask[nCells]` - Land ice mask (0 or 1, optional)
+  - Disables Langmuir enhancement under land ice
 - `WindSpeed10m[nCells]` - For Langmuir enhancement (m/s)
 
 ### 3.3 Grid/Mesh
@@ -129,20 +133,61 @@ New files in `src/ocn/`:
 
 **Stage 1: Boundary Layer Depth** (~O(nCells × nLevels))
 For each cell:
-1. Compute surface friction u* and buoyancy flux B_0
-2. Compute Langmuir enhancement factor from wind speed
-3. **Loop through layers computing bulk Richardson**:
-   - Use **cumulative sum pattern** to avoid redundant calculation
-   - Stop when `Ri_b > Ri_crit` (typically 0.3)
-   - ⚠️ **Performance Note**: Early exit critical; inner loop has growing complexity
-4. Optional: Apply MatchBoth interpolation scheme
-5. Apply min/max OBL constraints
+1. Check ice conditions:
+   - If `landIceMask=0 AND iceFraction < 0.05`: Compute Langmuir enhancement
+   - Else: Set Langmuir enhancement = 1.0 (no wave effects under ice)
+
+2. Initialize cumulative sums for thickness-weighted surface layer averaging:
+   - `densitySum[1] = density[1] × thickness[1]`
+   - `thicknessSum[1] = thickness[1]`
+   - `velocitySum_edge[1] = velocity_edge[1] × thickness_edge[1]` (for each edge)
+   - `thicknessEdgeSum[1] = thickness_edge[1]` (for each edge)
+
+3. **Loop through layers k=1 to nLevels computing bulk Richardson**:
+   
+   a. **Set test OBL depth** = depth at bottom of layer k
+   
+   b. **Determine surface layer extent**: `d_surface = surfLayerExtent × OBL_test` (typically 0.1)
+   
+   c. **Find surface layer index**: Deepest layer within d_surface
+   
+   d. **Update cumulative sums** for next iteration:
+      - `thicknessSum[k] = thicknessSum[k-1] + thickness[k]`
+      - `densitySum[k] = densitySum[k-1] + thickness[k] × density[k]`
+      - (similarly for velocity on each edge)
+   
+   e. **Compute surface layer averages** (thickness-weighted):
+      - `avgDensity = densitySum[surfaceLayerIndex[k]] / thicknessSum[surfaceLayerIndex[k]]`
+      - `avgVelocity = velocitySum[surfaceLayerIndex[k]] / thicknessEdgeSum[surfaceLayerIndex[k]]`
+   
+   f. **Compute differences from surface layer average**:
+      - `ΔB[k] = g × (density[k] - avgDensity) / ρ_ref`
+      - `ΔV²[k] = |avgVelocity - velocity[k]|²` (averaged over cell edges)
+   
+   g. **Compute turbulent velocity scale** w_s for this potential OBL depth:
+      - `w_s[k] = turbulent_scale(σ=surfLayerExtent, OBL_test, u*, B_surface)`
+   
+   h. **Compute unresolved shear**: `Vt²[k] = f(w_s[k], N², Langmuir_factor)`
+   
+   i. **Compute bulk Richardson number**:
+      - `scaling = 1.0 - 0.5 × surfLayerExtent`
+      - `Ri_bulk[k] = -scaling × z_center[k] × ΔB[k] / (ΔV²[k] + Vt²[k])`
+   
+   j. **Check stopping criterion**: If `Ri_bulk[k] > Ri_crit × stopFactor`: break
+
+4. **Interpolate** to find exact OBL depth where Ri_b = Ri_crit (MatchBoth or SimpleShapes)
+
+5. **Apply OBL constraints**:
+   - Minimum: `OBL = max(OBL, 0.5 × thickness[1])`
+   - If `iceFraction > 0.15`: `OBL = max(OBL, minimumOBLUnderSeaIce)`
+   - Maximum: `OBL = min(OBL, abs(z_center[nLevels]))`
+
 6. Store OBL depth and layer index
 
 **Stage 2: Mixing Coefficients** (~O(nCells × nLevels))
 For each cell:
-1. Compute turbulent velocity scales: w_s
-2. Apply KPP profile within OBL: ν(z) = u* × w_s × w(σ) + ν_bg
+1. Compute turbulent velocity scales at all depths within OBL: w_m(σ), w_s(σ)
+2. Apply KPP profile within OBL: ν(z) = u* × w_s(σ) × w(σ) + ν_bg
 3. Compute non-local flux G(σ) within OBL
 4. Store background mixing below OBL
 
@@ -151,10 +196,17 @@ For each cell:
 **Vertical Divergence Form:**
 `d(T)/dt = -d/dz(G(σ) × Q_surf)`
 
+**Physical Meaning:**
+- Non-local flux represents coherent plume transport within the boundary layer
+- Only active within OBL (G=0 below OBL depth)
+- Magnitude depends on surface forcing and boundary layer profile shape
+- Zero under ice if using non-local flux only for buoyancy forcing regime
+
 **Omega Implementation:**
-1. KPP computes `VertNonLocalFlux[nCells][nLevels+1]`
+1. KPP computes `VertNonLocalFlux[nCells][nLevels+1]` with G(σ) within OBL
 2. In Tendencies: Loop over tracers, apply: `tend += (G(k) - G(k+1)) × Q_surf`
 3. Zero boundary conditions at surface and below OBL
+4. G(σ) typically follows parabolic or cubic profile within OBL
 
 See [mpas_ocn_tracer_nonlocalflux.F](mpas-ocean/src/shared/mpas_ocn_tracer_nonlocalflux.F) for reference implementation.
 
@@ -165,7 +217,7 @@ See [mpas_ocn_tracer_nonlocalflux.F](mpas-ocean/src/shared/mpas_ocn_tracer_nonlo
 | u\* | m/s | 0.0001+ | Friction velocity (no upper limit) |
 | B₀ | m²/s³ | -0.5 to 0.01 | Buoyancy flux |
 | h_OBL | m | 5–500 | Boundary layer depth |
-| Ri_b | — | 0–1 | Bulk Richardson criterion |
+| Ri_b | — | 0–1 | Bulk Richardson = (d-d_r)×ΔB/(ΔV²+Vt²) where ΔB,ΔV are differences from **surface layer average** |
 | κ | m²/s | 1e-6 to 1e-2 | Coefficient |
 
 ---
@@ -192,9 +244,15 @@ VertMix:
     SurfaceLayerExtent: 0.1
 
     # OBL bounds
-    Minimum_OBL_under_sea_ice: 5.0         # (m)
+    MinimumOBLDepth: 0.0                   # (m) typically 0.5 × first layer thickness
+    MaximumOBLDepth: 0.0                   # (m) 0 = use bottom depth
+    MinimumOBLUnderSeaIce: 10.0            # (m) applied when iceFraction > 0.15
 
-    # Wave enhancement
+    # Ice thresholds
+    IceFractionThresholdForLangmuir: 0.05  # Disable Langmuir when iceFraction ≥ this
+    IceFractionThresholdForMinimumOBL: 0.15 # Apply minimum OBL when iceFraction ≥ this
+
+    # Wave enhancement (disabled automatically under ice)
     UseLangmuirCirculation: true           # Theory-based model
 
     # Background mixing
@@ -262,10 +320,11 @@ parallelForOuter("KPPMix", {Mesh->NCellsAll},
 
 ### 8.2 Performance Notes on Stage 1
 
-⚠️ **Critical Performance Issue**: OBL bulk Richardson loop has growing inner complexity
-- **Problem**: Computing shear and buoyancy accumulation can lead to O(nLevels²) behavior
-- **Solution**: Use **cumulative sum pattern** - maintain running totals, don't recompute
+⚠️ **Performance Optimization**: Bulk Richardson loop uses cumulative sum pattern
+- **Cumulative sums**: Maintain running totals for density and velocity to avoid O(nLevels²)
+- **Surface layer averaging**: Thickness-weighted averages computed incrementally
 - **Early exit**: Stop loop when Ri > Ri_critical criterion met
+- **Key insight**: Each iteration computes surface layer average for a different test OBL depth
 - **Future optimization**: Integrate `parallelSearchInner` when available (20-40% reduction)
 
 ---
@@ -273,15 +332,28 @@ parallelForOuter("KPPMix", {Mesh->NCellsAll},
 ## 9. Testing and Validation
 
 ### 9.1 Unit Tests
+- **Surface layer averaging**: Verify thickness-weighted averages correct for varying layer thickness
+- **Surface layer index**: Verify correct determination of surface layer extent (0.1×OBL)
 - OBL depth against CVMix reference
-- Richardson accumulation logic
+- Richardson accumulation logic with cumulative sums
 - Profile functions (M1, M2, S1, S2, G)
 - Non-local flux conservation
 
 ### 9.2 Regression Tests
-- Compare with MPAS-Ocean KPP for identical inputs
+- **Bit-for-bit with MPAS**: Compare bulk Richardson computation with MPAS-Ocean for identical inputs
+- **Ice treatment**: 
+  - Verify OBL computed for all iceFraction values 0-1
+  - Verify Langmuir disabled for iceFraction ≥ 0.05
+  - Verify minimum OBL applied for iceFraction ≥ 0.15
+  - Test under land ice (landIceMask = 1)
 - Tracer budget verification with non-local flux
 - Boundary condition checks
+
+### 9.3 Physical Validation
+- **Conservation**: Thickness-weighted averaging conserves mass
+- **Dimensional analysis**: All Richardson terms dimensionally consistent
+- **LMD94 compliance**: Verify matches Large et al. (1994) equations
+- **Two-stage timing**: Verify turbulent scales computed before Richardson calculation
 
 ---
 
@@ -356,11 +428,15 @@ parallelForOuter("KPPMix", {Mesh->NCellsAll},
 
 1. **Augment VertMix**: Keep old schemes; add KPP option via config
 2. **Theory-based waves only**: Wind → Langmuir enhancement (no active wave model)
+   - Automatically disabled when iceFraction ≥ 0.05 or under land ice
 3. **Main outputs**: VertDiff, VertVisc, BoundaryLayerDepth, IndexBoundaryLayerDepth
 4. **Use Omega Eos**: For density calculations
 5. **Location**: src/ocn/ alongside VertMix
 6. **OBL Matching**: Support MatchBoth and SimpleShapes schemes
-7. **No Fixed OBL**: Always compute dynamically (no fixed boundary layer option)
+7. **Always compute OBL**: Boundary layer computed under all conditions (open water, sea ice, land ice)
+   - Langmuir enhancement disabled under ice but OBL still computed
+   - Minimum OBL depth constraint applied when iceFraction > 0.15
+8. **Surface Layer Averaging**: Bulk Richardson uses thickness-weighted averages over surface layer (0 to 0.1×OBL)
 
 ---
 
@@ -370,7 +446,24 @@ parallelForOuter("KPPMix", {Mesh->NCellsAll},
 - If available in your workspace: Should I integrate and use for Stage 1 OBL search?
 - Expected benefit: 20-40% reduction in Stage 1 computation
 
+## 15. Physical Correctness Notes
+
+### Bulk Richardson Number
+The bulk Richardson number measures stratification **relative to a well-mixed surface layer**, not relative to the surface point. This is physically correct because:
+- The surface layer (0 to ε×d, typically 0.1×d) is assumed well-mixed
+- Comparing properties at depth d to the surface layer average captures the correct physics
+- This matches Large et al. (1994) formulation exactly
+
+### Ice Treatment
+Boundary layer depth is computed under all ice conditions because:
+- Shear-driven mixing continues under ice (wind stress transmitted through ice)
+- Convective mixing continues under ice (surface cooling)
+- Only wave-driven processes (Langmuir) are disabled under ice
+- Minimum OBL depth under sea ice accounts for altered mixing dynamics
+- This approach is validated in MPAS-Ocean and matches observations
+
 ---
 
-**Status**: Requirements finalized, ready for Phase 1 implementation
-**Last Updated**: 2026-02-26
+**Status**: Requirements finalized with physical corrections, ready for Phase 1 implementation  
+**Last Updated**: 2026-02-27  
+**Physical Review**: Completed - Corrected bulk Richardson (surface layer averaging), ice treatment, and algorithm ordering

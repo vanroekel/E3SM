@@ -10,14 +10,23 @@
 
 #include "Tendencies.h"
 #include "CustomTendencyTerms.h"
+#include "Eos.h"
 #include "Error.h"
+#include "GlobalConstants.h"
+#include "KPPMix.h"
 #include "Pacer.h"
 #include "Tracers.h"
+#include "VertMix.h"
+
+#include <limits>
+
 
 namespace OMEGA {
 
 Tendencies *Tendencies::DefaultTendencies = nullptr;
 std::map<std::string, std::unique_ptr<Tendencies>> Tendencies::AllTendencies;
+
+
 
 //------------------------------------------------------------------------------
 // Initialize the tendencies. Assumes that HorzMesh and VertCoord has alread
@@ -207,6 +216,14 @@ void Tendencies::readTendConfig(
       Err += TendConfig->get("EddyDiff4", this->TracerHyperDiff.EddyDiff4);
       CHECK_ERROR_ABORT(Err, "Tendencies: EddyDiff4 not found in TendConfig");
    }
+
+    Error NonLocalErr =
+         TendConfig->get("TracerNonLocalFluxTendencyEnable",
+                              this->TracerNonLocalFluxEnabled);
+    if (!NonLocalErr.isSuccess()) {
+        NonLocalErr.reset();
+        this->TracerNonLocalFluxEnabled = false;
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -234,6 +251,9 @@ Tendencies::Tendencies(const std::string &Name, ///< [in] Name for tendencies
        Array2DReal("NormalVelocityTend", Mesh->NEdgesSize, VCoord->NVertLayers);
    TracerTend = Array3DReal("TracerTend", NTracersIn, Mesh->NCellsSize,
                             VCoord->NVertLayers);
+   SurfaceTracerFlux =
+       Array2DReal("SurfaceTracerFlux", NTracersIn, Mesh->NCellsAll);
+   Kokkos::deep_copy(SurfaceTracerFlux, 0._Real);
 
    NTracers = NTracersIn;
 
@@ -246,6 +266,127 @@ Tendencies::Tendencies(const std::string &Name, ///< [in] Name for tendencies
                        Config *Options)         ///< [in] Configuration options
     : Tendencies(Name, Mesh, VCoord, NTracersIn, Options, CustomTendencyType{},
                  CustomTendencyType{}) {}
+
+void Tendencies::computeStageVerticalMixing(const OceanState *State,
+                                                          const AuxiliaryState *AuxState,
+                                                          const Array3DReal &TracerArray,
+                                                          int ThickTimeLevel,
+                                                          int VelTimeLevel) {
+
+    Eos *EosInstance    = Eos::getInstance();
+    KPPMix *KPPInstance = KPPMix::getInstance();
+
+    if (!EosInstance || !KPPInstance || !KPPInstance->Enabled) {
+        return;
+    }
+
+    I4 TempIdx = -1;
+    I4 SaltIdx = -1;
+    if (Tracers::getIndex(TempIdx, "Temperature") != 0 ||
+         Tracers::getIndex(SaltIdx, "Salinity") != 0) {
+        LOG_WARN("Tendencies::computeStageVerticalMixing: Temperature/Salinity "
+                    "tracers not found, skipping KPP stage update");
+        return;
+    }
+
+    const I4 NCellsAll   = Mesh->NCellsAll;
+    const I4 NEdgesAll   = Mesh->NEdgesAll;
+    const I4 NVertLayers = VCoord->NVertLayers;
+
+    Array2DReal ConservTemp("KPP-ConservTemp", NCellsAll, NVertLayers);
+    Array2DReal AbsSalinity("KPP-AbsSalinity", NCellsAll, NVertLayers);
+
+    parallelFor(
+         "KPP-ExtractTS", {NCellsAll, NVertLayers},
+         KOKKOS_LAMBDA(I4 ICell, I4 K) {
+             ConservTemp(ICell, K) = TracerArray(TempIdx, ICell, K);
+             AbsSalinity(ICell, K) = TracerArray(SaltIdx, ICell, K);
+         });
+
+    Array2DReal LayerThickCell = State->getLayerThickness(ThickTimeLevel);
+    Array2DReal NormalVelEdge  = State->getNormalVelocity(VelTimeLevel);
+
+    Array1DReal SurfacePressure("KPP-SurfacePressure", NCellsAll);
+    deepCopy(SurfacePressure, 1.0e5_Real);
+    const_cast<VertCoord*>(VCoord)->computePressure(LayerThickCell, SurfacePressure);
+
+    OMEGA_SCOPE(PressureMid, VCoord->PressureMid);
+    Array2DReal PressureMidDbar("KPP-PressureMidDbar", NCellsAll, NVertLayers);
+    parallelFor(
+         "KPP-PressureToDbar", {NCellsAll, NVertLayers},
+         KOKKOS_LAMBDA(I4 ICell, I4 K) {
+             PressureMidDbar(ICell, K) = PressureMid(ICell, K) * 1.0e-4_Real;
+         });
+
+    EosInstance->computeSpecVol(ConservTemp, AbsSalinity, PressureMidDbar);
+    EosInstance->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity,
+                                                        PressureMidDbar,
+                                                        EosInstance->SpecVol);
+
+    Array2DReal PotentialDensity("KPP-PotentialDensity", NCellsAll, NVertLayers);
+    OMEGA_SCOPE(SpecVol, EosInstance->SpecVol);
+    parallelFor(
+         "KPP-PotentialDensity", {NCellsAll, NVertLayers},
+         KOKKOS_LAMBDA(I4 ICell, I4 K) {
+             PotentialDensity(ICell, K) = 1.0_Real / Kokkos::max(1.0e-12_Real,
+                                                                                  SpecVol(ICell, K));
+         });
+
+    Array2DReal NormalVelCell("KPP-NormalVelCell", NCellsAll, NVertLayers);
+    Array2DReal TangentialVelCell("KPP-TangentialVelCell", NCellsAll,
+                                            NVertLayers);
+    OMEGA_SCOPE(NEdgesOnCell, Mesh->NEdgesOnCell);
+    OMEGA_SCOPE(EdgesOnCell, Mesh->EdgesOnCell);
+    OMEGA_SCOPE(AngleEdge, Mesh->AngleEdge);
+    parallelFor(
+         "KPP-ReconstructCellVelocity", {NCellsAll, NVertLayers},
+         KOKKOS_LAMBDA(I4 ICell, I4 K) {
+             Real u_sum = 0.0_Real;
+             Real v_sum = 0.0_Real;
+             I4 count   = 0;
+
+             for (I4 J = 0; J < NEdgesOnCell(ICell); ++J) {
+                 const I4 JEdge = EdgesOnCell(ICell, J);
+                 const Real vn  = NormalVelEdge(JEdge, K);
+                 const Real ang = AngleEdge(JEdge);
+                 u_sum += vn * Kokkos::cos(ang);
+                 v_sum += vn * Kokkos::sin(ang);
+                 ++count;
+             }
+
+             if (count > 0) {
+                 const Real inv_count      = 1.0_Real / static_cast<Real>(count);
+                 NormalVelCell(ICell, K)   = u_sum * inv_count;
+                 TangentialVelCell(ICell, K) = v_sum * inv_count;
+             } else {
+                 NormalVelCell(ICell, K)     = 0.0_Real;
+                 TangentialVelCell(ICell, K) = 0.0_Real;
+             }
+         });
+
+    Array1DReal SurfaceFrictionVelocity("KPP-SurfaceFrictionVelocity", NCellsAll);
+    Array1DReal SurfaceBuoyancyFlux("KPP-SurfaceBuoyancyFlux", NCellsAll);
+    Array1DReal IceFraction("KPP-IceFraction", NCellsAll);
+    OMEGA_SCOPE(ZonalStressCell, AuxState->WindForcingAux.ZonalStressCell);
+    OMEGA_SCOPE(MeridStressCell, AuxState->WindForcingAux.MeridStressCell);
+    parallelFor(
+         "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+             const Real tau_mag = Kokkos::sqrt(
+                  ZonalStressCell(ICell) * ZonalStressCell(ICell) +
+                  MeridStressCell(ICell) * MeridStressCell(ICell));
+             SurfaceFrictionVelocity(ICell) =
+                  Kokkos::sqrt(Kokkos::max(0.0_Real, tau_mag / RhoSw));
+             SurfaceBuoyancyFlux(ICell) = 0.0_Real;
+             IceFraction(ICell)         = 0.0_Real;
+         });
+
+    Array1DReal WindSpeed10m;
+    KPPInstance->computeKPPMix(PotentialDensity, NormalVelCell,
+                                        TangentialVelCell, SurfaceFrictionVelocity,
+                                        SurfaceBuoyancyFlux,
+                                        EosInstance->BruntVaisalaFreqSq, IceFraction,
+                                        WindSpeed10m);
+}
 
 //------------------------------------------------------------------------------
 // Compute tendencies for layer thickness equation
@@ -578,8 +719,47 @@ void Tendencies::computeTracerTendenciesOnly(
       Pacer::stop("Tend:tracerHyperDiff", 2);
    }
 
+    if (TracerNonLocalFluxEnabled) {
+        KPPMix *Mix = KPPMix::getInstance();
+        if (Mix != nullptr) {
+            const Array2DReal &VertNonLocalFlux = Mix->VertNonLocalFlux;
+            Array2DReal LayerThickness = State->getLayerThickness(ThickTimeLevel);
+            OMEGA_SCOPE(LocVertNonLocalFlux, VertNonLocalFlux);
+            OMEGA_SCOPE(LocSurfaceTracerFlux, SurfaceTracerFlux);
+            OMEGA_SCOPE(LocLayerThickness, LayerThickness);
+
+            Pacer::start("Tend:tracerNonLocalFlux", 2);
+            parallelForOuter(
+                 {NTracers, Mesh->NCellsAll},
+                 KOKKOS_LAMBDA(int L, int ICell, const TeamMember &Team) {
+                     const int KMin   = MinLayerCell(ICell);
+                     const int KMax   = MaxLayerCell(ICell);
+                     const int KRange = vertRange(KMin, KMax);
+
+                     const Real FluxTop = LocSurfaceTracerFlux(L, ICell);
+                     parallelForInner(
+                          Team, KRange, INNER_LAMBDA(int KChunk) {
+                              const int K = KMin + KChunk;
+                              const Real FUpper = LocVertNonLocalFlux(ICell, K + 1) * FluxTop;
+                              const Real FLower = LocVertNonLocalFlux(ICell, K) * FluxTop;
+                              const Real Dz = LocLayerThickness(ICell, K);
+                              LocTracerTend(L, ICell, K) -= (FUpper - FLower) / Dz;
+                          });
+                 });
+            Pacer::stop("Tend:tracerNonLocalFlux", 2);
+        }
+    }
+
    Pacer::stop("Tend:computeTracerTendenciesOnly", 1);
 } // end tracer tendency compute
+
+void Tendencies::setSurfaceTracerFlux(const Array2DReal &Flux) {
+    OMEGA_REQUIRE(Flux.extent(0) == SurfaceTracerFlux.extent(0),
+                      "Tendencies::setSurfaceTracerFlux: tracer dimension mismatch");
+    OMEGA_REQUIRE(Flux.extent(1) == SurfaceTracerFlux.extent(1),
+                      "Tendencies::setSurfaceTracerFlux: cell dimension mismatch");
+    Kokkos::deep_copy(SurfaceTracerFlux, Flux);
+}
 
 void Tendencies::computeThicknessTendencies(
     const OceanState *State,        ///< [in] State variables
@@ -645,6 +825,10 @@ void Tendencies::computeTracerTendencies(
     int VelTimeLevel,               ///< [in] Time level
     TimeInstant Time                ///< [in] Time
 ) {
+    AuxState->computeMomAux(State, ThickTimeLevel, VelTimeLevel);
+    computeStageVerticalMixing(State, AuxState, TracerArray,
+                               ThickTimeLevel, VelTimeLevel);
+
    Array2DReal LayerThickCell = State->getLayerThickness(ThickTimeLevel);
    Array2DReal NormalVelEdge  = State->getNormalVelocity(VelTimeLevel);
    OMEGA_SCOPE(TracerAux, AuxState->TracerAux);
@@ -709,6 +893,8 @@ void Tendencies::computeAllTendencies(
    Pacer::start("Tend:computeAllTendencies", 1);
 
    AuxState->computeAll(State, TracerArray, ThickTimeLevel, VelTimeLevel);
+   computeStageVerticalMixing(State, AuxState, TracerArray,
+                              ThickTimeLevel, VelTimeLevel);
    computeThicknessTendenciesOnly(State, AuxState, ThickTimeLevel, VelTimeLevel,
                                   Time);
    computeVelocityTendenciesOnly(State, AuxState, ThickTimeLevel, VelTimeLevel,

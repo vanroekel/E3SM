@@ -11,6 +11,7 @@
 #include "Config.h"
 #include "DataTypes.h"
 #include "Decomp.h"
+#include "Eos.h"
 #include "Error.h"
 #include "Field.h"
 #include "Halo.h"
@@ -19,6 +20,7 @@
 #include "IOStream.h"
 #include "Logging.h"
 #include "MachEnv.h"
+#include "KPPMix.h"
 #include "OceanDriver.h"
 #include "OceanState.h"
 #include "Pacer.h"
@@ -27,6 +29,7 @@
 #include "TimeStepper.h"
 #include "Tracers.h"
 #include "VertCoord.h"
+#include "VertMix.h"
 
 #include "mpi.h"
 
@@ -131,6 +134,9 @@ int initOmegaModules(MPI_Comm Comm) {
    HorzMesh::init();
    VertCoord::init();
    Tracers::init();
+   Eos::init();
+   VertMix::init();
+   KPPMix::init();
    AuxiliaryState::init();
    Tendencies::init();
    TimeStepper::init2();

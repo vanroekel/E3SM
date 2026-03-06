@@ -494,3 +494,14 @@ add_omega_test(
     ocn/VertMixTest.cpp
     "-n;4"
 )
+
+###############################
+# KPP Convective Deepening test
+###############################
+
+add_omega_test(
+  KPP_CONVECTIVE_DEEPENING_TEST
+  testKPPConvectiveDeepening.exe
+  ocn/KPPConvectiveDeepeningTest.cpp
+  "-n;1"
+)

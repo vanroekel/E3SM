@@ -56,6 +56,10 @@ class Tendencies {
    Array2DReal NormalVelocityTend;
    Array3DReal TracerTend;
 
+    // Surface tracer flux forcing used by KPP non-local tracer tendency.
+    // Dimensions: [NTracers, NCellsAll]
+  Array2DReal SurfaceTracerFlux;
+
    // Instances of tendency terms
    ThicknessFluxDivOnCell ThicknessFluxDiv;
    PotentialVortHAdvOnEdge PotientialVortHAdv;
@@ -68,6 +72,10 @@ class Tendencies {
    TracerHorzAdvOnCell TracerHorzAdv;
    TracerDiffOnCell TracerDiffusion;
    TracerHyperDiffOnCell TracerHyperDiff;
+
+    // Enables explicit non-local tracer tendency from KPP:
+    // d(phi)/dt += -d/dz(VertNonLocalFlux * SurfaceTracerFlux)
+  bool TracerNonLocalFluxEnabled = false;
 
    // Methods to compute tendency groups
    void computeThicknessTendencies(const OceanState *State,
@@ -100,6 +108,16 @@ class Tendencies {
                                     const Array3DReal &TracerArray,
                                     int ThickTimeLevel, int VelTimeLevel,
                                     TimeInstant Time);
+
+    // Update surface tracer flux used for non-local tendency forcing.
+    // Input dimensions must be [NTracers, NCellsAll].
+  void setSurfaceTracerFlux(const Array2DReal &Flux);
+
+  /// Compute stage-local vertical mixing state (EOS + KPP)
+  void computeStageVerticalMixing(const OceanState *State,
+                        const AuxiliaryState *AuxState,
+                        const Array3DReal &TracerArray,
+                        int ThickTimeLevel, int VelTimeLevel);
 
    // Create a non-default group of tendencies
    template <class... ArgTypes>

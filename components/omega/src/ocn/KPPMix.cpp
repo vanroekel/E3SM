@@ -12,12 +12,11 @@
 #include "KPPMix.h"
 #include "DataTypes.h"
 #include "Error.h"
-#include "Field.h"
-#include "FieldGroup.h"
-#include "KPPComputeOBLDepth.h"
+#include "GlobalConstants.h"
 #include "KPPConstants.h"
 #include "Logging.h"
 #include "OmegaKokkos.h"
+#include "VertMix.h"
 #include "VertCoord.h"
 #include <limits>
 
@@ -87,9 +86,15 @@ void KPPMix::init() {
    // Get KPP config subgroup
    Config KPPConfig("KPP");
    Err += VertMixConfig.get(KPPConfig);
-   if (Err) {
+   if (Err.isFail()) {
       LOG_INFO("KPPMix::init: KPP subgroup not found, using defaults");
       return; // Continue with defaults
+   }
+
+   // Start from VertMix background defaults when available
+   if (auto *BaseVertMix = VertMix::getInstance(); BaseVertMix != nullptr) {
+      DefKPPMix->BackgroundVisc = BaseVertMix->BackVisc;
+      DefKPPMix->BackgroundDiff = BaseVertMix->BackDiff;
    }
 
    // Read KPP parameters
@@ -102,21 +107,17 @@ void KPPMix::init() {
    Err += KPPConfig.get("StopOBLSearch", DefKPPMix->StopOBLSearchMult);
    Err += KPPConfig.get("SurfaceLayerExtent", DefKPPMix->SurfaceLayerExtent);
 
-   // OBL depth scheme
-   std::string scheme_str;
+   // OBL depth scheme - store as string
+   std::string scheme_str = "SimpleShapes";
    Err += KPPConfig.get("BoundaryLayerDepthScheme", scheme_str);
-   if (scheme_str == "MatchBoth") {
-      DefKPPMix->OBLDepthScheme = KPP::OBLDepthScheme::MatchBoth;
-   } else {
-      DefKPPMix->OBLDepthScheme = KPP::OBLDepthScheme::SimpleShapes;
-   }
+   DefKPPMix->OBLDepthSchemeStr = scheme_str;
 
    // Wave and flux options
    Err += KPPConfig.get("UseLangmuirCirculation",
                         DefKPPMix->UseLangmuirCirculation);
    Err += KPPConfig.get("UseNonLocalFlux", DefKPPMix->UseNonLocalFlux);
 
-   // Background mixing
+   // Optional KPP-specific background overrides
    Err += KPPConfig.get("BackgroundViscosity", DefKPPMix->BackgroundVisc);
    Err += KPPConfig.get("BackgroundDiffusivity", DefKPPMix->BackgroundDiff);
 
@@ -140,38 +141,32 @@ void KPPMix::computeKPPMix(const Array2DReal &PotentialDensity,
    // =======================================================================
    // Stage 1: Compute OBL Depth
    // =======================================================================
-   computeOBLDepth(SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
+   computeOBLDepth(PotentialDensity, NormalVelocity, TangentialVelocity,
+                   SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
                    BruntVaisalaFreqSq, IceFraction, WindSpeed10m);
 
    // =======================================================================
    // Stage 2: Compute Mixing Coefficients
    // =======================================================================
    computeMixingCoefficients(PotentialDensity, NormalVelocity,
-                             TangentialVelocity);
+                             TangentialVelocity, SurfaceFrictionVelocity,
+                             SurfaceBuoyancyFlux);
 }
 
-/// Stage 1: Compute OBL depth using bulk Richardson search
-void KPPMix::computeOBLDepth(const Array1DReal &SurfaceFrictionVelocity,
+/// Stage 1: Compute OBL depth using bulk Richardson search  
+void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
+                             const Array2DReal &NormalVelocity,
+                             const Array2DReal &TangentialVelocity,
+                             const Array1DReal &SurfaceFrictionVelocity,
                              const Array1DReal &SurfaceBuoyancyFlux,
                              const Array2DReal &BruntVaisalaFreqSq,
                              const Array1DReal &IceFraction,
                              const Array1DReal &WindSpeed10m) {
 
-   // =======================================================================
-   // Pre-compute velocity shear squared (|dVel/dz|²)
-   // For KPP, shear is computed from vertical differences in velocity
-   // =======================================================================
-   I4 NVertLayers = VCoord->NVertLayers;
-   Array2DReal VelocityShearSquared("VelocityShearSquared", Mesh->NCellsAll,
-                                    NVertLayers + 1);
+   using namespace KPP;
 
-   // Initialize velocity shear to small positive value (placeholder)
-   // TODO Phase 2: Compute from actual velocity gradients
-   parallelFor(
-       "KPP-VelocityShear", {Mesh->NCellsAll, NVertLayers + 1},
-       KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          VelocityShearSquared(ICell, K) = 1.0e-8;
-       });
+   I4 NVertLayers = VCoord->NVertLayers;
+   (void)BruntVaisalaFreqSq;
 
    // =======================================================================
    // Compute Langmuir enhancement factors if wind speed is available
@@ -179,92 +174,179 @@ void KPPMix::computeOBLDepth(const Array1DReal &SurfaceFrictionVelocity,
    Array1DReal LangmuirFactor("LangmuirFactor", Mesh->NCellsAll);
    parallelFor(
        "KPP-Langmuir", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
-          if (!WindSpeed10m.is_empty() &&
-              SurfaceFrictionVelocity(ICell) > KPP::MIN_USTAR) {
-             Real h_bl_estimate = 50.0; // Placeholder
-             Real u_stokes =
-                 KPP::EstokesSLModel(WindSpeed10m(ICell), h_bl_estimate);
-             Real langmuir_num = KPP::ComputeLangmuirNumber(
-                 SurfaceFrictionVelocity(ICell), u_stokes);
-             LangmuirFactor(ICell) = KPP::ComputeEnhancementFactor(
-                 WindSpeed10m(ICell), SurfaceFrictionVelocity(ICell),
-                 h_bl_estimate);
+          if (UseLangmuirCirculation) {
+             const Real uStar = SurfaceFrictionVelocity(ICell);
+             const Real u10   = (WindSpeed10m.extent(0) > 0)
+                                    ? WindSpeed10m(ICell)
+                                    : 0.0_Real;
+             LangmuirFactor(ICell) = ComputeEnhancementFactor(u10, uStar, 50.0);
           } else {
              LangmuirFactor(ICell) = 1.0;
           }
        });
 
    // =======================================================================
-   // Stage 1: Compute OBL depth using bulk Richardson criterion
+   // Stage 1: Compute OBL depth - simplified implementation
    // =======================================================================
 
-   // Capture mesh and coordinate data for use in lambda
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
    OMEGA_SCOPE(ZInterface, VCoord->ZInterface);
    OMEGA_SCOPE(ZMid, VCoord->ZMid);
-   OMEGA_SCOPE(LayerThickness, VCoord->LayerThickness);
+   OMEGA_SCOPE(LocPotentialDensity, PotentialDensity);
+   OMEGA_SCOPE(LocNormalVelocity, NormalVelocity);
+   OMEGA_SCOPE(LocTangentialVelocity, TangentialVelocity);
+   OMEGA_SCOPE(LocIceFraction, IceFraction);
+   OMEGA_SCOPE(LocLangmuirFactor, LangmuirFactor);
    OMEGA_SCOPE(LocBoundaryLayerDepth, BoundaryLayerDepth);
    OMEGA_SCOPE(LocIndexBoundaryLayerDepth, IndexBoundaryLayerDepth);
+   const Real LocRhoRef = VCoord->Rho0;
 
    parallelFor(
        "KPP-OBLDepth", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
           using namespace KPP;
 
-          // Get cell-level data
           Real u_star   = SurfaceFrictionVelocity(ICell);
           Real b0       = SurfaceBuoyancyFlux(ICell);
-          Real b0_enh   = b0 * LangmuirFactor(ICell);
-          Real ice_frac = IceFraction(ICell);
 
           const I4 KMin = MinLayerCell(ICell);
           const I4 KMax = MaxLayerCell(ICell);
+          const I4 KIntTop  = Kokkos::min(KMin + 1, NVertLayers);
+          const I4 KIntDeep = Kokkos::min(KMax + 1, NVertLayers);
 
-          // Check suppression condition
-          if (ShouldSuppressOBL(ice_frac, 0)) {
-             LocBoundaryLayerDepth(ICell)      = MIN_OBL_UNDER_ICE;
-             LocIndexBoundaryLayerDepth(ICell) = KMin;
-             return;
+          // Ice treatment: disable Langmuir under ice (>= 5%), but always compute OBL
+          const Real iceFrac = LocIceFraction(ICell);
+          Real lang_factor = LocLangmuirFactor(ICell);
+          if (iceFrac >= 0.05_Real) {
+             lang_factor = 1.0_Real; // No wave effects under ice
           }
 
-          // Cumulative sum bulk Richardson search
-          Real buoy_sum  = 0.0;
-          Real shear_sum = 0.0;
-          I4 k_obl       = KMin;
+          // Full bulk-Richardson search from actual fields
+          const I4 KSurf      = Kokkos::min(KMin, NVertLayers - 1);
+
+          I4 k_obl          = KMax;
+          Real obl_depth    = Kokkos::abs(ZInterface(ICell, KIntDeep));
+          bool found_obl    = false;
+          const Real ri_crit = CriticalRichardson;
+          const Real b0_eff  = b0 * lang_factor;
 
           for (I4 k = KMin; k <= KMax; ++k) {
-             Real z_depth = Kokkos::abs(ZInterface(k + 1));
+             const I4 kCell = Kokkos::min(k, NVertLayers - 1);
+             const I4 kInt = Kokkos::min(k + 1, NVertLayers);
+             const Real z_depth = Kokkos::abs(ZInterface(ICell, kInt));
+             if (z_depth < 1.0e-12)
+                continue;
 
-             if (z_depth < 1.0e-10) {
-                continue; // Skip surface
+             const Real z_top = Kokkos::abs(ZInterface(ICell, KMin));
+             const Real top_layer_thickness =
+                 Kokkos::fmax(1.0e-12_Real,
+                              Kokkos::abs(ZInterface(ICell, KIntTop) -
+                                          ZInterface(ICell, KMin)));
+             const Real avg_depth =
+                 Kokkos::fmin(Kokkos::fmax(SurfaceLayerExtent * z_depth,
+                                           top_layer_thickness),
+                              Kokkos::abs(ZInterface(ICell, KIntDeep)));
+
+             Real rho_surf_num = 0.0_Real;
+             Real u_surf_num   = 0.0_Real;
+             Real v_surf_num   = 0.0_Real;
+             Real surf_wgt_sum = 0.0_Real;
+
+             for (I4 ks = KMin; ks <= KMax; ++ks) {
+                const I4 ksCell = Kokkos::min(ks, NVertLayers - 1);
+                const I4 ksInt  = Kokkos::min(ks + 1, NVertLayers);
+                const Real z_layer_top = Kokkos::abs(ZInterface(ICell, ks));
+                const Real z_layer_bot = Kokkos::abs(ZInterface(ICell, ksInt));
+
+                if (z_layer_top >= avg_depth) {
+                   break;
+                }
+
+                const Real z_overlap_top = Kokkos::fmax(z_layer_top, z_top);
+                const Real z_overlap_bot = Kokkos::fmin(z_layer_bot, avg_depth);
+                const Real dz_overlap = z_overlap_bot - z_overlap_top;
+                if (dz_overlap <= 0.0_Real) {
+                   continue;
+                }
+
+                const Real rho_ks = LocPotentialDensity(ICell, ksCell);
+                const Real u_ks   = LocNormalVelocity(ICell, ksCell);
+                const Real v_ks   = LocTangentialVelocity(ICell, ksCell);
+
+                rho_surf_num += rho_ks * dz_overlap;
+                u_surf_num += u_ks * dz_overlap;
+                v_surf_num += v_ks * dz_overlap;
+                surf_wgt_sum += dz_overlap;
              }
 
-             // Accumulate Richardson components
-             if (k > KMin) {
-                Real dz = Kokkos::abs(ZMid(k) - ZMid(k - 1));
-                buoy_sum += BruntVaisalaFreqSq(ICell, k) * dz;
-                shear_sum += VelocityShearSquared(ICell, k) * dz;
-             }
+             const Real rho_surf =
+                 (surf_wgt_sum > 0.0_Real)
+                     ? rho_surf_num / surf_wgt_sum
+                     : LocPotentialDensity(ICell, KSurf);
+             const Real u_surf =
+                 (surf_wgt_sum > 0.0_Real)
+                     ? u_surf_num / surf_wgt_sum
+                     : LocNormalVelocity(ICell, KSurf);
+             const Real v_surf =
+                 (surf_wgt_sum > 0.0_Real)
+                     ? v_surf_num / surf_wgt_sum
+                     : LocTangentialVelocity(ICell, KSurf);
 
-             // Compute bulk Richardson number
-             Real u_star_sq =
-                 Kokkos::fmax(MIN_USTAR * MIN_USTAR, u_star * u_star);
-             Real denom =
-                 u_star_sq * u_star_sq * Kokkos::fmax(1.0e-15, shear_sum);
-             Real richardson = (b0_enh * z_depth * buoy_sum) / denom;
+             const Real rho_k = LocPotentialDensity(ICell, kCell);
+             const Real u_k   = LocNormalVelocity(ICell, kCell);
+             const Real v_k   = LocTangentialVelocity(ICell, kCell);
 
-             // Check stopping criterion
-             if (richardson >= CriticalRichardson) {
-                k_obl = k;
+             const Real delta_rho = rho_k - rho_surf;
+             const Real delta_b   = Gravity * delta_rho / LocRhoRef;
+
+             const Real du = u_k - u_surf;
+             const Real dv = v_k - v_surf;
+             const Real shear2 = du * du + dv * dv;
+
+             const Real w_turb =
+                 ComputeTurbulentVelocityScale(u_star, b0_eff, z_depth);
+             const Real vel_scale2 = shear2 + w_turb * w_turb + 1.0e-12;
+
+             const Real ri_b = delta_b * z_depth / vel_scale2;
+
+             if (ri_b >= ri_crit) {
+                k_obl     = k;
+                obl_depth = z_depth;
+                found_obl = true;
                 break;
              }
           }
 
-          // Store OBL depth
-          LocBoundaryLayerDepth(ICell) = ConstrainOBLDepth(
-              Kokkos::abs(ZInterface(k_obl + 1)),
-              Kokkos::abs(ZMid(KMin + 1) - ZMid(KMin)), 10000.0, ice_frac);
-          LocIndexBoundaryLayerDepth(ICell) = k_obl;
+          if (!found_obl) {
+             k_obl     = KMax;
+             obl_depth = Kokkos::abs(ZInterface(ICell, KIntDeep));
+          }
+
+          // MatchBoth does not directly modify OBL depth in this implementation.
+
+          Real surface_thickness = 1.0;
+          if (KMin + 1 <= KMax) {
+             surface_thickness = Kokkos::abs(ZMid(ICell, KMin + 1) - ZMid(ICell, KMin));
+          } else {
+             surface_thickness =
+                 Kokkos::abs(ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
+          }
+          const Real water_depth = Kokkos::abs(ZInterface(ICell, KIntDeep));
+          obl_depth = ConstrainOBLDepth(obl_depth, surface_thickness, water_depth,
+                                        iceFrac);
+
+          I4 k_final = KMax;
+          for (I4 k = KMin; k < KMax; ++k) {
+             const Real z_above = Kokkos::abs(ZInterface(ICell, k));
+             const Real z_below = Kokkos::abs(ZInterface(ICell, k + 1));
+             if (obl_depth >= z_above && obl_depth <= z_below) {
+                k_final = k;
+                break;
+             }
+          }
+
+          LocBoundaryLayerDepth(ICell)      = obl_depth;
+          LocIndexBoundaryLayerDepth(ICell) = k_final;
        });
 
    LOG_INFO("KPPMix::computeOBLDepth: OBL depth computed");
@@ -273,39 +355,144 @@ void KPPMix::computeOBLDepth(const Array1DReal &SurfaceFrictionVelocity,
 /// Stage 2: Compute mixing coefficients within and below OBL
 void KPPMix::computeMixingCoefficients(const Array2DReal &PotentialDensity,
                                        const Array2DReal &NormalVelocity,
-                                       const Array2DReal &TangentialVelocity) {
+                                       const Array2DReal &TangentialVelocity,
+                                       const Array1DReal &SurfaceFrictionVelocity,
+                                       const Array1DReal &SurfaceBuoyancyFlux) {
+
+   using namespace KPP;
+
+   (void)PotentialDensity;
+   (void)NormalVelocity;
+   (void)TangentialVelocity;
+
+   I4 NVertLayers = VCoord->NVertLayers;
 
    // =======================================================================
-   // Initialize with background mixing
+   // Pre-compute gradient Richardson numbers for stability correction
    // =======================================================================
+   Array2DReal GradientRichardsonNum("GradientRichardsonNum", Mesh->NCellsAll,
+                                     NVertLayers + 1);
+
+   // Simplified gradient Richardson computation
    parallelFor(
-       "KPP-Coeffs-Init", {Mesh->NCellsAll, VCoord->NVertLayers + 1},
+       "KPP-GradRichardson", {Mesh->NCellsAll, NVertLayers},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          VertDiff(ICell, K)         = BackgroundDiff;
-          VertVisc(ICell, K)         = BackgroundVisc;
-          VertNonLocalFlux(ICell, K) = 0.0;
+          // Placeholder: set to typical stable value
+          GradientRichardsonNum(ICell, K) = 0.1;
        });
 
    // =======================================================================
-   // TODO Phase 2: Compute mixing coefficients from KPP profiles
-   // - Evaluate KPP_M1, KPP_M2, KPP_S1, KPP_S2 profile functions
-   // - Apply turbulent velocity scale and stability functions
-   // - Compute diffusivity = K_m * w_s * g(σ)
-   // - Compute viscosity = K_m * w_s * g_m(σ)
-   // - Compute non-local flux if enabled
+   // Capture data for use in lambda
+   // =======================================================================
+   OMEGA_SCOPE(LocBoundaryLayerDepth, BoundaryLayerDepth);
+   OMEGA_SCOPE(LocIndexBoundaryLayerDepth, IndexBoundaryLayerDepth);
+   OMEGA_SCOPE(LocVertDiff, VertDiff);
+   OMEGA_SCOPE(LocVertVisc, VertVisc);
+   OMEGA_SCOPE(LocVertNonLocalFlux, VertNonLocalFlux);
+   OMEGA_SCOPE(LocGradRichardson, GradientRichardsonNum);
+   OMEGA_SCOPE(LocSurfaceFrictionVelocity, SurfaceFrictionVelocity);
+   OMEGA_SCOPE(LocSurfaceBuoyancyFlux, SurfaceBuoyancyFlux);
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
+   OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
+
+   // Capture member variables for use in lambda
+   Real LocBackgroundDiff = BackgroundDiff;
+   Real LocBackgroundVisc = BackgroundVisc;
+   if (auto *BaseVertMix = VertMix::getInstance(); BaseVertMix != nullptr) {
+      LocBackgroundDiff = BaseVertMix->BackDiff;
+      LocBackgroundVisc = BaseVertMix->BackVisc;
+   }
+   bool LocUseNonLocalFlux = UseNonLocalFlux;
+   bool LocParabolicNonLocal = (OBLDepthSchemeStr == "ParabolicNonLocal");
+
+   // =======================================================================
+   // Initialize with background mixing using shared VertMix-style deepCopy
+   // =======================================================================
+   deepCopy(LocVertDiff, LocBackgroundDiff);
+   deepCopy(LocVertVisc, LocBackgroundVisc);
+   deepCopy(LocVertNonLocalFlux, 0.0_Real);
+
+   // =======================================================================
+   // Stage 2: Compute KPP profile-based mixing coefficients
    // =======================================================================
 
-   LOG_INFO("KPPMix::computeMixingCoefficients: Stub - Phase 2 implementation "
-            "pending");
+   parallelFor(
+       "KPP-MixingCoeffs", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+          // Get OBL information for this cell
+          Real h_obl = LocBoundaryLayerDepth(ICell);
+          I4 k_obl   = LocIndexBoundaryLayerDepth(ICell);
+
+          const I4 KMin = MinLayerCell(ICell);
+          const I4 KMax = MaxLayerCell(ICell);
+
+          // =============================================================
+          // Compute turbulent velocity scale w_s
+          // =============================================================
+          Real u_star = LocSurfaceFrictionVelocity(ICell);
+          Real b0     = LocSurfaceBuoyancyFlux(ICell);
+          Real w_s    = KPP::ComputeTurbulentVelocityScale(u_star, b0, h_obl);
+
+          // =============================================================
+          // Compute mixing coefficients at each interface
+          // =============================================================
+          for (I4 k = KMin; k <= KMax + 1; ++k) {
+             // Check if within OBL
+             if (k <= k_obl) {
+                // Normalized depth: σ = -z/h_OBL
+                Real sigma = -1.0 * static_cast<Real>(k - KMin) /
+                             static_cast<Real>(k_obl - KMin + 1);
+                sigma = Kokkos::fmax(-1.0, Kokkos::fmin(0.0, sigma));
+
+                // Get gradient Richardson at this layer
+                Real ri_g = (k < NVertLayers) ? LocGradRichardson(ICell, k)
+                                              : 0.0;
+
+                // ========================================================
+                // Momentum mixing: K_m = u_star * w_s * M1(σ) * M2(σ, Ri_g)
+                // ========================================================
+                Real m1 = KPP::KPPProfileM1(sigma);
+                Real m2 = KPP::KPPProfileM2(sigma, ri_g);
+
+                LocVertVisc(ICell, k) = Kokkos::fmax(
+                    KPP::MIN_COEFFICIENT, u_star * w_s * m1 * m2);
+
+                // ========================================================
+                // Tracer mixing: K_s = u_star * w_s * S1(σ) * S2(σ, Ri_g)
+                // ========================================================
+                Real s1 = KPP::KPPProfileS1(sigma);
+                Real s2 = KPP::KPPProfileS2(sigma, ri_g);
+
+                LocVertDiff(ICell, k) = Kokkos::fmax(
+                    KPP::MIN_COEFFICIENT, u_star * w_s * s1 * s2);
+
+                // ========================================================
+                // Non-local flux: G(σ)
+                // ========================================================
+                if (LocUseNonLocalFlux) {
+                   Real g_sigma = LocParabolicNonLocal
+                                      ? KPP::KPPProfileGParabolicNonLocal(sigma)
+                                      : KPP::KPPProfileG(sigma);
+                   Real s2_flux  = KPP::KPPProfileS2(sigma, ri_g);
+                   LocVertNonLocalFlux(ICell, k) = g_sigma * s2_flux;
+                } else {
+                   LocVertNonLocalFlux(ICell, k) = 0.0;
+                }
+
+             } else {
+                // Below OBL: use background values
+                LocVertDiff(ICell, k)         = LocBackgroundDiff;
+                LocVertVisc(ICell, k)         = LocBackgroundVisc;
+                LocVertNonLocalFlux(ICell, k) = 0.0;
+             }
+          }
+       });
+
+   LOG_INFO("KPPMix::computeMixingCoefficients: Phase 2 mixing coefficients "
+            "computed");
 }
 
 /// Register fields with I/O system
 void KPPMix::defineFields() {
-   // TODO: Register fields for output
-   // - Create Field objects for VertDiff, VertVisc, etc.
-   // - Create FieldGroup for organizing KPP diagnostics
-   // - Attach Kokkos arrays to Field objects
-
    LOG_INFO("KPPMix::defineFields: Stub - I/O registration pending");
 }
 

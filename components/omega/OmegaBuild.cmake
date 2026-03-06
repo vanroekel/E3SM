@@ -61,6 +61,20 @@ macro(cime_xmlquery query outvar)
 
   run_bash_command("cd ${CASEROOT} && ./xmlquery ${query} --value" ${outvar})
 
+  # xmlquery output can contain extra warning lines; keep the last valid token.
+  string(REPLACE "\r" "" _xml_raw "${${outvar}}")
+  string(REPLACE "\n" ";" _xml_lines "${_xml_raw}")
+  set(_xml_clean "")
+  foreach(_line ${_xml_lines})
+    string(STRIP "${_line}" _line)
+    if(NOT "${_line}" STREQUAL "" AND
+       NOT _line MATCHES "^Python[ ]+[0-9]+\\.[0-9]+[ ]+is[ ]+recommended")
+      set(_xml_clean "${_line}")
+    endif()
+  endforeach()
+  string(REGEX MATCH "^[^ \t;]+" _xml_clean "${_xml_clean}")
+  set(${outvar} "${_xml_clean}")
+
 endmacro()
 
 macro(read_cime_config)
@@ -97,12 +111,13 @@ macro(read_cime_config)
   # set env. variables
   foreach(line ${lines})
     string(REGEX MATCH "([A-Za-z_][A-Za-z0-9_]*)=(.*)" ENV_LINE ${line})
-    set(ENV_VAR "${CMAKE_MATCH_1}")
-    set(ENV_VAL "${CMAKE_MATCH_2}")
-
-    if(NOT "${ENV_VAR}" STREQUAL "")
-        set(ENV{${ENV_VAR}} "${ENV_VAL}")
-		#message(STATUS "${ENV_VAR}: ${ENV_VAL}")
+    if(NOT "${ENV_LINE}" STREQUAL "")
+      set(ENV_VAR "${CMAKE_MATCH_1}")
+      set(ENV_VAL "${CMAKE_MATCH_2}")
+      if(NOT "${ENV_VAR}" STREQUAL "")
+          set(ENV{${ENV_VAR}} "${ENV_VAL}")
+		  #message(STATUS "${ENV_VAR}: ${ENV_VAL}")
+      endif()
     endif()
   endforeach()
 
@@ -133,11 +148,23 @@ macro(read_cime_config)
                 break()
 
             elseif("${arg}" STREQUAL "-n" OR "${arg}" STREQUAL "-N" OR
-                   "${arg}" STREQUAL "-c" OR "${arg}" STREQUAL "-np")
+                 "${arg}" STREQUAL "-c" OR "${arg}" STREQUAL "-np" OR
+                 "${arg}" STREQUAL "-m" OR "${arg}" STREQUAL "--distribution" OR
+                 "${arg}" STREQUAL "-A" OR "${arg}" STREQUAL "--account" OR
+                 "${arg}" STREQUAL "-q" OR "${arg}" STREQUAL "--qos" OR
+                 "${arg}" STREQUAL "-C" OR "${arg}" STREQUAL "--constraint" OR
+                 "${arg}" STREQUAL "-p" OR "${arg}" STREQUAL "--partition" OR
+                 "${arg}" STREQUAL "-t" OR "${arg}" STREQUAL "--time")
                 set(SKIP_ARG TRUE)
 
             else()
+              # Keep only option-style arguments to avoid accidental
+              # injection of warning text from CIME/python output.
+              # Example bad tokens observed: "Python" "3.8" "is" ...
+              string(REGEX MATCH "^-" _IS_OPTION "${arg}")
+              if(_IS_OPTION)
                 list(APPEND OMEGA_MPI_ARGS "${arg}")
+              endif()
             endif()
         endforeach()
     endif()
@@ -149,6 +176,36 @@ macro(read_cime_config)
   cime_xmlquery("THREAD_COUNT" THREAD_COUNT)
   cime_xmlquery("COMPILER" COMPILER)
   cime_xmlquery("MACH" MACH)
+
+  # Harden srun args against malformed/partial values from .case.run.sh and
+  # provide required defaults for systems that require architecture constraint.
+  if(OMEGA_MPI_EXEC MATCHES "srun$")
+    set(_HAS_CONSTRAINT FALSE)
+    set(_HAS_ACCOUNT FALSE)
+    foreach(_MPI_ARG ${OMEGA_MPI_ARGS})
+      if(_MPI_ARG STREQUAL "-C" OR _MPI_ARG STREQUAL "--constraint" OR
+         _MPI_ARG MATCHES "^--constraint=")
+        set(_HAS_CONSTRAINT TRUE)
+      endif()
+      if(_MPI_ARG STREQUAL "-A" OR _MPI_ARG STREQUAL "--account" OR
+         _MPI_ARG MATCHES "^--account=")
+        set(_HAS_ACCOUNT TRUE)
+      endif()
+    endforeach()
+
+    if(NOT _HAS_CONSTRAINT)
+      if(MACH MATCHES "pm-cpu")
+        list(APPEND OMEGA_MPI_ARGS "--constraint=cpu")
+      elseif(MACH MATCHES "pm-gpu")
+        list(APPEND OMEGA_MPI_ARGS "--constraint=gpu")
+      endif()
+    endif()
+
+    if(NOT _HAS_ACCOUNT AND DEFINED ENV{SLURM_PROJECT} AND
+       NOT "$ENV{SLURM_PROJECT}" STREQUAL "")
+      list(APPEND OMEGA_MPI_ARGS "--account=$ENV{SLURM_PROJECT}")
+    endif()
+  endif()
 
   if("${BUILD_THREADED}" STREQUAL "TRUE")
     option(compile_threaded "" ON)
@@ -168,14 +225,35 @@ macro(init_standalone_build)
   read_cime_config()
 
   # find compilers
+  # Some CIME outputs can contain extra text; keep only executable token.
+  if(DEFINED MPICC)
+    string(REGEX MATCH "^[^ \t;]+" MPICC "${MPICC}")
+  endif()
+  if(DEFINED MPICXX)
+    string(REGEX MATCH "^[^ \t;]+" MPICXX "${MPICXX}")
+  endif()
+  if(DEFINED MPIFC)
+    string(REGEX MATCH "^[^ \t;]+" MPIFC "${MPIFC}")
+  endif()
+  if(DEFINED SCC)
+    string(REGEX MATCH "^[^ \t;]+" SCC "${SCC}")
+  endif()
+  if(DEFINED SCXX)
+    string(REGEX MATCH "^[^ \t;]+" SCXX "${SCXX}")
+  endif()
+  if(DEFINED SFC)
+    string(REGEX MATCH "^[^ \t;]+" SFC "${SFC}")
+  endif()
+
   if(OMEGA_C_COMPILER)
-    find_program(_OMEGA_C_COMPILER ${OMEGA_C_COMPILER})
+    string(REGEX MATCH "^[^ \t;]+" OMEGA_C_COMPILER "${OMEGA_C_COMPILER}")
+    find_program(_OMEGA_C_COMPILER NAMES ${OMEGA_C_COMPILER} cc gcc mpicc)
 
   elseif("${MPILIB}" STREQUAL "mpi-serial")
-    find_program(_OMEGA_C_COMPILER ${SCC})
+    find_program(_OMEGA_C_COMPILER NAMES ${SCC} cc gcc)
 
   else()
-    find_program(_OMEGA_C_COMPILER ${MPICC})
+    find_program(_OMEGA_C_COMPILER NAMES ${MPICC} mpicc cc gcc)
   endif()
 
   if(_OMEGA_C_COMPILER)
@@ -186,13 +264,14 @@ macro(init_standalone_build)
   endif()
 
   if(OMEGA_CXX_COMPILER)
-    find_program(_OMEGA_CXX_COMPILER ${OMEGA_CXX_COMPILER})
+    string(REGEX MATCH "^[^ \t;]+" OMEGA_CXX_COMPILER "${OMEGA_CXX_COMPILER}")
+    find_program(_OMEGA_CXX_COMPILER NAMES ${OMEGA_CXX_COMPILER} c++ g++ mpicxx)
 
   elseif("${MPILIB}" STREQUAL "mpi-serial")
-    find_program(_OMEGA_CXX_COMPILER ${SCXX})
+    find_program(_OMEGA_CXX_COMPILER NAMES ${SCXX} c++ g++)
 
   else()
-    find_program(_OMEGA_CXX_COMPILER ${MPICXX})
+    find_program(_OMEGA_CXX_COMPILER NAMES ${MPICXX} mpicxx c++ g++)
   endif()
 
   if(_OMEGA_CXX_COMPILER)
@@ -203,13 +282,14 @@ macro(init_standalone_build)
   endif()
 
   if(OMEGA_Fortran_COMPILER)
-    find_program(_OMEGA_Fortran_COMPILER ${OMEGA_Fortran_COMPILER})
+    string(REGEX MATCH "^[^ \t;]+" OMEGA_Fortran_COMPILER "${OMEGA_Fortran_COMPILER}")
+    find_program(_OMEGA_Fortran_COMPILER NAMES ${OMEGA_Fortran_COMPILER} gfortran mpifort mpif90)
 
   elseif("${MPILIB}" STREQUAL "mpi-serial")
-    find_program(_OMEGA_Fortran_COMPILER ${SFC})
+    find_program(_OMEGA_Fortran_COMPILER NAMES ${SFC} gfortran)
 
   else()
-    find_program(_OMEGA_Fortran_COMPILER ${MPIFC})
+    find_program(_OMEGA_Fortran_COMPILER NAMES ${MPIFC} mpifort mpif90 gfortran)
   endif()
 
   if(_OMEGA_Fortran_COMPILER)
