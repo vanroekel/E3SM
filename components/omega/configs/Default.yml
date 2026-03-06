@@ -69,9 +69,10 @@ Omega:
       TriggerBVF: 0.0
     Shear:
       Enable: true
-      NuZero: 0.005
-      Alpha: 5.0
-      Exponent: 2.0
+      BaseShearValue: 0.005
+      RiCrit: 0.7
+      Exponent: 3.0
+      RiSmoothLoops: 3
   IOStreams:
     InitialVertCoord:
       UsePointerFile: false
