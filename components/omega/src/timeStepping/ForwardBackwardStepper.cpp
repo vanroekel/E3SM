@@ -56,11 +56,19 @@ void ForwardBackwardStepper::doStep(
                        CurLevel, TimeStep);
 
    // R_u^{n+1} = RHS_u(u^{n}, h^{n+1}, t^{n+1})
-   Tend->computeVelocityTendencies(State, AuxState, NextLevel, CurLevel,
-                                   SimTime + TimeStep);
+   Tend->computeVelocityTendencies(State, AuxState, NextTracerArray, NextLevel,
+                                   CurLevel, SimTime + TimeStep);
 
    // u^{n+1} = u^{n} + R_u^{n+1}
    updateVelocityByTend(State, NextLevel, State, CurLevel, TimeStep);
+
+   // Apply vertical mixing to tracers
+   Tend->applyTracerVertMixImplicit(State, AuxState, NextTracerArray, NextLevel,
+                                    NextLevel, SimTime);
+
+   // Apply vertical mixing to velocity
+   Tend->applyVelVertMixImplicit(State, AuxState, NextLevel, NextLevel,
+                                 SimTime);
 
    // Update time levels (New -> Old) of prognostic variables with halo
    // exchanges

@@ -59,6 +59,46 @@ VelocityHyperDiffOnEdge::VelocityHyperDiffOnEdge(const HorzMesh *Mesh,
       MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
       MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
 
+ProjVelDiffusionOnEdge::ProjVelDiffusionOnEdge(const HorzMesh *Mesh,
+                                               const VertCoord *VCoord)
+    : CellsOnEdge(Mesh->CellsOnEdge), VerticesOnEdge(Mesh->VerticesOnEdge),
+      DcEdge(Mesh->DcEdge), DvEdge(Mesh->DvEdge),
+      MeshScalingDel2(Mesh->MeshScalingDel2), EdgeMask(VCoord->EdgeMask),
+      MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+ProjVelHyperDiffOnEdge::ProjVelHyperDiffOnEdge(const HorzMesh *Mesh,
+                                               const VertCoord *VCoord)
+    : CellsOnEdge(Mesh->CellsOnEdge), VerticesOnEdge(Mesh->VerticesOnEdge),
+      DcEdge(Mesh->DcEdge), DvEdge(Mesh->DvEdge),
+      MeshScalingDel4(Mesh->MeshScalingDel4), EdgeMask(VCoord->EdgeMask),
+      MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+VelVertMixSetupOnEdge::VelVertMixSetupOnEdge(const HorzMesh *Mesh,
+                                             const VertCoord *VCoord)
+    : LocRhoSw(RhoSw), CellsOnEdge(Mesh->CellsOnEdge),
+      NVertLayers(VCoord->NVertLayers), EdgeMask(VCoord->EdgeMask),
+      MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+PresGradZOnEdge::PresGradZOnEdge(const HorzMesh *Mesh, const VertCoord *VCoord)
+    : LocRhoSw(RhoSw), CellsOnEdge(Mesh->CellsOnEdge), DcEdge(Mesh->DcEdge),
+      MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell),
+      EdgeMask(VCoord->EdgeMask), MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+PresGradForceOnEdge::PresGradForceOnEdge(const HorzMesh *Mesh,
+                                         const VertCoord *VCoord)
+    : CellsOnEdge(Mesh->CellsOnEdge), DcEdge(Mesh->DcEdge),
+      EdgeMask(VCoord->EdgeMask), MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+GeoptGradOnEdge::GeoptGradOnEdge(const HorzMesh *Mesh, const VertCoord *VCoord)
+    : CellsOnEdge(Mesh->CellsOnEdge), DcEdge(Mesh->DcEdge),
+      EdgeMask(VCoord->EdgeMask), MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
 WindForcingOnEdge::WindForcingOnEdge(const HorzMesh *Mesh,
                                      const VertCoord *VCoord)
     : Enabled(false), LocRhoSw(RhoSw), EdgeMask(VCoord->EdgeMask),
@@ -99,6 +139,12 @@ TracerHyperDiffOnCell::TracerHyperDiffOnCell(const HorzMesh *Mesh,
       MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell),
       MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
       MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+TracerVertMixSetupOnCell::TracerVertMixSetupOnCell(const HorzMesh *Mesh,
+                                                   const VertCoord *VCoord)
+    : LocRhoSw(RhoSw), NVertLayers(VCoord->NVertLayers),
+      MinLayerCell(VCoord->MinLayerCell),
+      MaxLayerCell(VCoord->MaxLayerCell) {}
 
 } // end namespace OMEGA
 

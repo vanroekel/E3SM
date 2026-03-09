@@ -67,11 +67,18 @@ class Tendencies {
    SSHGradOnEdge SSHGrad;
    VelocityDiffusionOnEdge VelocityDiffusion;
    VelocityHyperDiffOnEdge VelocityHyperDiff;
+   ProjVelDiffusionOnEdge ProjVelDiffusion;
+   ProjVelHyperDiffOnEdge ProjVelHyperDiff;
+   VelVertMixSetupOnEdge VelVertMixSetup;
+   PresGradZOnEdge PresGradZ;
+   PresGradForceOnEdge PresGradForce;
+   GeoptGradOnEdge GeoptGrad;
    WindForcingOnEdge WindForcing;
    BottomDragOnEdge BottomDrag;
    TracerHorzAdvOnCell TracerHorzAdv;
    TracerDiffOnCell TracerDiffusion;
    TracerHyperDiffOnCell TracerHyperDiff;
+   TracerVertMixSetupOnCell TracerVertMixSetup;
 
     // Enables explicit non-local tracer tendency from KPP:
     // d(phi)/dt += -d/dz(VertNonLocalFlux * SurfaceTracerFlux)
@@ -94,6 +101,7 @@ class Tendencies {
                                    TimeInstant Time);
    void computeVelocityTendencies(const OceanState *State,
                                   const AuxiliaryState *AuxState,
+                                  const Array3DReal &TracerArray,
                                   int ThickTimeLevel, int VelTimeLevel,
                                   TimeInstant Time);
    void computeTracerTendencies(const OceanState *State,
@@ -118,6 +126,14 @@ class Tendencies {
                                     const Array3DReal &TracerArray,
                                     int ThickTimeLevel, int VelTimeLevel,
                                     TimeInstant Time);
+   void applyVelVertMixImplicit(OceanState *State,
+                                const AuxiliaryState *AuxState,
+                                int ThickTimeLevel, int VelTimeLevel,
+                                TimeInstant Time);
+   void applyTracerVertMixImplicit(OceanState *State,
+                                   const AuxiliaryState *AuxState,
+                                   Array3DReal &TracerArray, int ThickTimeLevel,
+                                   int VelTimeLevel, TimeInstant Time);
 
     // Update surface tracer flux used for non-local tendency forcing.
     // Input dimensions must be [NTracers, NCellsAll].

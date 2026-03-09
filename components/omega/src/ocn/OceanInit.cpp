@@ -140,6 +140,8 @@ int initOmegaModules(MPI_Comm Comm) {
    AuxiliaryState::init();
    Tendencies::init();
    TimeStepper::init2();
+   Eos::init();
+   VertMix::init();
 
    Err = OceanState::init();
    if (Err != 0) {

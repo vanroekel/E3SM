@@ -10,6 +10,7 @@
 #include "VertCoord.h"
 #include "auxiliaryVars/KineticAuxVars.h"
 #include "auxiliaryVars/LayerThicknessAuxVars.h"
+#include "auxiliaryVars/TangentAuxVars.h"
 #include "auxiliaryVars/TracerAuxVars.h"
 #include "auxiliaryVars/VelocityDel2AuxVars.h"
 #include "auxiliaryVars/VorticityAuxVars.h"
@@ -40,6 +41,7 @@ class AuxiliaryState {
    VorticityAuxVars VorticityAux;
    VelocityDel2AuxVars VelocityDel2Aux;
    WindForcingAuxVars WindForcingAux;
+   TangentAuxVars TangentAux;
 
    ~AuxiliaryState();
 
@@ -50,7 +52,7 @@ class AuxiliaryState {
 
    // Create a non-default auxiliary state
    static AuxiliaryState *create(const std::string &Name, const HorzMesh *Mesh,
-                                 Halo *MeshHalo, const VertCoord *VCoord,
+                                 Halo *MeshHalo, VertCoord *VCoord,
                                  int NTracers);
 
    /// Get the default auxiliary state
@@ -71,9 +73,12 @@ class AuxiliaryState {
    /// Exchange halo
    I4 exchangeHalo();
 
+   void computeVertAux(const OceanState *State, const Array3DReal &TracerArray,
+                       int ThickTimeLevel, int VelTimeLevel) const;
+
    // Compute all auxiliary variables needed for momentum equation
-   void computeMomAux(const OceanState *State, int ThickTimeLevel,
-                      int VelTimeLevel) const;
+   void computeMomAux(const OceanState *State, const Array3DReal &TracerArray,
+                      int ThickTimeLevel, int VelTimeLevel) const;
 
    /// Compute all auxiliary variables based on an ocean state at a given time
    /// level
@@ -84,14 +89,14 @@ class AuxiliaryState {
 
  private:
    AuxiliaryState(const std::string &Name, const HorzMesh *Mesh, Halo *MeshHalo,
-                  const VertCoord *VCoord, int NTracers);
+                  VertCoord *VCoord, int NTracers);
 
    AuxiliaryState(const AuxiliaryState &) = delete;
    AuxiliaryState(AuxiliaryState &&)      = delete;
 
    const HorzMesh *Mesh;
    Halo *MeshHalo;
-   const VertCoord *VCoord;
+   VertCoord *VCoord;
    static AuxiliaryState *DefaultAuxState;
    static std::map<std::string, std::unique_ptr<AuxiliaryState>> AllAuxStates;
 };

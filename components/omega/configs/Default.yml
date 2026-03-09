@@ -40,6 +40,12 @@ Omega:
     VelHyperDiffTendencyEnable: true
     ViscDel4: 1.2e11
     DivFactor: 1.0
+    VelVertMixTendencyEnable: true
+    PresForceTendencyEnable: true
+    PresGradForceTendencyEnable: true
+    GeoptGradTendencyEnable: true
+    ProjVelDiffTendencyEnable: true
+    ProjVelHyperDiffTendencyEnable: true
     WindForcingTendencyEnable: false
     BottomDragTendencyEnable: false
     BottomDragCoeff: 0.0
@@ -48,6 +54,7 @@ Omega:
     EddyDiff2: 10.0
     TracerHyperDiffTendencyEnable: true
     EddyDiff4: 0.0
+    TracerVertMixTendencyEnable: true
     UseCustomTendency: false
     ManufacturedSolutionTendency: false
     KPPColumnForcingEnable: false

@@ -131,8 +131,9 @@ class GradRichardsonNum {
               const Array2DReal &TangentialVelocity,
               const Array2DReal &BruntVaisalaFreqSq) const {
 
-      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell));
-      const I4 KLen   = chunkLength(KChunk, KStart, MaxLayerCell(ICell));
+      const I4 KStartCell = chunkStart(KChunk, MinLayerCell(ICell));
+      const I4 KLenCell = chunkLength(KChunk, KStartCell, MaxLayerCell(ICell));
+      const I4 KEndCell = KStartCell + KLenCell - 1;
 
       Real GradRichNumNorm[VecLength];
       Real GradRichNumTmp[VecLength];
@@ -233,6 +234,8 @@ class OneTwoOneFilter {
  private:
    Array1DI4 MinLayerCell;
    Array1DI4 MaxLayerCell;
+   Array1DI4 MinLayerEdgeBot;
+   Array1DI4 MaxLayerEdgeTop;
 };
 
 /// Class for Vertical Mixing Coefficient (VertMix) calculations
@@ -258,6 +261,18 @@ class VertMix {
                                            ///< Richardson number
    std::string VertMixGroupName;           ///< VertMix group name (for config)
    std::string Name;                       ///< Name of this VertMix instance
+
+   // TODO: Temporary array allocations for tridiagonal solver
+   //       This array allocation makes debugging easier, but requires more
+   //       memory and possibly degrades performance.
+   //       Once debugging is done, tridiagonal solver with Kokkos Scratch
+   //       should be implemented.
+   Array2DReal GWorkEdge;
+   Array2DReal HWorkEdge;
+   Array2DReal XWorkEdge;
+   Array2DReal GWorkCell;
+   Array2DReal HWorkCell;
+   Array2DReal XWorkCell;
 
    // Background mixing parameters
    Real BackDiff = 1.0e-5; ///< Background vertical diffusivity (m^2 s^-1)

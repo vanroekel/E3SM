@@ -15,6 +15,7 @@
 #include "VertCoord.h"
 #include "auxiliaryVars/KineticAuxVars.h"
 #include "auxiliaryVars/LayerThicknessAuxVars.h"
+#include "auxiliaryVars/TangentAuxVars.h"
 #include "auxiliaryVars/TracerAuxVars.h"
 #include "auxiliaryVars/VelocityDel2AuxVars.h"
 #include "auxiliaryVars/VorticityAuxVars.h"
@@ -67,6 +68,9 @@ struct TestSetupPlane {
 
    ErrorMeasures ExpectedNormalStressErrors = {0.0033910709836867704,
                                                0.0039954090464502795};
+
+   ErrorMeasures ExpectedTangentVelEdgeErrors = {0.00450897496974901352,
+                                                 0.00417367308684470691};
 
    KOKKOS_FUNCTION Real layerThickness(Real X, Real Y) const {
       return 2 + std::cos(TwoPi * X / Lx) * std::cos(TwoPi * Y / Ly);
@@ -196,6 +200,9 @@ struct TestSetupSphere {
    ErrorMeasures ExpectedNormalStressErrors = {0.0038588958862868362,
                                                0.003813760171030077};
 
+   ErrorMeasures ExpectedTangentVelEdgeErrors = {0.0206375134079833517,
+                                                 0.00692590524910695858};
+
    KOKKOS_FUNCTION Real layerThickness(Real Lon, Real Lat) const {
       return (2 + std::cos(Lon) * std::pow(std::cos(Lat), 4));
    }
@@ -311,11 +318,13 @@ constexpr char DefaultMeshFile[] = "OmegaSphereMesh.nc";
 using TestSetup                  = TestSetupSphere;
 #endif
 
-constexpr int NVertLayers = 16;
+constexpr int NVertLayers   = 16;
+constexpr int NVertLayersP1 = 17;
 constexpr int NTracers    = 3;
 
 int initState(const Array2DReal &LayerThickCell,
-              const Array2DReal &NormalVelEdge, HorzMesh *Mesh) {
+              const Array2DReal &NormalVelEdge,
+              const Array2DReal &PresInterfaceCell, HorzMesh *Mesh) {
    int Err = 0;
 
    TestSetup Setup;
@@ -342,7 +351,8 @@ int initState(const Array2DReal &LayerThickCell,
 }
 
 int testKineticAuxVars(const Array2DReal &LayerThicknessCell,
-                       const Array2DReal &NormalVelocityEdge, Real RTol) {
+                       const Array2DReal &NormalVelocityEdge,
+                       const Array2DReal &PresInterfaceCell, Real RTol) {
    int Err = 0;
    TestSetup Setup;
 
@@ -369,7 +379,9 @@ int testKineticAuxVars(const Array2DReal &LayerThicknessCell,
 
    parallelFor(
        {Mesh->NCellsOwned, NVertLayers}, KOKKOS_LAMBDA(int ICell, int KLayer) {
-          KineticAux.computeVarsOnCell(ICell, KLayer, NormalVelocityEdge);
+          KineticAux.computeVarsOnCell(ICell, KLayer, NormalVelocityEdge,
+                                       LayerThicknessCell,
+                                       PresInterfaceCell);
        });
    const auto &NumKineticEnergyCell = KineticAux.KineticEnergyCell;
    const auto &NumVelocityDivCell   = KineticAux.VelocityDivCell;
@@ -446,6 +458,51 @@ int testWindForcingAuxVars(Real RTol) {
    return Err;
 }
 
+int testTangentAuxVars(const Array2DReal &NormalVelEdge, Real RTol) {
+   TestSetup Setup;
+   int Err = 0;
+
+   const auto Decomp = Decomp::getDefault();
+   const auto Mesh   = HorzMesh::getDefault();
+   const auto VCoord = VertCoord::getDefault();
+   TangentAuxVars TangentAux("", Mesh, VCoord);
+
+   // Compute exact results for edge variables
+   Array2DReal ExactTangentVelEdge("ExactReconEdge", Mesh->NEdgesOwned,
+                                   NVertLayers);
+
+   Err += setVectorEdge(
+       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+          VecField[0] = Setup.velocityX(X, Y);
+          VecField[1] = Setup.velocityY(X, Y);
+       },
+       ExactTangentVelEdge, EdgeComponent::Tangential, Geom, Mesh,
+       ExchangeHalos::No);
+
+   // Compute numerical results for vertex variables
+   parallelFor(
+       {Decomp->NEdgesHaloH(0), NVertLayers},
+       KOKKOS_LAMBDA(int IEdge, int KLayer) {
+          TangentAux.computeVarsOnEdge(IEdge, KLayer, NormalVelEdge);
+       });
+
+   const auto &NumTangentVelEdge = TangentAux.TangentialVelocity;
+
+   // Compute error measures and check errors for vertex variables
+
+   ErrorMeasures TangentVelEdgeErrors;
+   Err += computeErrors(TangentVelEdgeErrors, NumTangentVelEdge,
+                        ExactTangentVelEdge, Mesh, OnEdge);
+   Err += checkErrors("AuxVarsTest", "TangentVelEdge", TangentVelEdgeErrors,
+                      Setup.ExpectedTangentVelEdgeErrors, RTol);
+
+   if (Err == 0) {
+      LOG_INFO("AuxVarsTest: TangentAuxVars PASS");
+   }
+
+   return Err;
+}
+
 int testLayerThicknessAuxVars(const Array2DReal &LayerThickCell,
                               const Array2DReal &NormalVelEdge, Real RTol) {
    int Err = 0;
@@ -496,7 +553,8 @@ int testLayerThicknessAuxVars(const Array2DReal &LayerThickCell,
 }
 
 int testVorticityAuxVars(const Array2DReal &LayerThickCell,
-                         const Array2DReal &NormalVelEdge, Real RTol) {
+                         const Array2DReal &NormalVelEdge,
+                         const Array2DReal &PresInterfaceCell, Real RTol) {
    TestSetup Setup;
    int Err = 0;
 
@@ -535,7 +593,7 @@ int testVorticityAuxVars(const Array2DReal &LayerThickCell,
        {Decomp->NVerticesHaloH(0), NVertLayers},
        KOKKOS_LAMBDA(int IVertex, int KLayer) {
           VorticityAux.computeVarsOnVertex(IVertex, KLayer, LayerThickCell,
-                                           NormalVelEdge);
+                                           NormalVelEdge, PresInterfaceCell);
        });
 
    const auto &NumRelVortVertex        = VorticityAux.RelVortVertex;
@@ -652,6 +710,8 @@ int testVelocityDel2AuxVars(Real RTol) {
        {Decomp->NEdgesHaloH(1), NVertLayers},
        KOKKOS_LAMBDA(int IEdge, int KLayer) {
           VelocityDel2Aux.computeVarsOnEdge(IEdge, KLayer, ExactVelocityDivCell,
+                                            ExactRelVortVertex,
+                                            ExactVelocityDivCell,
                                             ExactRelVortVertex);
        });
    const auto &NumDel2Edge = VelocityDel2Aux.Del2Edge;
@@ -832,8 +892,9 @@ int initAuxVarsTest(const std::string &mesh) {
    HorzMesh::init();
 
    // initialize vertical coordinate, do not read stream and use local
-   // NVertLayers value
+   // NVertLayers and NVertLayersP1 values
    VertCoord::init(false, NVertLayers);
+   VertCoord::init(false, NVertLayersP1);
 
    return Err;
 }
@@ -858,21 +919,24 @@ int auxVarsTest(const std::string &mesh = DefaultMeshFile) {
 
    Array2DReal LayerThickCell("LayerThickCell", Mesh->NCellsSize, NVertLayers);
    Array2DReal NormalVelEdge("NormalVelEdge", Mesh->NEdgesSize, NVertLayers);
-   Err += initState(LayerThickCell, NormalVelEdge, Mesh);
+   Array2DReal PresInterfaceCell("PresInterfaceCell", Mesh->NEdgesSize, NVertLayersP1);
+   Err += initState(LayerThickCell, NormalVelEdge, PresInterfaceCell, Mesh);
 
    const Real RTol = sizeof(Real) == 4 ? 1e-2 : 2e-4;
 
-   Err += testKineticAuxVars(LayerThickCell, NormalVelEdge, RTol);
+   Err += testKineticAuxVars(LayerThickCell, NormalVelEdge, PresInterfaceCell, RTol);
 
    Err += testLayerThicknessAuxVars(LayerThickCell, NormalVelEdge, RTol);
 
-   Err += testVorticityAuxVars(LayerThickCell, NormalVelEdge, RTol);
+   Err += testVorticityAuxVars(LayerThickCell, NormalVelEdge, PresInterfaceCell, RTol);
 
    Err += testVelocityDel2AuxVars(RTol);
 
    Err += testTracerAuxVars(LayerThickCell, NormalVelEdge, RTol);
 
    Err += testWindForcingAuxVars(RTol);
+
+   Err += testTangentAuxVars(NormalVelEdge, RTol);
 
    if (Err == 0) {
       LOG_INFO("AuxVarsTest: Successful completion");
