@@ -50,6 +50,16 @@ Omega:
     EddyDiff4: 0.0
     UseCustomTendency: false
     ManufacturedSolutionTendency: false
+    KPPColumnForcingEnable: false
+    KPPConstantWindStressZonal: 0.0
+    KPPConstantWindStressMeridional: 0.0
+    KPPConstantHeatFlux: 0.0
+    KPPConstantThicknessFlux: 0.0
+    # Optional conversion factors for simple 1-D KPP tests:
+    # SurfaceBuoyancyFlux = HeatFlux * KPPHeatFluxToBuoyancyFactor
+    #                     + ThicknessFlux * KPPThicknessFluxToBuoyancyFactor
+    KPPHeatFluxToBuoyancyFactor: 4.78e-10
+    KPPThicknessFluxToBuoyancyFactor: -2.72e-7
   Tracers:
     Base: [Temperature, Salinity]
     Debug: [Debug1, Debug2, Debug3]

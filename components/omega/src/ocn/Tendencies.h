@@ -77,6 +77,16 @@ class Tendencies {
     // d(phi)/dt += -d/dz(VertNonLocalFlux * SurfaceTracerFlux)
   bool TracerNonLocalFluxEnabled = false;
 
+   // Optional simple 1-D KPP forcing overrides.
+   // When enabled, these constants are used instead of coupled forcing.
+   bool KPPColumnForcingEnable = false;
+   Real KPPConstWindStressZonal = 0.0_Real;
+   Real KPPConstWindStressMeridional = 0.0_Real;
+   Real KPPConstHeatFlux = 0.0_Real;
+   Real KPPConstThicknessFlux = 0.0_Real;
+   Real KPPHeatFluxToBuoyancyFactor = 0.0_Real;
+   Real KPPThicknessFluxToBuoyancyFactor = 0.0_Real;
+
    // Methods to compute tendency groups
    void computeThicknessTendencies(const OceanState *State,
                                    const AuxiliaryState *AuxState,

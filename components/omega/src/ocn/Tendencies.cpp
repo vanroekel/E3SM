@@ -224,6 +224,56 @@ void Tendencies::readTendConfig(
         NonLocalErr.reset();
         this->TracerNonLocalFluxEnabled = false;
     }
+
+    Error KPPColumnEnableErr =
+         TendConfig->get("KPPColumnForcingEnable", this->KPPColumnForcingEnable);
+    if (!KPPColumnEnableErr.isSuccess()) {
+        KPPColumnEnableErr.reset();
+        this->KPPColumnForcingEnable = false;
+    }
+
+    const Real defaultHeatToBuoyancy = Gravity * 2.0e-4_Real * HFluxFac;
+    const Real defaultThickToBuoyancy =
+        -Gravity * 8.0e-4_Real * OcnRefSal * FwFluxFac;
+
+    this->KPPHeatFluxToBuoyancyFactor = defaultHeatToBuoyancy;
+    this->KPPThicknessFluxToBuoyancyFactor = defaultThickToBuoyancy;
+
+    Error KPPWindXErr =
+         TendConfig->get("KPPConstantWindStressZonal", this->KPPConstWindStressZonal);
+    if (!KPPWindXErr.isSuccess()) {
+        KPPWindXErr.reset();
+    }
+
+    Error KPPWindYErr = TendConfig->get("KPPConstantWindStressMeridional",
+                                        this->KPPConstWindStressMeridional);
+    if (!KPPWindYErr.isSuccess()) {
+        KPPWindYErr.reset();
+    }
+
+    Error KPPHeatErr = TendConfig->get("KPPConstantHeatFlux", this->KPPConstHeatFlux);
+    if (!KPPHeatErr.isSuccess()) {
+        KPPHeatErr.reset();
+    }
+
+    Error KPPThickErr =
+         TendConfig->get("KPPConstantThicknessFlux", this->KPPConstThicknessFlux);
+    if (!KPPThickErr.isSuccess()) {
+        KPPThickErr.reset();
+    }
+
+    Error KPPHeatFacErr = TendConfig->get("KPPHeatFluxToBuoyancyFactor",
+                                          this->KPPHeatFluxToBuoyancyFactor);
+    if (!KPPHeatFacErr.isSuccess()) {
+        KPPHeatFacErr.reset();
+    }
+
+    Error KPPThickFacErr =
+         TendConfig->get("KPPThicknessFluxToBuoyancyFactor",
+                         this->KPPThicknessFluxToBuoyancyFactor);
+    if (!KPPThickFacErr.isSuccess()) {
+        KPPThickFacErr.reset();
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -367,16 +417,36 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
     Array1DReal SurfaceFrictionVelocity("KPP-SurfaceFrictionVelocity", NCellsAll);
     Array1DReal SurfaceBuoyancyFlux("KPP-SurfaceBuoyancyFlux", NCellsAll);
     Array1DReal IceFraction("KPP-IceFraction", NCellsAll);
+        const bool LocKPPColumnForcingEnable = KPPColumnForcingEnable;
+        const Real LocKPPConstWindStressZonal = KPPConstWindStressZonal;
+        const Real LocKPPConstWindStressMeridional = KPPConstWindStressMeridional;
+        const Real LocKPPConstHeatFlux = KPPConstHeatFlux;
+        const Real LocKPPConstThicknessFlux = KPPConstThicknessFlux;
+        const Real LocKPPHeatFluxToBuoyancyFactor = KPPHeatFluxToBuoyancyFactor;
+        const Real LocKPPThicknessFluxToBuoyancyFactor =
+           KPPThicknessFluxToBuoyancyFactor;
     OMEGA_SCOPE(ZonalStressCell, AuxState->WindForcingAux.ZonalStressCell);
     OMEGA_SCOPE(MeridStressCell, AuxState->WindForcingAux.MeridStressCell);
     parallelFor(
          "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+               const Real tau_x = LocKPPColumnForcingEnable
+                                 ? LocKPPConstWindStressZonal
+                                 : ZonalStressCell(ICell);
+               const Real tau_y = LocKPPColumnForcingEnable
+                                 ? LocKPPConstWindStressMeridional
+                                 : MeridStressCell(ICell);
              const Real tau_mag = Kokkos::sqrt(
-                  ZonalStressCell(ICell) * ZonalStressCell(ICell) +
-                  MeridStressCell(ICell) * MeridStressCell(ICell));
+                   tau_x * tau_x + tau_y * tau_y);
              SurfaceFrictionVelocity(ICell) =
                   Kokkos::sqrt(Kokkos::max(0.0_Real, tau_mag / RhoSw));
-             SurfaceBuoyancyFlux(ICell) = 0.0_Real;
+               if (LocKPPColumnForcingEnable) {
+                 SurfaceBuoyancyFlux(ICell) =
+                    LocKPPConstHeatFlux * LocKPPHeatFluxToBuoyancyFactor +
+                    LocKPPConstThicknessFlux *
+                        LocKPPThicknessFluxToBuoyancyFactor;
+               } else {
+                 SurfaceBuoyancyFlux(ICell) = 0.0_Real;
+               }
              IceFraction(ICell)         = 0.0_Real;
          });
 
