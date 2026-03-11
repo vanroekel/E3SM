@@ -184,10 +184,14 @@ void Tendencies::readTendConfig(
    CHECK_ERROR_ABORT(
        Err, "Tendencies: ProjVelHyperDiffTendencyEnable not found in TendConfig");
 
-   Err += TendConfig->get("VelVertMixTendencyEnable",
-                          this->VelVertMixSetup.Enabled);
-   CHECK_ERROR_ABORT(
-       Err, "Tendencies: VelVertMixTendencyEnable not found in TendConfig");
+    {
+        Error VelVertMixErr =
+             TendConfig->get("VelVertMixTendencyEnable",
+                                  this->VelVertMixSetup.Enabled);
+        if (!VelVertMixErr.isSuccess()) {
+            VelVertMixErr.reset();
+        }
+    }
 
    Err += TendConfig->get("PresForceTendencyEnable", this->PresGradZ.Enabled);
    CHECK_ERROR_ABORT(
@@ -363,8 +367,9 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
 
     Eos *EosInstance    = Eos::getInstance();
     KPPMix *KPPInstance = KPPMix::getInstance();
+    VertMix *VertMixInstance = VertMix::getInstance();
 
-    if (!EosInstance || !KPPInstance || !KPPInstance->Enabled) {
+    if (!EosInstance || !KPPInstance || !VertMixInstance || !KPPInstance->Enabled) {
         return;
     }
 
@@ -378,7 +383,6 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
     }
 
     const I4 NCellsAll   = Mesh->NCellsAll;
-    const I4 NEdgesAll   = Mesh->NEdgesAll;
     const I4 NVertLayers = VCoord->NVertLayers;
 
     Array2DReal ConservTemp("KPP-ConservTemp", NCellsAll, NVertLayers);
@@ -465,6 +469,18 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
            KPPThicknessFluxToBuoyancyFactor;
     OMEGA_SCOPE(ZonalStressCell, AuxState->WindForcingAux.ZonalStressCell);
     OMEGA_SCOPE(MeridStressCell, AuxState->WindForcingAux.MeridStressCell);
+    OMEGA_SCOPE(LocLatentHeatFlux, AuxState->WindForcingAux.LatentHeatFlux);
+    OMEGA_SCOPE(LocSensibleHeatFlux, AuxState->WindForcingAux.SensibleHeatFlux);
+    OMEGA_SCOPE(LocShortWaveHeatFlux,
+                AuxState->WindForcingAux.ShortWaveHeatFlux);
+    OMEGA_SCOPE(LocEvaporationFlux, AuxState->WindForcingAux.EvaporationFlux);
+    OMEGA_SCOPE(LocRainFlux, AuxState->WindForcingAux.RainFlux);
+    OMEGA_SCOPE(LocRiverRunoffFlux, AuxState->WindForcingAux.RiverRunoffFlux);
+    OMEGA_SCOPE(LocIceRunoffFlux, AuxState->WindForcingAux.IceRunoffFlux);
+    OMEGA_SCOPE(LocSubglacialRunoffFlux,
+                AuxState->WindForcingAux.SubglacialRunoffFlux);
+    OMEGA_SCOPE(LocIcebergFreshWaterFlux,
+                AuxState->WindForcingAux.IcebergFreshWaterFlux);
     parallelFor(
          "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
                const Real tau_x = LocKPPColumnForcingEnable
@@ -483,7 +499,19 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
                     LocKPPConstThicknessFlux *
                         LocKPPThicknessFluxToBuoyancyFactor;
                } else {
-                 SurfaceBuoyancyFlux(ICell) = 0.0_Real;
+                                 const Real heat_flux = LocLatentHeatFlux(ICell) +
+                                                                                LocSensibleHeatFlux(ICell) +
+                                                                                LocShortWaveHeatFlux(ICell);
+                                 const Real freshwater_flux =
+                                         LocRainFlux(ICell) + LocRiverRunoffFlux(ICell) +
+                                         LocIceRunoffFlux(ICell) +
+                                         LocSubglacialRunoffFlux(ICell) +
+                                         LocIcebergFreshWaterFlux(ICell) -
+                                         LocEvaporationFlux(ICell);
+
+                                 SurfaceBuoyancyFlux(ICell) =
+                                         heat_flux * LocKPPHeatFluxToBuoyancyFactor +
+                                         freshwater_flux * LocKPPThicknessFluxToBuoyancyFactor;
                }
              IceFraction(ICell)         = 0.0_Real;
          });
@@ -494,6 +522,25 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
                                         SurfaceBuoyancyFlux,
                                         EosInstance->BruntVaisalaFreqSq, IceFraction,
                                         WindSpeed10m);
+
+    // Implicit vertical-mix solvers consume VertMix fields. Merge KPP output
+    // into those fields at this stage so KPP affects the actual timestep update
+    // while preserving stronger interior shear/convective/background mixing.
+    OMEGA_SCOPE(LocVertDiffBase, VertMixInstance->VertDiff);
+    OMEGA_SCOPE(LocVertViscBase, VertMixInstance->VertVisc);
+    OMEGA_SCOPE(LocKPPVertDiff, KPPInstance->VertDiff);
+    OMEGA_SCOPE(LocKPPVertVisc, KPPInstance->VertVisc);
+    OMEGA_SCOPE(LocKPPIndexBoundaryLayerDepth, KPPInstance->IndexBoundaryLayerDepth);
+    parallelFor(
+        "KPP-MergeIntoVertMix", {NCellsAll, NVertLayers},
+        KOKKOS_LAMBDA(I4 ICell, I4 K) {
+           if (K <= LocKPPIndexBoundaryLayerDepth(ICell)) {
+              LocVertDiffBase(ICell, K) =
+                  Kokkos::max(LocVertDiffBase(ICell, K), LocKPPVertDiff(ICell, K));
+              LocVertViscBase(ICell, K) =
+                  Kokkos::max(LocVertViscBase(ICell, K), LocKPPVertVisc(ICell, K));
+           }
+        });
 }
 
 //------------------------------------------------------------------------------
@@ -1060,6 +1107,12 @@ void Tendencies::computeVelocityTendencies(
    Pacer::start("Tend:computeVelocityTendencies", 1);
 
    AuxState->computeMomAux(State, TracerArray, ThickTimeLevel, VelTimeLevel);
+    // Re-stage KPP coefficients after computeMomAux() because that routine
+    // recomputes base VertMix (background + shear/convective). Without this
+    // merge, split tendency paths (e.g., Forward-Backward) can overwrite KPP
+    // contributions before the implicit vertical-mix solve uses VertDiff/Visc.
+    computeStageVerticalMixing(State, AuxState, TracerArray,
+                                        ThickTimeLevel, VelTimeLevel);
    computeVelocityTendenciesOnly(State, AuxState, ThickTimeLevel, VelTimeLevel,
                                  Time);
 
@@ -1074,7 +1127,7 @@ void Tendencies::computeTracerTendencies(
     int VelTimeLevel,               ///< [in] Time level
     TimeInstant Time                ///< [in] Time
 ) {
-    AuxState->computeMomAux(State, ThickTimeLevel, VelTimeLevel);
+    AuxState->computeMomAux(State, TracerArray, ThickTimeLevel, VelTimeLevel);
     computeStageVerticalMixing(State, AuxState, TracerArray,
                                ThickTimeLevel, VelTimeLevel);
 

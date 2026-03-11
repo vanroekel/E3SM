@@ -84,6 +84,10 @@ class Tendencies {
     // d(phi)/dt += -d/dz(VertNonLocalFlux * SurfaceTracerFlux)
   bool TracerNonLocalFluxEnabled = false;
 
+   // Enables direct conversion of surface tracer flux to tendency,
+   // analogous to MPAS surface_flux_to_tend.
+   bool TracerSurfaceFluxEnabled = true;
+
    // Optional simple 1-D KPP forcing overrides.
    // When enabled, these constants are used instead of coupled forcing.
    bool KPPColumnForcingEnable = false;

@@ -179,6 +179,20 @@ int initOmegaModules(MPI_Comm Comm) {
       ABORT_ERROR("Error initializing ocean variables from input streams");
    }
 
+   // Optional forcing stream for cases (e.g. Polaris single-column) where
+   // forcing variables are staged in a dedicated NetCDF file. Read with an
+   // empty metadata request because forcing files do not carry restart-time
+   // metadata like SimulationTime.
+   Metadata ForcingReqMeta;
+   Error Err3 = IOStream::read("Forcing", ModelClock, ForcingReqMeta);
+   if (Err3.isFail()) {
+      if (Err3.Msg.find("Stream Forcing not found") == std::string::npos) {
+         CHECK_ERROR(Err3, "Errors encountered reading Forcing");
+         ABORT_ERROR("Error initializing forcing variables from input stream");
+      }
+      Err3.reset();
+   }
+
    // If reading from restart, reset the current time to the input time
    if (SimTimeStr != " ") {
       TimeInstant NewCurrentTime(SimTimeStr);

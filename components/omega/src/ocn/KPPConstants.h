@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OmegaKokkos.h"
+#include "GlobalConstants.h"
 
 namespace OMEGA::KPP {
 
@@ -23,7 +24,7 @@ namespace OMEGA::KPP {
 constexpr Real RICRIT = 0.3;
 
 /// Parameter for smoothing velocity shear profiles
-constexpr Real ZETA_M_SCALE = 0.4;  // Momentum scale (normalized)
+constexpr Real ZETA_M_SCALE = VonKar; // Momentum scale (normalized)
 constexpr Real ZETA_S_SCALE = 0.16; // Tracer/salt scale
 constexpr Real ZETA_T_SCALE = 0.16; // Temperature scale
 
@@ -131,21 +132,24 @@ Real KPPProfileM1(Real sigma) {
    return sqrt_term * sqrt_term;
 }
 
-/// @brief M2(sigma) - Momentum shear stability correction
-/// Modifies mixing for stable stratification (Ri_g > 0)
+/// @brief M2(zeta) - Momentum Monin-Obukhov stability correction
+/// Modifies mixing based on zeta = z/L where L is Monin-Obukhov length
 /// REFERENCES: Large et al. (1994) Eq. (14)
 ///
-/// @param sigma Normalized vertical position
-/// @param ri_g Gradient Richardson number
+/// @param zeta Monin-Obukhov stability coordinate (dimensionless)
 /// @return Stability correction factor (dimensionless)
 KOKKOS_INLINE_FUNCTION
-Real KPPProfileM2(Real sigma, Real ri_g) {
-   sigma = Kokkos::fmax(-1.0, Kokkos::fmin(0.0, sigma));
-   ri_g  = Kokkos::fmax(0.0, ri_g);
-
-   // Reduce mixing where stratification is stable (Ri_g > 0)
-   // Form: 1/(1 + alpha*Ri_g)
-   return 1.0 / (1.0 + 5.0 * ri_g);
+Real KPPProfileM2(Real zeta) {
+   // Unstable side (zeta < 0): free-convective enhancement.
+   // Use a bounded MO form similar to (a_m - c_m*zeta)^(-1/3).
+   if (zeta < 0.0_Real) {
+      const Real a_m = 1.0_Real;
+      const Real c_m = 16.0_Real;
+      const Real arg = Kokkos::fmax(1.0e-12_Real, a_m - c_m * zeta);
+      return Kokkos::pow(arg, -1.0_Real / 3.0_Real);
+   }
+   // Stable side (zeta > 0): suppress mixing with increasing stability.
+   return 1.0_Real / (1.0_Real + 5.0_Real * zeta);
 }
 
 /// @brief S1(sigma) - Tracer/scalar mixing profile function
@@ -162,20 +166,22 @@ Real KPPProfileS1(Real sigma) {
    return sqrt_term;
 }
 
-/// @brief S2(sigma) - Tracer shear stability correction
-/// Modifies scalar mixing for stable stratification
+/// @brief S2(zeta) - Tracer Monin-Obukhov stability correction
+/// Modifies scalar mixing based on zeta = z/L
 /// REFERENCES: Large et al. (1994) Eq. (14)
 ///
-/// @param sigma Normalized vertical position
-/// @param ri_g Gradient Richardson number
+/// @param zeta Monin-Obukhov stability coordinate (dimensionless)
 /// @return Stability correction factor (dimensionless)
 KOKKOS_INLINE_FUNCTION
-Real KPPProfileS2(Real sigma, Real ri_g) {
-   sigma = Kokkos::fmax(-1.0, Kokkos::fmin(0.0, sigma));
-   ri_g  = Kokkos::fmax(0.0, ri_g);
-
-   // Reduce tracer mixing in stable layers
-   return 1.0 / (1.0 + 5.0 * ri_g);
+Real KPPProfileS2(Real zeta) {
+   // Unstable side (zeta < 0): scalar free-convective enhancement.
+   if (zeta < 0.0_Real) {
+      const Real a_s = 1.0_Real;
+      const Real c_s = 16.0_Real;
+      const Real arg = Kokkos::fmax(1.0e-12_Real, a_s - c_s * zeta);
+      return Kokkos::pow(arg, -1.0_Real / 3.0_Real);
+   }
+   return 1.0_Real / (1.0_Real + 5.0_Real * zeta);
 }
 
 /// @brief Hu(sigma) - Momentum surface value scaling
@@ -327,8 +333,9 @@ Real ComputeTurbulentVelocityScale(Real u_star, Real b0, Real h_obl) {
    // Momentum contribution
    Real w_m = u_star * u_star * u_star;
 
-   // Buoyancy contribution (only if b0 > 0, i.e., stable)
-   Real w_b = v_t * Kokkos::fmax(0.0, b0) * h_obl;
+   // Buoyancy contribution for unstable (cooling/densifying) forcing.
+   // In this sign convention, free convection corresponds to b0 < 0.
+   Real w_b = v_t * Kokkos::fmax(0.0_Real, -b0) * h_obl;
 
    // Combined scale
    Real w_s = Kokkos::pow(w_m + w_b, 1.0 / 3.0);

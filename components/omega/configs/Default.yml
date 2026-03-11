@@ -55,6 +55,7 @@ Omega:
     TracerHyperDiffTendencyEnable: true
     EddyDiff4: 0.0
     TracerVertMixTendencyEnable: true
+    TracerNonLocalFluxTendencyEnable: true
     UseCustomTendency: false
     ManufacturedSolutionTendency: false
     KPPColumnForcingEnable: false
@@ -90,6 +91,12 @@ Omega:
       RiCrit: 0.7
       Exponent: 3.0
       RiSmoothLoops: 3
+    KPP:
+      Enable: true
+      UseNonLocalFlux: true
+      CriticalBulkRichardsonNumber: 0.25
+      BoundaryLayerDepthScheme: SimpleShapes
+      DebugDiagnostics: false
   IOStreams:
     InitialVertCoord:
       UsePointerFile: false
@@ -115,6 +122,26 @@ Omega:
       Contents:
         - State
         - Base
+    Forcing:
+      UsePointerFile: false
+      Filename: forcing.nc
+      Mode: read
+      Precision: double
+      Freq: 1
+      FreqUnits: OnStartup
+      UseStartEnd: false
+      Contents:
+        - WindStressZonal
+        - WindStressMeridional
+        - LatentHeatFlux
+        - SensibleHeatFlux
+        - ShortWaveHeatFlux
+        - EvaporationFlux
+        - RainFlux
+        - RiverRunoffFlux
+        - IceRunoffFlux
+        - SubglacialRunoffFlux
+        - IcebergFreshWaterFlux
     # Restarts are used to initialize for all job submissions after the very
     # first startup job. We use UseStartEnd with a start time just after the
     # simulation start time so that omega does not attempt to use a restart
@@ -156,6 +183,11 @@ Omega:
         - Tracers
         - State
         - SshCell
+        # `VertMix` is a field group alias that expands to:
+        #   VertDiff, VertVisc, GradRichardsonNumber, GradRichardsonNumberSmoothed
+        # If you only want diffusivity/viscosity, add explicit fields instead:
+        # - VertDiff
+        # - VertVisc
     Highfreq:
       UsePointerFile: false
       Filename: ocn.hifreq.$Y-$M

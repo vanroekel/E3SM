@@ -27,7 +27,7 @@ AuxiliaryState::AuxiliaryState(const std::string &Name, const HorzMesh *Mesh,
       LayerThicknessAux(stripDefault(Name), Mesh, VCoord),
       VorticityAux(stripDefault(Name), Mesh, VCoord),
       VelocityDel2Aux(stripDefault(Name), Mesh, VCoord),
-      WindForcingAux(stripDefault(Name), Mesh),
+      WindForcingAux(stripDefault(Name), Mesh, VCoord),
       TangentAux(stripDefault(Name), Mesh, VCoord),
       TracerAux(stripDefault(Name), Mesh, VCoord, NTracers) {
 
@@ -84,11 +84,9 @@ void AuxiliaryState::computeVertAux(const OceanState *State,
    }
 
    // get layer thickness
-   Array2DReal LayerThickCell;
-   State->getLayerThickness(LayerThickCell, ThickTimeLevel);
+   Array2DReal LayerThickCell = State->getLayerThickness(ThickTimeLevel);
    // get normal velocity
-   Array2DReal NormalVelEdge;
-   State->getNormalVelocity(NormalVelEdge, VelTimeLevel);
+   Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
 
    // compute tangential velocity
    OMEGA_SCOPE(LocTangentAux, TangentAux);

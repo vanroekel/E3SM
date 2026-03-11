@@ -708,7 +708,7 @@ void testShearVertMix() {
                        InnerCount++;
                     // K = 1 should have ref value
                  } else if (K == KMin + 1) {
-                    if (!isApprox(ShearVertVisc(ICell, K), VertViscShearExp,
+                    if (!isApprox(ShearVertVisc(ICell, K), VertShearBaseExp,
                                   RTol))
                        InnerCount++;
                  } else if (K >= 20 && K < 40) {
@@ -918,6 +918,7 @@ void testTotalVertMix() {
        KOKKOS_LAMBDA(I4 IEdge, I4 K) {
           NormalVelEdge(IEdge, K) = NormalVelEdge(IEdge, K) + 0.5 * K;
           TangVelEdge(IEdge, K)   = TangVelEdge(IEdge, K) + 0.5 * K;
+         });
 
    parallelForOuter(
        "populateArrays", {Mesh->NEdgesAll},

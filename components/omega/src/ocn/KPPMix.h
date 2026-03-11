@@ -85,6 +85,14 @@ class KPPMix {
    /// Applied to surface tracer fluxes to compute vertical transport
    Array2DReal VertNonLocalFlux;
 
+  /// @brief Bulk Richardson number profile used in OBL search (dimensionless)
+  /// Size: [nCells][nLevels+1]
+  Array2DReal BulkRichardsonNumber;
+
+  /// @brief Turbulent velocity scale profile (m/s), tracer branch
+  /// Size: [nCells][nLevels+1]
+  Array2DReal TurbulentVelocityScale;
+
    // =======================================================================
    // Configuration Parameters
    // =======================================================================
@@ -97,6 +105,7 @@ class KPPMix {
 
    bool UseLangmuirCirculation = true; ///< Apply wave enhancement
    bool UseNonLocalFlux        = true; ///< Apply non-local tracer flux
+  bool DebugDiagnostics = false; ///< Print per-step KPP diagnostics
 
    Real BackgroundVisc = 1.0e-4; ///< Background viscosity below OBL (m²/s)
    Real BackgroundDiff = 1.0e-5; ///< Background diffusivity below OBL (m²/s)
@@ -108,6 +117,8 @@ class KPPMix {
    std::string VertViscFldName;
    std::string OBLDepthFldName;
    std::string NonLocalFluxFldName;
+  std::string BulkRichardsonFldName;
+  std::string TurbulentVelScaleFldName;
    std::string Name;
 
  private:
@@ -141,6 +152,14 @@ class KPPMix {
                                   const Array2DReal &TangentialVelocity,
                                   const Array1DReal &SurfaceFrictionVelocity,
                                   const Array1DReal &SurfaceBuoyancyFlux);
+
+  /// @brief Print targeted diagnostics for KPP troubleshooting
+  void logDiagnostics(const Array2DReal &PotentialDensity,
+                const Array2DReal &NormalVelocity,
+                const Array2DReal &TangentialVelocity,
+                const Array1DReal &SurfaceFrictionVelocity,
+                const Array1DReal &SurfaceBuoyancyFlux,
+                const Array1DReal &WindSpeed10m);
 
    /// @brief Register fields with I/O system
    void defineFields();

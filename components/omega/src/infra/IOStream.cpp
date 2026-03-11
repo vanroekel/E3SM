@@ -1660,6 +1660,20 @@ Error IOStream::readFieldData(
       } else {
          Err = IO::readNDVar(DataPtr, OldFieldName, FileID, FieldID);
       }
+   }
+
+   // If both canonical and legacy names fail, try optional input alias.
+   if (Err.isFail()) {
+      std::string InputName;
+      Error MetaErr = FieldPtr->getMetadata("InputName", InputName);
+      if (MetaErr.isSuccess()) {
+         if (IsDistributed) {
+            Err = IO::readArray(DataPtr, LocSize, InputName, FileID, DecompID,
+                                FieldID);
+         } else {
+            Err = IO::readNDVar(DataPtr, InputName, FileID, FieldID);
+         }
+      }
       if (Err.isFail()) // still cannot find field, return with error
          RETURN_ERROR(
              Err, ErrorCode::Fail,

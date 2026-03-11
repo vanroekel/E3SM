@@ -138,17 +138,16 @@ class GradRichardsonNum {
       Real GradRichNumNorm[VecLength];
       Real GradRichNumTmp[VecLength];
 
-      for (int KVec = 0; KVec < KLen; ++KVec) {
-         const I4 K         = KStart + KVec;
-         GradRichNumNorm[K] = 1.0e-12_Real;
-         GradRichNumTmp[K]  = 100.0_Real;
+      for (int KVec = 0; KVec < KLenCell; ++KVec) {
+         GradRichNumNorm[KVec] = 1.0e-12_Real;
+         GradRichNumTmp[KVec]  = 100.0_Real;
       }
 
       for (int J = 0; J < NEdgesOnCell(ICell); ++J) {
          I4 JEdge = EdgesOnCell(ICell, J);
          I4 JCell = CellsOnCell(ICell, J);
-         for (int KVec = 0; KVec < KLen; ++KVec) {
-            const I4 K = KStart + KVec;
+         for (int KVec = 0; KVec < KLenCell; ++KVec) {
+            const I4 K = KStartCell + KVec;
             I4 K1      = K - 1;
             I4 K2      = K;
 
@@ -176,14 +175,14 @@ class GradRichardsonNum {
                 (ShearSquared + 1.0e-12_Real);
 
             Real Weight        = 0.25_Real * DcEdge(JEdge) * DvEdge(JEdge);
-            GradRichNumNorm[K] = GradRichNumNorm[K] + Weight;
-            GradRichNumTmp[K]  = GradRichNumTmp[K] + Weight * RiEdge;
+            GradRichNumNorm[KVec] = GradRichNumNorm[KVec] + Weight;
+            GradRichNumTmp[KVec]  = GradRichNumTmp[KVec] + Weight * RiEdge;
          }
       }
 
-      for (int KVec = 0; KVec < KLen; ++KVec) {
-         const I4 K            = KStart + KVec;
-         GradRichNum(ICell, K) = GradRichNumTmp[K] / GradRichNumNorm[K];
+      for (int KVec = 0; KVec < KLenCell; ++KVec) {
+         const I4 K            = KStartCell + KVec;
+         GradRichNum(ICell, K) = GradRichNumTmp[KVec] / GradRichNumNorm[KVec];
       }
    }
 
