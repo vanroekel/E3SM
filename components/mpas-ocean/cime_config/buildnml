@@ -1432,7 +1432,6 @@ def buildnml(case, caseroot, compname):
             lines.append('    <var name="bruntVaisalaFreqML"/>')
             lines.append('    <var name="activeTracersTendML"/>')
             lines.append('    <var_array name="activeTracerVerticalAdvectionTopFlux"/>')
-            lines.append('    <var_array name="activeTracerHorizontalAdvectionEdgeFlux"/>')
             lines.append('    <var_array name="totalFreshWaterTemperatureFlux"/>')
             lines.append('    <var name="velocityTidalRMS"/>')
             if ocn_iceberg == 'true':
