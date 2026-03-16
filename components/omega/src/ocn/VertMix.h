@@ -68,7 +68,7 @@ class ShearMix {
    Real ShearRiCrit = 0.7;      ///< Critical Richardson number of LMG94
    Real ShearExponent =
        3.0; /// Exponent value used interior shear mixing calculation of LMG94
-   I4 RiSmoothLoops = 3; ///< Number of smoothing loops for Richardson number
+   I4 RiSmoothLoops = 2; ///< Number of smoothing loops for Richardson number
 
    /// Constructor for ShearMix
    ShearMix(const VertCoord *VCoord);
@@ -138,9 +138,8 @@ class GradRichardsonNum {
       Real GradRichNumTmp[VecLength];
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
-         const I4 K         = KStart + KVec;
-         GradRichNumNorm[K] = 1.0e-12_Real;
-         GradRichNumTmp[K]  = 100.0_Real;
+         GradRichNumNorm[KVec] = 1.0e-12_Real;
+         GradRichNumTmp[KVec]  = 100.0_Real;
       }
 
       for (int J = 0; J < NEdgesOnCell(ICell); ++J) {
@@ -151,11 +150,14 @@ class GradRichardsonNum {
             I4 K1      = K - 1;
             I4 K2      = K;
 
-            if (K <= MinLayerCell(ICell)) {
+            if (K < MinLayerCell(ICell) || K > MaxLayerCell(ICell))
+               continue;
+
+            if (K == MinLayerCell(ICell)) {
                K1 = K;
                K2 = K + 1;
             }
-            if (K >= MaxLayerCell(ICell)) {
+            if (K == MaxLayerCell(ICell)) {
                K1 = K - 2;
                K2 = K - 1;
             }
@@ -174,15 +176,15 @@ class GradRichardsonNum {
                                         BruntVaisalaFreqSq(JCell, K2))) /
                 (ShearSquared + 1.0e-12_Real);
 
-            Real Weight        = 0.25_Real * DcEdge(JEdge) * DvEdge(JEdge);
-            GradRichNumNorm[K] = GradRichNumNorm[K] + Weight;
-            GradRichNumTmp[K]  = GradRichNumTmp[K] + Weight * RiEdge;
+            Real Weight           = 0.25_Real * DcEdge(JEdge) * DvEdge(JEdge);
+            GradRichNumNorm[KVec] = GradRichNumNorm[KVec] + Weight;
+            GradRichNumTmp[KVec]  = GradRichNumTmp[KVec] + Weight * RiEdge;
          }
       }
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K            = KStart + KVec;
-         GradRichNum(ICell, K) = GradRichNumTmp[K] / GradRichNumNorm[K];
+         GradRichNum(ICell, K) = GradRichNumTmp[KVec] / GradRichNumNorm[KVec];
       }
    }
 

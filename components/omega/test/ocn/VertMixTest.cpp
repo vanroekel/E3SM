@@ -145,7 +145,7 @@ void testGradRichNum() {
    parallelFor(
        "setMinMax", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
           MinLayerCell(ICell) = 0;
-          MaxLayerCell(ICell) = VCoord->NVertLayers;
+          MaxLayerCell(ICell) = VCoord->NVertLayers - 1;
        });
 
    // filling CellsOnCell with simple mapping for this test
