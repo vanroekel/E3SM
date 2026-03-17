@@ -145,7 +145,7 @@ void testGradRichNum() {
    parallelFor(
        "setMinMax", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
           MinLayerCell(ICell) = 0;
-          MaxLayerCell(ICell) = VCoord->NVertLayers - 1;
+          MaxLayerCell(ICell) = NVertLayers - 1;
        });
 
    // filling CellsOnCell with simple mapping for this test
@@ -256,7 +256,7 @@ void testOneTwoOneFilter() {
    parallelFor(
        "setMinMax", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
           MinLayerCell(ICell) = 0;
-          MaxLayerCell(ICell) = VCoord->NVertLayers - 1;
+          MaxLayerCell(ICell) = NVertLayers - 1;
        });
 
    // Apply the 1-2-1 filter to each cell
@@ -338,8 +338,7 @@ void testBackVertMix() {
    const auto Mesh     = HorzMesh::getDefault();
    const auto VCoord   = VertCoord::getDefault();
    VCoord->NVertLayers = NVertLayers;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NEdgesSize       = Mesh->NEdgesSize;
+   I4 NCellsAll        = Mesh->NCellsAll;
    I4 NEdgesAll        = Mesh->NEdgesAll;
    OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
 
@@ -347,10 +346,10 @@ void testBackVertMix() {
    VertMix *TestVertMix = VertMix::getInstance();
 
    /// Create and fill ocean state arrays
-   auto NormalVelEdge = Array2DReal("NormalVelEdge", NEdgesSize, NVertLayers);
-   auto TangVelEdge   = Array2DReal("TangVelEdge", NEdgesSize, NVertLayers);
+   auto NormalVelEdge = Array2DReal("NormalVelEdge", NEdgesAll, NVertLayers);
+   auto TangVelEdge   = Array2DReal("TangVelEdge", NEdgesAll, NVertLayers);
    auto BruntVaisalaFreqSqCell =
-       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayers);
+       Array2DReal("BruntVaisalaFreqSqCell", NCellsAll, NVertLayers);
 
    /// Use deep copy initialize with reference or zero values
    deepCopy(NormalVelEdge, NV);

@@ -104,9 +104,6 @@ class ShearMix {
                             (GradRichNumSmoothed(ICell, K) / ShearRiCrit),
                     ShearExponent) *
                 BaseShearValue;
-         } else {
-            VertDiff(ICell, K) += 0.0_Real;
-            VertVisc(ICell, K) += 0.0_Real;
          }
       }
    }
