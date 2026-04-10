@@ -669,7 +669,9 @@ int testTracerAuxVars(const Array2DReal &PseudoThickCell,
    Array2DReal PseudoThickEdge("PseudoThickEdge", Mesh->NEdgesSize,
                                NVertLayers);
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.pseudoThickness(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) {
+          return Setup.pseudoThickness(X, Y);
+       },
        PseudoThickEdge, Geom, Mesh, OnEdge);
 
    // Compute exact Del2TracerCell

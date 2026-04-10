@@ -63,14 +63,16 @@ int initState() {
    int NTracers = Tracers::getNumTracers();
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.pseudoThickness(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.pseudoThickness(X, Y);
+       },
        PseudoThickCell, Geom, Mesh, OnCell, VCoord->MinLayerCell,
-       VCoord->MaxLayerCell);
+       VCoord->MaxLayerCell, nullptr);
 
    Err += setScalar(
        KOKKOS_LAMBDA(Real X, Real Y) { return Setup.tracer(X, Y); },
        TracerArray, Geom, Mesh, OnCell, VCoord->MinLayerCell,
-       VCoord->MaxLayerCell);
+       VCoord->MaxLayerCell, nullptr);
 
    Err += setVectorEdge(
        KOKKOS_LAMBDA(Real(&VecField)[2], Real Lon, Real Lat) {
@@ -78,8 +80,8 @@ int initState() {
           VecField[1] = Setup.velocityY(Lon, Lat);
        },
        NormalVelEdge, EdgeComponent::Normal, Geom, Mesh,
-       VCoord->MinLayerEdgeTop, VCoord->MaxLayerEdgeBot, ExchangeHalos::Yes,
-       CartProjection::No);
+       VCoord->MinLayerEdgeTop, VCoord->MaxLayerEdgeBot, nullptr,
+       ExchangeHalos::Yes, CartProjection::No);
 
    return Err;
 }

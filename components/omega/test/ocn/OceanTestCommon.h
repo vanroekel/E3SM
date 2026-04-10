@@ -8,6 +8,8 @@
 #include "MachEnv.h"
 #include "OmegaKokkos.h"
 
+#include <cstddef>
+
 namespace OMEGA {
 
 // check if two real numbers are equal with a given relative tolerance
@@ -81,10 +83,12 @@ template <class T> KOKKOS_FUNCTION int getVertBound(const T &VertBound, int I) {
 
 // set scalar field on chosen elements (cells/vertices/edges) based on
 // analytical formula and optionally exchange halos
-template <class Functor, class Array, class VertMin, class VertMax>
+template <class Functor, class Array, class VertMin, class VertMax,
+          class VertArr>
 int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
               const HorzMesh *Mesh, MeshElement Element, const VertMin &VMin,
               const VertMax &VMax,
+              VertArr ZCoord, // either array or nullptr to indicate 2D
               ExchangeHalos ExchangeHalosOpt = ExchangeHalos::Yes,
               SetBoundary SetBndOpt          = SetBoundary::No) {
 
@@ -93,7 +97,14 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
    int NElementsOwned;
    int NElementsSize;
    Array1DReal XElement, YElement;
+   Array2DReal ZElement;
    Array1DReal LonElement, LatElement;
+
+   constexpr bool ZCoordNull = std::is_same_v<VertArr, std::nullptr_t>;
+
+   if constexpr (!ZCoordNull) {
+      ZElement = ZCoord;
+   }
 
    switch (Element) {
    case OnCell:
@@ -134,6 +145,7 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
              if (SetBndOpt == SetBoundary::Yes) {
                 IElement = IElement == 0 ? (NElementsSize - 1) : (IElement - 1);
              }
+
              if (Geom == Geometry::Planar) {
                 const Real X            = XElement(IElement);
                 const Real Y            = YElement(IElement);
@@ -154,20 +166,23 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
              if (SetBndOpt == SetBoundary::Yes) {
                 IElement = IElement == 0 ? (NElementsSize - 1) : (IElement - 1);
              }
-             const int KMin   = getVertBound(VMin, IElement);
-             const int KMax   = getVertBound(VMax, IElement);
-             const int KRange = KMax - KMin + 1;
+             const int KMin = getVertBound(VMin, IElement);
+             const int KMax = getVertBound(VMax, IElement);
              parallelForInner(
-                 Team, KRange, INNER_LAMBDA(int KOff) {
-                    const int K = KMin + KOff;
+                 Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
+                    Real X, Y;
                     if (Geom == Geometry::Planar) {
-                       const Real X               = XElement(IElement);
-                       const Real Y               = YElement(IElement);
+                       X = XElement(IElement);
+                       Y = YElement(IElement);
+                    } else {
+                       X = LonElement(IElement);
+                       Y = LatElement(IElement);
+                    }
+                    if constexpr (ZCoordNull) {
                        ScalarElement(IElement, K) = Fun(X, Y);
                     } else {
-                       const Real Lon             = LonElement(IElement);
-                       const Real Lat             = LatElement(IElement);
-                       ScalarElement(IElement, K) = Fun(Lon, Lat);
+                       const Real Z               = ZElement(IElement, K);
+                       ScalarElement(IElement, K) = Fun(X, Y, Z);
                     }
                  });
           });
@@ -181,20 +196,23 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
              if (SetBndOpt == SetBoundary::Yes) {
                 IElement = IElement == 0 ? (NElementsSize - 1) : (IElement - 1);
              }
-             const int KMin   = getVertBound(VMin, IElement);
-             const int KMax   = getVertBound(VMax, IElement);
-             const int KRange = KMax - KMin + 1;
+             const int KMin = getVertBound(VMin, IElement);
+             const int KMax = getVertBound(VMax, IElement);
              parallelForInner(
-                 Team, KRange, INNER_LAMBDA(int KOff) {
-                    const int K = KMin + KOff;
+                 Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
+                    Real X, Y;
                     if (Geom == Geometry::Planar) {
-                       const Real X                  = XElement(IElement);
-                       const Real Y                  = YElement(IElement);
+                       X = XElement(IElement);
+                       Y = YElement(IElement);
+                    } else {
+                       X = LonElement(IElement);
+                       Y = LatElement(IElement);
+                    }
+                    if constexpr (ZCoordNull) {
                        ScalarElement(L, IElement, K) = Fun(X, Y);
                     } else {
-                       const Real Lon                = LonElement(IElement);
-                       const Real Lat                = LatElement(IElement);
-                       ScalarElement(L, IElement, K) = Fun(Lon, Lat);
+                       const Real Z                  = ZElement(IElement, K);
+                       ScalarElement(L, IElement, K) = Fun(X, Y, Z);
                     }
                  });
           });
@@ -217,17 +235,18 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
    const int VMin = 0;
    const int VMax = ScalarElement.extent_int(Array::rank - 1) - 1;
    return setScalar(Fun, ScalarElement, Geom, Mesh, Element, VMin, VMax,
-                    ExchangeHalosOpt);
+                    nullptr, ExchangeHalosOpt);
 }
 
 enum class CartProjection { Yes, No };
 
 // set vector field on edges based on analytical formula and optionally
 // exchange halos
-template <class Functor, class Array, class VertMin, class VertMax>
+template <class Functor, class Array, class VertMin, class VertMax,
+          class VertArr>
 int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
                   EdgeComponent EdgeComp, Geometry Geom, const HorzMesh *Mesh,
-                  const VertMin &VMin, const VertMax &VMax,
+                  const VertMin &VMin, const VertMax &VMax, VertArr ZCoord,
                   ExchangeHalos ExchangeHalosOpt   = ExchangeHalos::Yes,
                   CartProjection CartProjectionOpt = CartProjection::Yes,
                   SetBoundary SetBndOpt            = SetBoundary::No) {
@@ -255,14 +274,26 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
    const int NEdgesSize = Mesh->NEdgesSize;
    const int NEdgesSet  = Mesh->NEdgesOwned + static_cast<int>(SetBndOpt);
 
-   auto ProjectVector = KOKKOS_LAMBDA(int IEdge) {
+   constexpr bool ZCoordNull = std::is_same_v<VertArr, std::nullptr_t>;
+
+   Array2DReal ZElement;
+   if constexpr (!ZCoordNull) {
+      ZElement = ZCoord;
+   }
+
+   auto ProjectVector = KOKKOS_LAMBDA(int IEdge, int K) {
       Real VecFieldEdge;
       if (Geom == Geometry::Planar) {
          const Real XE = XEdge(IEdge);
          const Real YE = YEdge(IEdge);
 
          Real VecField[2];
-         Fun(VecField, XE, YE);
+         if constexpr (ZCoordNull) {
+            Fun(VecField, XE, YE);
+         } else {
+            const Real ZE = ZElement(IEdge, K);
+            Fun(VecField, XE, YE, ZE);
+         }
 
          if (EdgeComp == EdgeComponent::Normal) {
             const Real EdgeNormalX = std::cos(AngleEdge(IEdge));
@@ -282,7 +313,12 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
          const Real LatE = LatEdge(IEdge);
 
          Real VecField[2];
-         Fun(VecField, LonE, LatE);
+         if constexpr (ZCoordNull) {
+            Fun(VecField, LonE, LatE);
+         } else {
+            const Real ZE = ZElement(IEdge, K);
+            Fun(VecField, LonE, LatE, ZE);
+         }
 
          if (CartProjectionOpt == CartProjection::Yes) {
             Real VecFieldCart[3];
@@ -339,7 +375,7 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
              if (SetBndOpt == SetBoundary::Yes) {
                 IEdge = IEdge == 0 ? (NEdgesSize - 1) : (IEdge - 1);
              }
-             VectorFieldEdge(IEdge) = ProjectVector(IEdge);
+             VectorFieldEdge(IEdge) = ProjectVector(IEdge, 0);
           });
    }
 
@@ -349,13 +385,11 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
              if (SetBndOpt == SetBoundary::Yes) {
                 IEdge = IEdge == 0 ? (NEdgesSize - 1) : (IEdge - 1);
              }
-             const int KMin   = getVertBound(VMin, IEdge);
-             const int KMax   = getVertBound(VMax, IEdge);
-             const int KRange = KMax - KMin + 1;
+             const int KMin = getVertBound(VMin, IEdge);
+             const int KMax = getVertBound(VMax, IEdge);
              parallelForInner(
-                 Team, KRange, INNER_LAMBDA(int KOff) {
-                    const int K               = KMin + KOff;
-                    VectorFieldEdge(IEdge, K) = ProjectVector(IEdge);
+                 Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
+                    VectorFieldEdge(IEdge, K) = ProjectVector(IEdge, K);
                  });
           });
    }
@@ -380,7 +414,7 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
    const int VMin = 0;
    const int VMax = VectorFieldEdge.extent_int(Array::rank - 1) - 1;
    return setVectorEdge(Fun, VectorFieldEdge, EdgeComp, Geom, Mesh, VMin, VMax,
-                        ExchangeHalosOpt, CartProjectionOpt);
+                        nullptr, ExchangeHalosOpt, CartProjectionOpt);
 }
 
 template <class Reducer> Real reduceArray(const Array1DReal &Arr, int Extent0) {
