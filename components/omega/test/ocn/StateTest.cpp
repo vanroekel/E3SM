@@ -104,6 +104,9 @@ void initStateTest() {
    VertMix::init();
 
    // Create tendencies
+   VertMix::init();
+
+   // Create tendencies
    Tendencies::init();
 
    // Finish time stepper initialization
