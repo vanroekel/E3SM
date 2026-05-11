@@ -41,6 +41,7 @@
 #include "TimeMgr.h"
 #include "VertAdv.h"
 #include "VertCoord.h"
+#include "VertMix.h"
 
 #include <functional>
 #include <memory>
@@ -165,6 +166,7 @@ class Tendencies {
               VertAdv *VAdv,           ///< [in] Vertical advection
               PressureGrad *PGrad,     ///< [in] Pressure gradient
               Eos *EqState,            ///< [in] Equation of state
+              VertMix *VMix,           ///< [in] Vertical mixing
               int NTracersIn,          ///< [in] Number of tracers
               TimeInterval TimeStep,   ///< [in] Time step
               Config *Options,         ///< [in] Configuration options
@@ -177,6 +179,18 @@ class Tendencies {
               VertAdv *VAdv,           ///< [in] Vertical advection
               PressureGrad *PGrad,     ///< [in] Pressure gradient
               Eos *EqState,            ///< [in] Equation of state
+              int NTracersIn,          ///< [in] Number of tracers
+              TimeInterval TimeStep,   ///< [in] Time step
+              Config *Options          ///< [in] Configuration options
+   );
+
+   Tendencies(const std::string &Name, ///< [in] Name for tendencies
+              const HorzMesh *Mesh,    ///< [in] Horizontal mesh
+              VertCoord *VCoord,       ///< [in] Vertical coordinate
+              VertAdv *VAdv,           ///< [in] Vertical advection
+              PressureGrad *PGrad,     ///< [in] Pressure gradient
+              Eos *EqState,            ///< [in] Equation of state
+              VertMix *VMix,           ///< [in] Vertical mixing
               int NTracersIn,          ///< [in] Number of tracers
               TimeInterval TimeStep,   ///< [in] Time step
               Config *Options          ///< [in] Configuration options
@@ -195,6 +209,7 @@ class Tendencies {
    CustomTendencyType CustomVelocityTend;
    Eos *EqState;          ///< Pointer to equation of state
    PressureGrad *PGrad;   ///< Pointer to pressure gradient
+   VertMix *VMix;         ///< Pointer to vertical mixing
    I4 NTracers;           ///< Number of tracers
    TimeInterval TimeStep; ///< Time step
 
