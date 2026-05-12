@@ -43,12 +43,12 @@ VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
     : ComputeVertMixConv(VCoord), ComputeVertMixShear(VCoord),
       ComputeGradRichardsonNum(Mesh, VCoord), ComputeOneTwoOneFilter(VCoord),
       Name(Name), Mesh(Mesh), VCoord(VCoord) {
-   VertDiff = Array2DReal("VertDiff", Mesh->NCellsAll, VCoord->NVertLayers);
-   VertVisc = Array2DReal("VertVisc", Mesh->NCellsAll, VCoord->NVertLayers);
+   VertDiff = Array2DReal("VertDiff", Mesh->NCellsSize, VCoord->NVertLayers);
+   VertVisc = Array2DReal("VertVisc", Mesh->NCellsSize, VCoord->NVertLayers);
    GradRichNum =
-       Array2DReal("GradRichNum", Mesh->NCellsAll, VCoord->NVertLayers);
-   GradRichNumSmoothed =
-       Array2DReal("GradRichNumSmoothed", Mesh->NCellsAll, VCoord->NVertLayers);
+       Array2DReal("GradRichNum", Mesh->NCellsSize, VCoord->NVertLayers);
+   GradRichNumSmoothed = Array2DReal("GradRichNumSmoothed", Mesh->NCellsSize,
+                                     VCoord->NVertLayers);
 
    defineFields();
 }
