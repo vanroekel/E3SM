@@ -681,6 +681,26 @@
 					description="Flag for Langmuir enchancement factor using prognostic waves. Requires config_use_active_wave = .true."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_cvmix_kpp_use_ice_damping" type="logical" default_value=".false."
+					description="Flag to apply ice-damping to KPP diffusivity under sea ice following Tseng and Wang (2026, JGR-Oceans)"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_cvmix_kpp_ice_damping_viscosity" type="logical" default_value=".false."
+					description="Flag to also apply ice-damping to KPP viscosity (requires config_cvmix_kpp_use_ice_damping = .true.)"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_cvmix_kpp_ice_damping_threshold" type="real" default_value="0.1" units="unitless"
+					description="Ice fraction threshold above which to apply ice damping to KPP diffusivity/viscosity"
+					possible_values="Any value between 0.0 and 1.0, typically 0.1"
+		/>
+		<nml_option name="config_cvmix_kpp_ice_damping_coeff1" type="real" default_value="1.075" units="unitless"
+					description="First coefficient in ice damping exponential: (1 - coeff1*exp(-coeff2*depth))"
+					possible_values="Any positive real value, typically near 1.0"
+		/>
+		<nml_option name="config_cvmix_kpp_ice_damping_coeff2" type="real" default_value="0.015" units="m^-1"
+					description="Second coefficient (depth scale) in ice damping exponential: (1 - coeff1*exp(-coeff2*depth))"
+					possible_values="Any positive real value, typically 0.01-0.02 m^-1"
+		/>
 	</nml_record>
 	<nml_record name="wave_coupling" mode="forward">
 		<nml_option name="config_use_active_wave" type="logical" default_value=".false."

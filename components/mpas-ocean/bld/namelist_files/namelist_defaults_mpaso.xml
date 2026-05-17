@@ -362,6 +362,11 @@
 <config_cvmix_kpp_langmuir_entrainment_opt ocn_grid="RRSwISC6to18E3r5">'LWF16'</config_cvmix_kpp_langmuir_entrainment_opt>
 <config_cvmix_kpp_langmuir_entrainment_opt ocn_grid="SOwISC12to30E3r3">'LWF16'</config_cvmix_kpp_langmuir_entrainment_opt>
 <config_cvmix_kpp_use_active_wave>.false.</config_cvmix_kpp_use_active_wave>
+<config_cvmix_kpp_use_ice_damping>.false.</config_cvmix_kpp_use_ice_damping>
+<config_cvmix_kpp_ice_damping_viscosity>.false.</config_cvmix_kpp_ice_damping_viscosity>
+<config_cvmix_kpp_ice_damping_threshold>0.1</config_cvmix_kpp_ice_damping_threshold>
+<config_cvmix_kpp_ice_damping_coeff1>1.075</config_cvmix_kpp_ice_damping_coeff1>
+<config_cvmix_kpp_ice_damping_coeff2>0.015</config_cvmix_kpp_ice_damping_coeff2>
 
 <!-- wave_coupling -->
 <config_use_active_wave>.false.</config_use_active_wave>

@@ -165,6 +165,7 @@ contains
       real (kind=RKIND) :: x, bulkRichardsonNumberStop, sfc_layer_depth
       real (kind=RKIND) :: normalVelocityAv, delU2, areaSum, blTemp,tangentialVelocityAv
       real (kind=RKIND) :: sigma
+      real (kind=RKIND) :: iceDampingFactor, depthAtInterface, backgroundDiffAtInterface, backgroundViscAtInterface
       real (kind=RKIND), dimension(:), allocatable :: Nsqr_iface, turbulentScalarVelocityScale, &
                                                       deltaVelocitySquared, normalVelocitySum, &
                                                       potentialDensitySum, RiTemp,              &
@@ -771,6 +772,51 @@ contains
                 vertViscTopOfCell(k, iCell) = cvmix_variables % Mdiff_iface(k)
                 vertDiffTopOfCell(k, iCell) = cvmix_variables % Tdiff_iface(k)
             end do
+
+            ! Apply ice damping to KPP diffusivity (and optionally viscosity) under sea ice
+            ! Equation 2 from Tseng and Wang (2026, JGR-Oceans, doi:10.1029/2025JC023767)
+            if (config_cvmix_kpp_use_ice_damping .and. &
+                iceFraction(iCell) .gt. config_cvmix_kpp_ice_damping_threshold) then
+               
+               do k = minLevelCell(iCell), maxLevelCell(iCell) + 1
+                  ! Get depth at interface (positive value in meters)
+                  depthAtInterface = abs(cvmix_variables % zw_iface(k))
+                  
+                  ! Compute damping factor: (1 - 1.075 * exp(-0.015 * depth))
+                  iceDampingFactor = 1.0_RKIND - config_cvmix_kpp_ice_damping_coeff1 * &
+                                     exp(-config_cvmix_kpp_ice_damping_coeff2 * depthAtInterface)
+                  
+                  ! Get background diffusivity/viscosity at this interface
+                  if (cvmixBackgroundChoice == cvmixBackgroundTypeConstant .or. &
+                      cvmixBackgroundChoice == cvmixBackgroundTypeLatDep) then
+                     backgroundDiffAtInterface = config_cvmix_background_diffusion
+                     backgroundViscAtInterface = config_cvmix_background_viscosity
+                  else if (cvmixBackgroundChoice == cvmixBackgroundTypeBryanLewis) then
+                     ! Bryan-Lewis background at this depth (Bryan and Lewis 1979, Girones et al 2012)
+                     x = (depthAtInterface - config_cvmix_BryanLewis_transitionDepth) / &
+                         config_cvmix_BryanLewis_transitionWidth
+                     backgroundDiffAtInterface = config_cvmix_BryanLewis_bl1 + &
+                         (config_cvmix_BryanLewis_bl2/2.0_RKIND)*(sign(1.0_RKIND, x)*(0.596227_RKIND* &
+                         abs(x)+x**2)/(1.0_RKIND+1.192454_RKIND*abs(x)+x**2))
+                     backgroundViscAtInterface = config_cvmix_prandtl_number * backgroundDiffAtInterface
+                  else
+                     backgroundDiffAtInterface = 0.0_RKIND
+                     backgroundViscAtInterface = 0.0_RKIND
+                  end if
+                  
+                  ! Apply damping to diffusivity: VDC = max(VDC_KPP * dampingFactor, VDC_background)
+                  vertDiffTopOfCell(k, iCell) = max( &
+                      vertDiffTopOfCell(k, iCell) * iceDampingFactor, &
+                      backgroundDiffAtInterface)
+                  
+                  ! Apply damping to viscosity if requested
+                  if (config_cvmix_kpp_ice_damping_viscosity) then
+                     vertViscTopOfCell(k, iCell) = max( &
+                         vertViscTopOfCell(k, iCell) * iceDampingFactor, &
+                         backgroundViscAtInterface)
+                  end if
+               end do
+            endif
 
             ! store non-local flux terms
             ! these flux terms must be multiplied by the surfaceTracerFlux field
