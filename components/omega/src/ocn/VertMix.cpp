@@ -16,8 +16,8 @@
 #include "GlobalConstants.h"
 #include "HorzMesh.h"
 #include "HorzOperators.h"
-#include "TriDiagSolvers.h"
 #include "TimeStepper.h"
+#include "TriDiagSolvers.h"
 
 namespace OMEGA {
 
@@ -51,8 +51,7 @@ VelVertMixSetupOnEdge::VelVertMixSetupOnEdge(const HorzMesh *Mesh,
 TracerVertMixSetupOnCell::TracerVertMixSetupOnCell(const HorzMesh *Mesh,
                                                    const VertCoord *VCoord)
     : Enabled(false), LocRhoSw(RhoSw), NVertLayers(VCoord->NVertLayers),
-      MinLayerCell(VCoord->MinLayerCell),
-      MaxLayerCell(VCoord->MaxLayerCell) {}
+      MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
 
 /// Constructor for VertMix
 VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
@@ -70,9 +69,9 @@ VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
    GradRichNumSmoothed = Array2DReal("GradRichNumSmoothed", Mesh->NCellsSize,
                                      VCoord->NVertLayersP1);
 
-   //TODO: Temporary handling of TangentialVelocity
-   TangentialVelocity = Array2DReal("TangentialVelocity", Mesh->NEdgesSize,
-                                    VCoord->NVertLayers);
+   // TODO: Temporary handling of TangentialVelocity
+   TangentialVelocity =
+       Array2DReal("TangentialVelocity", Mesh->NEdgesSize, VCoord->NVertLayers);
 
    defineFields();
 }
@@ -538,7 +537,6 @@ void VertMix::defineFields() {
 
 } // end defineIOFields
 
-
 // Dpply implicit velocity vertical mixing
 void VertMix::applyVelVertMixImplicit(
     OceanState *State,              ///< [in] State variables
@@ -552,7 +550,8 @@ void VertMix::applyVelVertMixImplicit(
    OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
    OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
 
-   const Array2DReal &NormalVelEdge = State->NormalVelocity[VelTimeLevel];
+   const Array2DReal &NormalVelEdge  = State->NormalVelocity[VelTimeLevel];
+   const Array2DReal &LayerThickCell = State->LayerThickness[ThickTimeLevel];
 
    // Compute velocity vertical mixing
    if (LocVelVertMixSetup.Enabled) {
@@ -577,8 +576,6 @@ void VertMix::applyVelVertMixImplicit(
 
          const auto &SpecVol  = EosInstance->SpecVol;
          const auto &VertVisc = VertMixInstance->VertVisc;
-         const auto &LayerThickEdge =
-             AuxState->LayerThicknessAux.MeanLayerThickEdge;
 
          const I4 NVertLayers = VCoord->NVertLayers;
          TeamPolicy Policy =
@@ -604,7 +601,7 @@ void VertMix::applyVelVertMixImplicit(
 
                           Real G, H, X;
                           LocVelVertMixSetup(IEdge, K, DT, SpecVol,
-                                             LayerThickEdge, VertVisc,
+                                             LayerThickCell, VertVisc,
                                              NormalVelEdge, G, H, X);
                           Scratch.G(K, IVec) = G;
                           Scratch.H(K, IVec) = H;
@@ -733,9 +730,9 @@ void VertMix::applyTracerVertMixImplicit(
 } // end all tendency compute
 
 /// Apply implicit vertical mixing to velocities and tracers
-void VertMix::applyVertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
-                                   Array3DReal &TracerArray, int NTracers,
-                                   int TimeLevel) {
+void VertMix::VertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
+                              Array3DReal &TracerArray, int NTracers,
+                              int TimeLevel) {
 
    // get NormalVelocity
    Array2DReal NormalVelEdge = State->getNormalVelocity(TimeLevel);
@@ -751,6 +748,9 @@ void VertMix::applyVertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
    const auto AbsSalinity =
        Kokkos::subview(TracerArray, AbsSalinityIdx, Kokkos::ALL, Kokkos::ALL);
 
+   // get an instance of equation of state
+   Eos *EqState = Eos::getInstance();
+
    // TODO: Temporary handling of computation of tangential velocity
    // Compute tangential velocity
    OMEGA_SCOPE(MinLayerEdgeTop, VCoord->MinLayerEdgeTop);
@@ -759,8 +759,8 @@ void VertMix::applyVertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
 
    TangentialReconOnEdge TanReconEdge(Mesh);
 
-   parallelForOuter({Mesh->NEdgesAll},
-       KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
+   parallelForOuter(
+       {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
           const int KMin   = MinLayerEdgeTop(IEdge);
           const int KMax   = MaxLayerEdgeBot(IEdge);
           const int KRange = vertRangeChunked(KMin, KMax);
@@ -771,27 +771,23 @@ void VertMix::applyVertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
               });
        });
 
-
    // Update Pressure, SpecVol
-   AuxState->computeMomVertAux(State, TracerArray, TimeLevel,
-                               TimeLevel);
+   AuxState->computeMomVertAux(State, TracerArray, TimeLevel, TimeLevel);
 
    // Compute Brunt-Vaisala frequency squared
-   Eos *EqState = Eos::getInstance();
-   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity,
-                                      VCoord->PressureInterface,
-                                      EqState->SpecVol);
+   EqState->computeBruntVaisalaFreqSq(
+       ConservTemp, AbsSalinity, VCoord->PressureInterface, EqState->SpecVol);
 
    // Compute vertical mixing coefficients
-   computeVertMix(NormalVelEdge, TangentialVelocity,
+   computeVertMix(NormalVelEdge, LocTangentialVelocity,
                   EqState->BruntVaisalaFreqSq);
 
    // Apply implicit mixing to velocities
    applyVelVertMixImplicit(State, AuxState, TimeLevel, TimeLevel);
 
    // Apply implicit mixing to tracers
-   applyTracerVertMixImplicit(State, AuxState, TracerArray, NTracers,
-                              TimeLevel, TimeLevel);
+   applyTracerVertMixImplicit(State, AuxState, TracerArray, NTracers, TimeLevel,
+                              TimeLevel);
 }
 
 } // namespace OMEGA
