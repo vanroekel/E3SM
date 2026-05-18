@@ -142,6 +142,7 @@ class GradRichardsonNum {
       for (int J = 0; J < NEdgesOnCell(ICell); ++J) {
          I4 JEdge = EdgesOnCell(ICell, J);
          I4 JCell = CellsOnCell(ICell, J);
+
          for (int KVec = 0; KVec < KLen; ++KVec) {
             const I4 K = KStart + KVec;
             I4 K1      = K - 1;
@@ -158,6 +159,11 @@ class GradRichardsonNum {
                K1 = K - 2;
                K2 = K - 1;
             }
+
+            // Skip this edge contribution if it would access
+            // invalid edge velocity levels.
+            if (K1 > MaxLayerEdgeBot(JEdge) || K2 > MaxLayerEdgeBot(JEdge))
+               continue;
 
             Real DNormVel =
                 NormalVelocity(JEdge, K1) - NormalVelocity(JEdge, K2);
@@ -195,6 +201,7 @@ class GradRichardsonNum {
    Array1DI4 MaxLayerCell;
    Array1DI4 MinLayerEdgeBot;
    Array1DI4 MaxLayerEdgeTop;
+   Array1DI4 MaxLayerEdgeBot;
    Array1DReal DcEdge;
    Array1DReal DvEdge;
    I4 NVertLayers;

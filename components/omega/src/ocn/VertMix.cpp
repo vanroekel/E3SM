@@ -29,7 +29,8 @@ GradRichardsonNum::GradRichardsonNum(const HorzMesh *Mesh,
       CellsOnCell(Mesh->CellsOnCell), MinLayerCell(VCoord->MinLayerCell),
       MaxLayerCell(VCoord->MaxLayerCell),
       MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
-      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop), DcEdge(Mesh->DcEdge),
+      MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop),
+      MaxLayerEdgeBot(VCoord->MaxLayerEdgeBot), DcEdge(Mesh->DcEdge),
       DvEdge(Mesh->DvEdge) {}
 
 OneTwoOneFilter::OneTwoOneFilter(const VertCoord *VCoord)

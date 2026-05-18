@@ -107,11 +107,13 @@ void testGradRichNum() {
    /// Get mesh and coordinate info
    const auto Mesh     = HorzMesh::getDefault();
    const auto VCoord   = VertCoord::getDefault();
+   auto *MeshHalo      = Halo::getDefault();
    VCoord->NVertLayers = NVertLayers;
    I4 NCellsSize       = Mesh->NCellsSize;
    I4 NEdgesAll        = Mesh->NEdgesAll;
    OMEGA_SCOPE(ZMid, VCoord->ZMid);
    OMEGA_SCOPE(NEdgesOnCell, Mesh->NEdgesOnCell);
+   OMEGA_SCOPE(EdgesOnCell, Mesh->EdgesOnCell);
    OMEGA_SCOPE(AreaCell, Mesh->AreaCell);
    OMEGA_SCOPE(DcEdge, Mesh->DcEdge);
    OMEGA_SCOPE(DvEdge, Mesh->DvEdge);
@@ -142,11 +144,26 @@ void testGradRichNum() {
           AreaCell(ICell)     = 3.6e10_Real;
        });
 
+   // Also test guard is working for skipping layer edge contribution
+   // if it would access invalid edge velocity levels
    parallelFor(
        "setMinMax", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
           MinLayerCell(ICell) = 0;
-          MaxLayerCell(ICell) = NVertLayers - 1;
+          if (ICell % 2 == 0) {
+             MaxLayerCell(ICell) = 10;
+          } else {
+             MaxLayerCell(ICell) = NVertLayers - 2;
+          }
        });
+
+   // Refresh edge layer ranges after overriding MaxLayerCell.
+   VCoord->minMaxLayerEdge(MeshHalo);
+
+   // Rebind GradRichardsonNum so the functor captures refreshed edge ranges.
+   TestVertMix->ComputeGradRichardsonNum = GradRichardsonNum(Mesh, VCoord);
+
+   // Recapture after minMaxLayerEdge since it reallocates edge layer views.
+   OMEGA_SCOPE(MaxLayerEdgeBot, VCoord->MaxLayerEdgeBot);
 
    // filling CellsOnCell with simple mapping for this test
    parallelFor(
@@ -161,19 +178,23 @@ void testGradRichNum() {
    parallelFor(
        "populateArrays", {NEdgesAll, NVertLayers},
        KOKKOS_LAMBDA(I4 IEdge, I4 K) {
-          NormalVelEdge(IEdge, K) = NormalVelEdge(IEdge, K) + 0.5 * K;
-          TangVelEdge(IEdge, K)   = TangVelEdge(IEdge, K) + 0.5 * K;
-          DcEdge(IEdge)           = 2.0e5_Real;
-          DvEdge(IEdge)           = 1.45e5_Real;
+          if (K > MaxLayerEdgeBot(IEdge)) {
+             NormalVelEdge(IEdge, K) =
+                 -9.99e30; // Fill value to cause failure if used
+             TangVelEdge(IEdge, K) =
+                 -9.99e30; // Fill value to cause failure if used
+          } else {
+             NormalVelEdge(IEdge, K) = NormalVelEdge(IEdge, K) + 0.5 * K;
+             TangVelEdge(IEdge, K)   = TangVelEdge(IEdge, K) + 0.5 * K;
+          }
+          DcEdge(IEdge) = 2.0e5_Real;
+          DvEdge(IEdge) = 1.45e5_Real;
        });
 
    /// Compute gradient Richardson number
    TestVertMix->ComputeVertMixShear.Enabled = true;
    TestVertMix->computeVertMix(NormalVelEdge, TangVelEdge,
                                BruntVaisalaFreqSqCell);
-
-   // const auto &MinLayerCell = VCoord->MinLayerCell;
-   // const auto &MaxLayerCell = VCoord->MaxLayerCell;
 
    /// Check all array values against expected value
    int NumMismatches = 0;
@@ -189,8 +210,39 @@ void testGradRichNum() {
               Team, KRange,
               INNER_LAMBDA(int KOff, int &InnerCount) {
                  const int K = KMin + KOff;
-                 if (!isApprox(GradRichNum(ICell, K), RiExpValue, RTol))
-                    InnerCount++;
+
+                 // Match the production K1/K2 logic to determine whether
+                 // this layer has any valid edge contributions.
+                 I4 K1 = K - 1;
+                 I4 K2 = K;
+                 if (K == MinLayerCell(ICell)) {
+                    K1 = K;
+                    K2 = K + 1;
+                 }
+                 if (K == MaxLayerCell(ICell)) {
+                    K1 = K - 2;
+                    K2 = K - 1;
+                 }
+
+                 bool HasValidEdge = false;
+                 for (int J = 0; J < NEdgesOnCell(ICell); ++J) {
+                    const I4 JEdge = EdgesOnCell(ICell, J);
+                    if (K1 <= MaxLayerEdgeBot(JEdge) &&
+                        K2 <= MaxLayerEdgeBot(JEdge)) {
+                       HasValidEdge = true;
+                       break;
+                    }
+                 }
+
+                 if (HasValidEdge) {
+                    if (!isApprox(GradRichNum(ICell, K), RiExpValue, RTol))
+                       InnerCount++;
+                 } else {
+                    // With all edges skipped, GradRichNum remains at sentinel
+                    // scale (~1e14) from initialization in the functor.
+                    if (!(GradRichNum(ICell, K) > 1.0e10_Real))
+                       InnerCount++;
+                 }
               },
               NumMismatchesCol);
 
@@ -251,11 +303,12 @@ void testOneTwoOneFilter() {
        });
 
    // Apply the 1-2-1 filter to each cell
+   OMEGA_SCOPE(ComputeOneTwoOneFilter, TestVertMix->ComputeOneTwoOneFilter);
    parallelFor(
        "ApplyOneTwoOneFilter", {Mesh->NCellsAll, NChunks},
        KOKKOS_LAMBDA(I4 ICell, I4 KChunk) {
-          TestVertMix->ComputeOneTwoOneFilter(GradRichNumSmoothed, ICell,
-                                              KChunk, GradRichNum);
+          ComputeOneTwoOneFilter(GradRichNumSmoothed, ICell, KChunk,
+                                 GradRichNum);
        });
 
    /// Check all array values against expected value
@@ -470,11 +523,12 @@ void testConvVertMix() {
        });
 
    /// Compute only convective vertical viscosity and diffusivity
+   OMEGA_SCOPE(ComputeVertMixConv, TestVertMix->ComputeVertMixConv);
    parallelFor(
        "ApplyVertMixConv", {Mesh->NCellsAll, NChunks},
        KOKKOS_LAMBDA(I4 ICell, I4 KChunk) {
-          TestVertMix->ComputeVertMixConv(VertDiffOut, VertViscOut, ICell,
-                                          KChunk, BruntVaisalaFreqSqIn);
+          ComputeVertMixConv(VertDiffOut, VertViscOut, ICell, KChunk,
+                             BruntVaisalaFreqSqIn);
        });
 
    const auto &MinLayerCell = VCoord->MinLayerCell;
@@ -599,12 +653,13 @@ void testShearVertMix() {
        });
 
    /// Compute only shear vertical viscosity and diffusivity
-   TestVertMix->ComputeVertMixShear.ShearExponent = 3.0;
+   OMEGA_SCOPE(ComputeVertMixShear, TestVertMix->ComputeVertMixShear);
+   ComputeVertMixShear.ShearExponent = 3.0;
    parallelFor(
        "ApplyVertMixShear", {Mesh->NCellsAll, NChunks},
        KOKKOS_LAMBDA(I4 ICell, I4 KChunk) {
-          TestVertMix->ComputeVertMixShear(VertDiffOut, VertViscOut, ICell,
-                                           KChunk, GradRichNumSmoothedIn);
+          ComputeVertMixShear(VertDiffOut, VertViscOut, ICell, KChunk,
+                              GradRichNumSmoothedIn);
        });
 
    const auto &MinLayerCell = VCoord->MinLayerCell;
