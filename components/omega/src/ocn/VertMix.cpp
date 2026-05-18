@@ -584,8 +584,8 @@ void VertMix::applyVelVertMixImplicit(
          Kokkos::parallel_for(
              Policy, KOKKOS_LAMBDA(const TeamMember &Team) {
                 const int IStart = Team.league_rank() * VecLength;
-                const int ILen =
-                    Kokkos::max(0, Kokkos::min(VecLength, LocNEdgesAll - IStart));
+                const int ILen   = Kokkos::max(
+                    0, Kokkos::min(VecLength, LocNEdgesAll - IStart));
 
                 TriDiagDiffScratch Scratch(Team, NVertLayers);
 
@@ -603,8 +603,9 @@ void VertMix::applyVelVertMixImplicit(
                           }
 
                           Real G, H, X;
-                          LocVelVertMixSetup(IEdge, K, DT, SpecVol, LayerThickCell,
-                                             VertVisc, NormalVelEdge, G, H, X);
+                          LocVelVertMixSetup(IEdge, K, DT, SpecVol,
+                                             LayerThickCell, VertVisc,
+                                             NormalVelEdge, G, H, X);
 
                           Scratch.G(K, IVec) = G;
                           Scratch.H(K, IVec) = H;
@@ -630,7 +631,6 @@ void VertMix::applyVelVertMixImplicit(
                        }
                     });
              });
-
       }
       Pacer::stop("Tend:velocityVertMix", 1);
    }
@@ -684,8 +684,8 @@ void VertMix::applyTracerVertMixImplicit(
             Kokkos::parallel_for(
                 Policy, KOKKOS_LAMBDA(const TeamMember &Team) {
                    const int IStart = Team.league_rank() * VecLength;
-                   const int ILen =
-                       Kokkos::max(0, Kokkos::min(VecLength, LocNCellsAll - IStart));
+                   const int ILen   = Kokkos::max(
+                       0, Kokkos::min(VecLength, LocNCellsAll - IStart));
 
                    TriDiagDiffScratch Scratch(Team, NVertLayers);
 
