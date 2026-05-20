@@ -346,7 +346,9 @@ int testThickFluxDiv(int NVertLayers, Real RTol) {
                                  NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return -Setup.divergence(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return -Setup.divergence(X, Y);
+       },
        ExactThickFluxDiv, Geom, Mesh, OnCell, ExchangeHalos::No);
 
    // Set input array
@@ -357,7 +359,7 @@ int testThickFluxDiv(int NVertLayers, Real RTol) {
    deepCopy(OnesEdge, 1);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.vectorX(X, Y);
           VecField[1] = Setup.vectorY(X, Y);
        },
@@ -402,7 +404,7 @@ int testPotVortHAdv(int NVertLayers, Real RTol) {
                                 NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = (Setup.normRelVort(X, Y) + Setup.normPlanetVort(X, Y)) *
                         Setup.pseudoThick(X, Y) * Setup.vectorX(X, Y);
           VecField[1] = (Setup.normRelVort(X, Y) + Setup.normPlanetVort(X, Y)) *
@@ -416,26 +418,32 @@ int testPotVortHAdv(int NVertLayers, Real RTol) {
                                NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.normRelVort(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) {
+          return Setup.normRelVort(X, Y);
+       },
        NormRelVortEdge, Geom, Mesh, OnEdge);
 
    Array2DReal NormPlanetVortEdge("NormPlanetVortEdge", Mesh->NEdgesSize,
                                   NVertLayers);
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.normPlanetVort(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) {
+          return Setup.normPlanetVort(X, Y);
+       },
        NormPlanetVortEdge, Geom, Mesh, OnEdge);
 
    Array2DReal PseudoThickEdge("PseudoThickEdge", Mesh->NEdgesSize,
                                NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.pseudoThick(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) {
+          return Setup.pseudoThick(X, Y);
+       },
        PseudoThickEdge, Geom, Mesh, OnEdge);
 
    Array2DReal NormVelEdge("NormVelEdge", Mesh->NEdgesSize, NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.vectorX(X, Y);
           VecField[1] = Setup.vectorY(X, Y);
        },
@@ -479,7 +487,7 @@ int testKEGrad(int NVertLayers, Real RTol) {
    Array2DReal ExactKEGrad("ExactKEGrad", Mesh->NEdgesOwned, NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = -Setup.gradX(X, Y);
           VecField[1] = -Setup.gradY(X, Y);
        },
@@ -489,8 +497,8 @@ int testKEGrad(int NVertLayers, Real RTol) {
    Array2DReal KECell("KECell", Mesh->NCellsSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalar(X, Y); }, KECell,
-       Geom, Mesh, OnCell);
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) { return Setup.scalar(X, Y); },
+       KECell, Geom, Mesh, OnCell);
 
    // Compute numerical result
    Array2DReal NumKEGrad("NumKEGrad", Mesh->NEdgesOwned, NVertLayers);
@@ -528,7 +536,7 @@ int testSSHGrad(int NVertLayers, Real RTol) {
    Array2DReal ExactSSHGrad("ExactSSHGrad", Mesh->NEdgesOwned, NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = -Gravity * Setup.gradX(X, Y);
           VecField[1] = -Gravity * Setup.gradY(X, Y);
        },
@@ -537,8 +545,8 @@ int testSSHGrad(int NVertLayers, Real RTol) {
    Array1DReal SSHCell("SSHCell", Mesh->NCellsSize);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalar(X, Y); }, SSHCell,
-       Geom, Mesh, OnCell);
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) { return Setup.scalar(X, Y); },
+       SSHCell, Geom, Mesh, OnCell);
 
    // Compute numerical result
    Array2DReal NumSSHGrad("NumSSHGrad", Mesh->NEdgesOwned, NVertLayers);
@@ -584,7 +592,7 @@ int testVelDiff(int NVertLayers, Real RTol) {
    Array2DReal ExactVelDiff("ExactVelDiff", Mesh->NEdgesOwned, NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = ViscDel2 * Setup.laplaceVecX(X, Y);
           VecField[1] = ViscDel2 * Setup.laplaceVecY(X, Y);
        },
@@ -594,14 +602,16 @@ int testVelDiff(int NVertLayers, Real RTol) {
    Array2DReal DivCell("DivCell", Mesh->NCellsSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.divergence(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.divergence(X, Y);
+       },
        DivCell, Geom, Mesh, OnCell);
 
    Array2DReal RVortVertex("RVortVertex", Mesh->NVerticesSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.curl(X, Y); }, RVortVertex,
-       Geom, Mesh, OnVertex);
+       KOKKOS_LAMBDA(int IVertex, Real X, Real Y) { return Setup.curl(X, Y); },
+       RVortVertex, Geom, Mesh, OnVertex);
 
    // Compute numerical result
    Array2DReal NumVelDiff("NumVelDiff", Mesh->NEdgesOwned, NVertLayers);
@@ -654,7 +664,7 @@ int testVelHyperDiff(int NVertLayers, Real RTol) {
                                  NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = -ViscDel4 * Setup.laplaceVecX(X, Y);
           VecField[1] = -ViscDel4 * Setup.laplaceVecY(X, Y);
        },
@@ -664,14 +674,16 @@ int testVelHyperDiff(int NVertLayers, Real RTol) {
    Array2DReal DivCell("DivCell", Mesh->NCellsSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.divergence(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.divergence(X, Y);
+       },
        DivCell, Geom, Mesh, OnCell);
 
    Array2DReal RVortVertex("RVortVertex", Mesh->NVerticesSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.curl(X, Y); }, RVortVertex,
-       Geom, Mesh, OnVertex);
+       KOKKOS_LAMBDA(int IVertex, Real X, Real Y) { return Setup.curl(X, Y); },
+       RVortVertex, Geom, Mesh, OnVertex);
 
    // Compute numerical result
    Array2DReal NumVelHyperDiff("NumVelHyperDiff", Mesh->NEdgesOwned,
@@ -712,7 +724,7 @@ int testSfcStressForcing(int NVertLayers) {
 
    // Note: this computes surface stress forcing at every layer
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.sfcStressForcingX(X, Y);
           VecField[1] = Setup.sfcStressForcingY(X, Y);
        },
@@ -728,7 +740,7 @@ int testSfcStressForcing(int NVertLayers) {
    Array1DReal NormalStressEdge("NormalStressEdge", Mesh->NEdgesSize);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.vectorX(X, Y);
           VecField[1] = Setup.vectorY(X, Y);
        },
@@ -738,7 +750,7 @@ int testSfcStressForcing(int NVertLayers) {
                                NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalarB(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) { return Setup.scalarB(X, Y); },
        PseudoThickEdge, Geom, Mesh, OnEdge);
 
    // Compute numerical result
@@ -784,7 +796,7 @@ int testBottomDrag(int NVertLayers, Real RTol) {
 
    // Note: this computes bottom drag at every layer
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.bottomDragX(X, Y, Coeff);
           VecField[1] = Setup.bottomDragY(X, Y, Coeff);
        },
@@ -799,7 +811,7 @@ int testBottomDrag(int NVertLayers, Real RTol) {
    Array2DReal NormalVelEdge("NormalVelEdge", Mesh->NEdgesSize, NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.vectorX(X, Y);
           VecField[1] = Setup.vectorY(X, Y);
        },
@@ -808,7 +820,7 @@ int testBottomDrag(int NVertLayers, Real RTol) {
    Array2DReal KECell("KECell", Mesh->NCellsSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) {
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
           return Setup.scalarA(X, Y) * Setup.scalarA(X, Y) / 2;
        },
        KECell, Geom, Mesh, OnCell);
@@ -817,7 +829,7 @@ int testBottomDrag(int NVertLayers, Real RTol) {
                                NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalarB(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) { return Setup.scalarB(X, Y); },
        PseudoThickEdge, Geom, Mesh, OnEdge);
 
    // Compute numerical result
@@ -857,14 +869,16 @@ int testTracerHorzAdvOnCell(int NVertLayers, int NTracers, Real RTol) {
                               NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.tracerFluxDiv(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.tracerFluxDiv(X, Y);
+       },
        ExactTrFluxDiv, Geom, Mesh, OnCell, ExchangeHalos::No);
 
    // Set input arrays
    Array2DReal NormalVelocity("NormalVelocity", Mesh->NEdgesSize, NVertLayers);
 
    Err += setVectorEdge(
-       KOKKOS_LAMBDA(Real(&VecField)[2], Real X, Real Y) {
+       KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real X, Real Y) {
           VecField[0] = Setup.vectorX(X, Y);
           VecField[1] = Setup.vectorY(X, Y);
        },
@@ -874,12 +888,14 @@ int testTracerHorzAdvOnCell(int NVertLayers, int NTracers, Real RTol) {
    Array2DReal ThickEdge("ThickEdh", Mesh->NEdgesSize, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return -Setup.pseudoThick(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return -Setup.pseudoThick(X, Y);
+       },
        TrCell, Geom, Mesh, OnCell);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return 1; }, ThickEdge, Geom, Mesh,
-       OnEdge);
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) { return 1; }, ThickEdge, Geom,
+       Mesh, OnEdge);
 
    // Compute numerical result
    Array3DReal NumTrFluxDiv("NumTrFluxDiv", NTracers, Mesh->NCellsOwned,
@@ -927,7 +943,9 @@ int testTracerDiffOnCell(int NVertLayers, int NTracers, Real RTol) {
                                NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.tracerDiff(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.tracerDiff(X, Y);
+       },
        ExactTracerDiff, Geom, Mesh, OnCell, ExchangeHalos::No);
 
    // Set input arrays
@@ -935,14 +953,14 @@ int testTracerDiffOnCell(int NVertLayers, int NTracers, Real RTol) {
                           NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalarA(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) { return Setup.scalarA(X, Y); },
        TracerCell, Geom, Mesh, OnCell);
 
    Array2DReal PseudoThickEdge("PseudoThickEdge", Mesh->NEdgesSize,
                                NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalarB(X, Y); },
+       KOKKOS_LAMBDA(int IEdge, Real X, Real Y) { return Setup.scalarB(X, Y); },
        PseudoThickEdge, Geom, Mesh, OnEdge);
 
    // Compute numerical result
@@ -985,7 +1003,9 @@ int testTracerHyperDiffOnCell(int NVertLayers, int NTracers, Real RTol) {
                                     Mesh->NCellsOwned, NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return -Setup.tracerHyperDiff(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return -Setup.tracerHyperDiff(X, Y);
+       },
        ExactTracerHyperDiff, Geom, Mesh, OnCell, ExchangeHalos::No);
 
    // Set input arrays
@@ -993,7 +1013,7 @@ int testTracerHyperDiffOnCell(int NVertLayers, int NTracers, Real RTol) {
                           NVertLayers);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalarC(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) { return Setup.scalarC(X, Y); },
        TrDel2Cell, Geom, Mesh, OnCell);
 
    // Compute numerical result
@@ -1069,7 +1089,7 @@ int testSurfaceTracerRestoringOnCell(int NVertLayers, int NTracers, Real RTol) {
       // Set Input Field values. Use a combination of scalarB and vectorX to
       // ensure the full surface tracer restoring logic is exercised.
       Err += setScalar(
-          KOKKOS_LAMBDA(Real X, Real Y) {
+          KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
              return Setup.scalarB(X, Y) + Setup.vectorX(X, Y);
           },
           InputField, Geom, Mesh, OnCell);
@@ -1077,7 +1097,9 @@ int testSurfaceTracerRestoringOnCell(int NVertLayers, int NTracers, Real RTol) {
       // Set TracersOnCell values (use scalarB for simplicity, but could be
       // any field).
       Err += setScalar(
-          KOKKOS_LAMBDA(Real X, Real Y) { return Setup.scalarB(X, Y); },
+          KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+             return Setup.scalarB(X, Y);
+          },
           TracersOnCell, Geom, Mesh, OnCell);
       parallelFor(
           {NTracers, Mesh->NCellsSize, NVertLayers},
