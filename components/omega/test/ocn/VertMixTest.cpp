@@ -105,12 +105,13 @@ void initVertMixTest() {
 
 void testGradRichNum() {
    /// Get mesh and coordinate info
-   const auto Mesh     = HorzMesh::getDefault();
-   const auto VCoord   = VertCoord::getDefault();
-   auto *MeshHalo      = Halo::getDefault();
-   VCoord->NVertLayers = NVertLayers;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NEdgesAll        = Mesh->NEdgesAll;
+   const auto Mesh       = HorzMesh::getDefault();
+   const auto VCoord     = VertCoord::getDefault();
+   auto *MeshHalo        = Halo::getDefault();
+   VCoord->NVertLayers   = NVertLayers;
+   VCoord->NVertLayersP1 = NVertLayersP1;
+   I4 NCellsSize         = Mesh->NCellsSize;
+   I4 NEdgesAll          = Mesh->NEdgesAll;
    OMEGA_SCOPE(ZMid, VCoord->ZMid);
    OMEGA_SCOPE(NEdgesOnCell, Mesh->NEdgesOnCell);
    OMEGA_SCOPE(EdgesOnCell, Mesh->EdgesOnCell);
@@ -129,7 +130,7 @@ void testGradRichNum() {
    auto NormalVelEdge = Array2DReal("NormalVelEdge", NEdgesAll, NVertLayers);
    auto TangVelEdge   = Array2DReal("TangVelEdge", NEdgesAll, NVertLayers);
    auto BruntVaisalaFreqSqCell =
-       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayers);
+       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayersP1);
    /// Use deep copy to initialize results
    deepCopy(NormalVelEdge, NV);
    deepCopy(TangVelEdge, TV);
@@ -204,7 +205,7 @@ void testGradRichNum() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -215,11 +216,8 @@ void testGradRichNum() {
                  // this layer has any valid edge contributions.
                  I4 K1 = K - 1;
                  I4 K2 = K;
-                 if (K == MinLayerCell(ICell)) {
-                    K1 = K;
-                    K2 = K + 1;
-                 }
-                 if (K == MaxLayerCell(ICell)) {
+
+                 if (K == MaxLayerCell(ICell) + 1) {
                     K1 = K - 2;
                     K2 = K - 1;
                  }
@@ -264,11 +262,12 @@ void testGradRichNum() {
 
 void testOneTwoOneFilter() {
    /// Get mesh and coordinate info
-   const auto Mesh     = HorzMesh::getDefault();
-   const auto VCoord   = VertCoord::getDefault();
-   VCoord->NVertLayers = NVertLayers;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NChunks          = VCoord->NVertLayers / VecLength;
+   const auto Mesh       = HorzMesh::getDefault();
+   const auto VCoord     = VertCoord::getDefault();
+   VCoord->NVertLayers   = NVertLayers;
+   VCoord->NVertLayersP1 = NVertLayersP1;
+   I4 NCellsSize         = Mesh->NCellsSize;
+   I4 NChunks            = VCoord->NVertLayers / VecLength;
    OMEGA_SCOPE(ZMid, VCoord->ZMid);
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
@@ -278,8 +277,8 @@ void testOneTwoOneFilter() {
 
    /// Create and fill ocean state arrays
    auto GradRichNumSmoothed =
-       Array2DReal("GradRichNumSmoothed", NCellsSize, NVertLayers);
-   auto GradRichNum = Array2DReal("GradRichNum", NCellsSize, NVertLayers);
+       Array2DReal("GradRichNumSmoothed", NCellsSize, NVertLayersP1);
+   auto GradRichNum = Array2DReal("GradRichNum", NCellsSize, NVertLayersP1);
    /// Use deep copy to initialize results
    deepCopy(GradRichNumSmoothed, 1.0);
    deepCopy(GradRichNum, 1.0);
@@ -287,7 +286,7 @@ void testOneTwoOneFilter() {
    // Populate GradRichNum with alternating +1.0 and -1.0 values in vertical
    // GradRichNumSmoothed should smooth these to 0.0
    parallelFor(
-       "populateArrays", {Mesh->NCellsAll, NVertLayers},
+       "populateArrays", {Mesh->NCellsAll, NVertLayersP1},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
           if (K % 2 == 0) {
              GradRichNum(ICell, K) = 1.0;
@@ -318,19 +317,19 @@ void testOneTwoOneFilter() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
               INNER_LAMBDA(int KOff, int &InnerCount) {
                  const int K = KMin + KOff;
-                 if (K > MinLayerCell(ICell) && K < MaxLayerCell(ICell) - 1) {
+                 if (K > MinLayerCell(ICell) && K < MaxLayerCell(ICell)) {
                     // Interior layers should be smoothed to 0.0
                     if (!isApprox(GradRichNumSmoothed(ICell, K), 0.0_Real,
                                   RTol))
                        InnerCount++;
                  } else {
-                    // Boundary layers (K==0 or K==NVertLayers - 1) should be
+                    // Boundary layers (K==0 or K==NVertLayers) should be
                     // the same as input
                     if (!isApprox(GradRichNumSmoothed(ICell, K),
                                   GradRichNum(ICell, K), RTol))
@@ -360,6 +359,7 @@ void testBackVertMix() {
    const auto Mesh     = HorzMesh::getDefault();
    const auto VCoord   = VertCoord::getDefault();
    VCoord->NVertLayers = NVertLayers;
+   VCoord->NVertLayersP1 = NVertLayersP1;
    I4 NCellsSize       = Mesh->NCellsSize;
    I4 NEdgesSize       = Mesh->NEdgesSize;
    I4 NEdgesAll        = Mesh->NEdgesAll;
@@ -372,7 +372,7 @@ void testBackVertMix() {
    auto NormalVelEdge = Array2DReal("NormalVelEdge", NEdgesSize, NVertLayers);
    auto TangVelEdge   = Array2DReal("TangVelEdge", NEdgesSize, NVertLayers);
    auto BruntVaisalaFreqSqCell =
-       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayers);
+       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayersP1);
 
    /// Use deep copy initialize with reference or zero values
    deepCopy(NormalVelEdge, NV);
@@ -413,7 +413,7 @@ void testBackVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -451,7 +451,7 @@ void testBackVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -491,6 +491,7 @@ void testConvVertMix() {
    const auto Mesh     = HorzMesh::getDefault();
    const auto VCoord   = VertCoord::getDefault();
    VCoord->NVertLayers = NVertLayers;
+   VCoord->NVertLayersP1 = NVertLayersP1;
    I4 NCellsSize       = Mesh->NCellsSize;
    I4 NEdgesAll        = Mesh->NEdgesAll;
    OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
@@ -501,9 +502,11 @@ void testConvVertMix() {
 
    /// Create and fill ocean state arrays
    auto BruntVaisalaFreqSqIn =
-       Array2DReal("BruntVaisalaFreqSqIn", NCellsSize, NVertLayers);
-   auto VertDiffOut = Array2DReal("VertDiffOut", Mesh->NCellsAll, NVertLayers);
-   auto VertViscOut = Array2DReal("VertViscOut", Mesh->NCellsAll, NVertLayers);
+       Array2DReal("BruntVaisalaFreqSqIn", NCellsSize, NVertLayersP1);
+   auto VertDiffOut =
+       Array2DReal("VertDiffOut", Mesh->NCellsAll, NVertLayersP1);
+   auto VertViscOut =
+       Array2DReal("VertViscOut", Mesh->NCellsAll, NVertLayersP1);
 
    /// Use deep copy to initialize with the ref value
    deepCopy(BruntVaisalaFreqSqIn, 0.0);
@@ -513,7 +516,7 @@ void testConvVertMix() {
    // Populate arrays: positive BVF in lower half (conv off),
    // negative in upper half (conv on)
    parallelFor(
-       "populateArrays", {Mesh->NCellsAll, NVertLayers},
+       "populateArrays", {Mesh->NCellsAll, NVertLayersP1},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
           if (K < 30) {
              BruntVaisalaFreqSqIn(ICell, K) = -0.2;
@@ -541,7 +544,7 @@ void testConvVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -580,7 +583,7 @@ void testConvVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -617,20 +620,23 @@ void testConvVertMix() {
 
 void testShearVertMix() {
    /// Get mesh and coordinate info
-   const auto Mesh     = HorzMesh::getDefault();
-   const auto VCoord   = VertCoord::getDefault();
-   VCoord->NVertLayers = NVertLayers;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NChunks          = VCoord->NVertLayers / VecLength;
+   const auto Mesh       = HorzMesh::getDefault();
+   const auto VCoord     = VertCoord::getDefault();
+   VCoord->NVertLayers   = NVertLayers;
+   VCoord->NVertLayersP1 = NVertLayersP1;
+   I4 NCellsSize         = Mesh->NCellsSize;
+   I4 NChunks            = VCoord->NVertLayers / VecLength;
 
    /// Get VertMix instance to test
    VertMix *TestVertMix = VertMix::getInstance();
 
    /// Create and fill ocean state arrays
    auto GradRichNumSmoothedIn =
-       Array2DReal("GradRichNumSmoothedIn", NCellsSize, NVertLayers);
-   auto VertDiffOut = Array2DReal("VertDiffOut", Mesh->NCellsAll, NVertLayers);
-   auto VertViscOut = Array2DReal("VertViscOut", Mesh->NCellsAll, NVertLayers);
+       Array2DReal("GradRichNumSmoothedIn", NCellsSize, NVertLayersP1);
+   auto VertDiffOut =
+       Array2DReal("VertDiffOut", Mesh->NCellsAll, NVertLayersP1);
+   auto VertViscOut =
+       Array2DReal("VertViscOut", Mesh->NCellsAll, NVertLayersP1);
 
    /// Use Kokkos::deep_copy to fill the entire view with the ref value
    deepCopy(GradRichNumSmoothedIn, 0.0);
@@ -641,7 +647,7 @@ void testShearVertMix() {
    // positive in middle third (altered shear value), large positive
    // in lower third (no shear)
    parallelFor(
-       "populateArrays", {Mesh->NCellsAll, NVertLayers},
+       "populateArrays", {Mesh->NCellsAll, NVertLayersP1},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
           if (K < 20) {
              GradRichNumSmoothedIn(ICell, K) = -0.2;
@@ -672,7 +678,7 @@ void testShearVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -714,7 +720,7 @@ void testShearVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -758,6 +764,7 @@ void testTotalVertMix() {
    const auto Mesh     = HorzMesh::getDefault();
    const auto VCoord   = VertCoord::getDefault();
    VCoord->NVertLayers = NVertLayers;
+   VCoord->NVertLayersP1 = NVertLayersP1;
    I4 NCellsSize       = Mesh->NCellsSize;
    I4 NEdgesAll        = Mesh->NEdgesAll;
    OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
@@ -774,7 +781,7 @@ void testTotalVertMix() {
    auto NormalVelEdge = Array2DReal("NormalVelEdge", NEdgesAll, NVertLayers);
    auto TangVelEdge   = Array2DReal("TangVelEdge", NEdgesAll, NVertLayers);
    auto BruntVaisalaFreqSqCell =
-       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayers);
+       Array2DReal("BruntVaisalaFreqSqCell", NCellsSize, NVertLayersP1);
 
    /// Use deep copy to initialize with the ref value
    deepCopy(NormalVelEdge, NV);
@@ -836,7 +843,7 @@ void testTotalVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -880,7 +887,7 @@ void testTotalVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -935,7 +942,7 @@ void testTotalVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,
@@ -979,7 +986,7 @@ void testTotalVertMix() {
        KOKKOS_LAMBDA(int ICell, const TeamMember &Team, int &OuterCount) {
           int NumMismatchesCol;
           const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell) + 1;
           const int KRange = vertRange(KMin, KMax);
           parallelReduceInner(
               Team, KRange,

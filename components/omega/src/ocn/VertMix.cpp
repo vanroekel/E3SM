@@ -44,12 +44,12 @@ VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
     : ComputeVertMixConv(VCoord), ComputeVertMixShear(VCoord),
       ComputeGradRichardsonNum(Mesh, VCoord), ComputeOneTwoOneFilter(VCoord),
       Name(Name), Mesh(Mesh), VCoord(VCoord) {
-   VertDiff = Array2DReal("VertDiff", Mesh->NCellsSize, VCoord->NVertLayers);
-   VertVisc = Array2DReal("VertVisc", Mesh->NCellsSize, VCoord->NVertLayers);
+   VertDiff = Array2DReal("VertDiff", Mesh->NCellsSize, VCoord->NVertLayersP1);
+   VertVisc = Array2DReal("VertVisc", Mesh->NCellsSize, VCoord->NVertLayersP1);
    GradRichNum =
-       Array2DReal("GradRichNum", Mesh->NCellsSize, VCoord->NVertLayers);
+       Array2DReal("GradRichNum", Mesh->NCellsSize, VCoord->NVertLayersP1);
    GradRichNumSmoothed = Array2DReal("GradRichNumSmoothed", Mesh->NCellsSize,
-                                     VCoord->NVertLayers);
+                                     VCoord->NVertLayersP1);
 
    defineFields();
 }
@@ -212,7 +212,7 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
       parallelForOuter(
           "VertMix-ComputeRi", {Mesh->NCellsAll},
           KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
-             const int KMin   = MinLayerCell(ICell);
+             const int KMin   = MinLayerCell(ICell) + 1;
              const int KMax   = MaxLayerCell(ICell);
              const int KRange = vertRangeChunked(KMin, KMax);
 
@@ -221,6 +221,19 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                     LocComputeGradRichardsonNum(
                         LocGradRichNum, ICell, KChunk, NormalVelocity,
                         TangentialVelocity, BruntVaisalaFreqSq);
+                 });
+
+             teamBarrier(Team);
+
+             // Fill Richardson number at vertical boundaries using the
+             // closest valid value. This is equivalent to doing one-sided
+             // differencing at the boundary.
+             Kokkos::single(
+                 PerTeam(Team), INNER_LAMBDA() {
+                    LocGradRichNum(ICell, MinLayerCell(ICell)) =
+                        LocGradRichNum(ICell, KMin);
+                    LocGradRichNum(ICell, MaxLayerCell(ICell) + 1) =
+                        LocGradRichNum(ICell, KMax);
                  });
           });
       deepCopy(LocGradRichNumSmoothed, LocGradRichNum);
@@ -246,7 +259,7 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
       parallelForOuter(
           "VertMix-Shear", {Mesh->NCellsAll},
           KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
-             const int KMin   = MinLayerCell(ICell);
+             const int KMin   = MinLayerCell(ICell) + 1;
              const int KMax   = MaxLayerCell(ICell);
              const int KRange = vertRangeChunked(KMin, KMax);
 
@@ -255,13 +268,29 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                     LocComputeVertMixShear(LocVertDiff, LocVertVisc, ICell,
                                            KChunk, LocGradRichNumSmoothed);
                  });
+
+             teamBarrier(Team);
+
+             // Fill vertical diffusivity and viscosity at vertical
+             // boundaries using the closest valid value. This is equivalent
+             // to doing one-sided differencing at the boundary.
+             Kokkos::single(
+                 PerTeam(Team), INNER_LAMBDA() {
+                    LocVertDiff(ICell, MinLayerCell(ICell)) = 0.0_Real;
+                    LocVertVisc(ICell, MinLayerCell(ICell)) = 0.0_Real;
+                    // LocGradRichNum(ICell, KMin);
+                    LocVertDiff(ICell, MaxLayerCell(ICell) + 1) =
+                        LocVertDiff(ICell, KMax);
+                    LocVertVisc(ICell, MaxLayerCell(ICell) + 1) =
+                        LocVertVisc(ICell, KMax);
+                 });
           });
    }
    if (LocComputeVertMixConv.Enabled) {
       parallelForOuter(
           "VertMix-Conv", {Mesh->NCellsAll},
           KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
-             const int KMin   = MinLayerCell(ICell);
+             const int KMin   = MinLayerCell(ICell) + 1;
              const int KMax   = MaxLayerCell(ICell);
              const int KRange = vertRangeChunked(KMin, KMax);
 
@@ -269,6 +298,22 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                  Team, KRange, INNER_LAMBDA(int KChunk) {
                     LocComputeVertMixConv(LocVertDiff, LocVertVisc, ICell,
                                           KChunk, BruntVaisalaFreqSq);
+                 });
+
+             teamBarrier(Team);
+
+             // Fill vertical diffusivity and viscosity at vertical
+             // boundaries using the closest valid value. This is equivalent
+             // to doing one-sided differencing at the boundary.
+             Kokkos::single(
+                 PerTeam(Team), INNER_LAMBDA() {
+                    LocVertDiff(ICell, MinLayerCell(ICell)) = 0.0_Real;
+                    LocVertVisc(ICell, MinLayerCell(ICell)) = 0.0_Real;
+                    // LocGradRichNum(ICell, KMin);
+                    LocVertDiff(ICell, MaxLayerCell(ICell) + 1) =
+                        LocVertDiff(ICell, KMax);
+                    LocVertVisc(ICell, MaxLayerCell(ICell) + 1) =
+                        LocVertVisc(ICell, KMax);
                  });
           });
    }
@@ -299,7 +344,7 @@ void VertMix::defineFields() {
    int NDims            = 2;
    std::vector<std::string> DimNames(NDims);
    DimNames[0] = "NCells";
-   DimNames[1] = "NVertLayers";
+   DimNames[1] = "NVertLayersP1";
 
    /// Create and register the Diffusivity field
    auto VertDiffField =

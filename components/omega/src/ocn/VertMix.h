@@ -38,13 +38,11 @@ class ConvectiveMix {
    operator()(Array2DReal VertDiff, Array2DReal VertVisc, I4 ICell, I4 KChunk,
               const Array2DReal &BruntVaisalaFreqSq) const {
 
-      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell));
+      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell) + 1);
       const I4 KLen   = chunkLength(KChunk, KStart, MaxLayerCell(ICell));
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
-         if (K <= MinLayerCell(ICell) || K >= MaxLayerCell(ICell))
-            continue;
 
          if (BruntVaisalaFreqSq(ICell, K) < ConvTriggerBVF) {
             VertDiff(ICell, K) += ConvDiff;
@@ -77,13 +75,11 @@ class ShearMix {
    operator()(Array2DReal VertDiff, Array2DReal VertVisc, I4 ICell, I4 KChunk,
               const Array2DReal &GradRichNumSmoothed) const {
 
-      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell));
+      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell) + 1);
       const I4 KLen   = chunkLength(KChunk, KStart, MaxLayerCell(ICell));
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
-         if (K <= MinLayerCell(ICell) || K >= MaxLayerCell(ICell))
-            continue;
 
          if (GradRichNumSmoothed(ICell, K) < 0.0_Real) {
             VertDiff(ICell, K) += BaseShearValue;
@@ -128,7 +124,7 @@ class GradRichardsonNum {
               const Array2DReal &TangentialVelocity,
               const Array2DReal &BruntVaisalaFreqSq) const {
 
-      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell));
+      const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell) + 1);
       const I4 KLen   = chunkLength(KChunk, KStart, MaxLayerCell(ICell));
 
       Real GradRichNumNorm[VecLength];
@@ -147,18 +143,6 @@ class GradRichardsonNum {
             const I4 K = KStart + KVec;
             I4 K1      = K - 1;
             I4 K2      = K;
-
-            if (K < MinLayerCell(ICell) || K > MaxLayerCell(ICell))
-               continue;
-
-            if (K == MinLayerCell(ICell)) {
-               K1 = K;
-               K2 = K + 1;
-            }
-            if (K == MaxLayerCell(ICell)) {
-               K1 = K - 2;
-               K2 = K - 1;
-            }
 
             // Skip this edge contribution if it would access
             // invalid edge velocity levels.
@@ -220,11 +204,11 @@ class OneTwoOneFilter {
                                    const Array2DReal &VarIn) const {
 
       const I4 KStart = chunkStart(KChunk, MinLayerCell(ICell));
-      const I4 KLen   = chunkLength(KChunk, KStart, MaxLayerCell(ICell));
+      const I4 KLen   = chunkLength(KChunk, KStart, MaxLayerCell(ICell) + 1);
 
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
-         if (K > MinLayerCell(ICell) && K < MaxLayerCell(ICell) - 1) {
+         if (K > MinLayerCell(ICell) && K < MaxLayerCell(ICell)) {
             // apply 1-2-1 filter
             VarOut(ICell, K) =
                 (VarIn(ICell, K - 1) + 2.0_Real * VarIn(ICell, K) +
