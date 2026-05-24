@@ -520,9 +520,6 @@ class Teos10BruntVaisalaFreqSq {
 /// Linear squared Brunt-Vaisala frequency calculator
 class LinearBruntVaisalaFreqSq {
  public:
-   /// Coefficients from LinearEos (overwritten by config file if set there)
-   Real RhoT0S0 = 1000.0; ///< Reference density (kg m^-3) at (T,S)=(0,0)
-
    /// constructor declaration
    LinearBruntVaisalaFreqSq(const VertCoord *VCoord);
 
@@ -546,7 +543,7 @@ class LinearBruntVaisalaFreqSq {
             /// K-1 and K Do not need to use displaced specific volume here
             /// since only the linear EOS is used with this BVF formulation.
             BruntVaisalaFreqSq(ICell, K) =
-                -(Gravity / RhoT0S0) *
+                -(Gravity / RhoSw) *
                 ((1.0_Real / SpecVol(ICell, K - 1)) -
                  (1.0_Real / SpecVol(ICell, K))) /
                 (GeomZMid(ICell, K - 1) - GeomZMid(ICell, K));

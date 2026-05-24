@@ -28,7 +28,8 @@
 using namespace OMEGA;
 
 /// Test constants and expected values
-constexpr int NVertLayers = 60;
+constexpr int NVertLayers   = 60;
+constexpr int NVertLayersP1 = NVertLayers + 1;
 
 /// Values to test against
 const Real VertDiffExpValueN =
