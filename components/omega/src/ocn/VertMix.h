@@ -81,10 +81,10 @@ class ShearMix {
       for (int KVec = 0; KVec < KLen; ++KVec) {
          const I4 K = KStart + KVec;
 
-         if (GradRichNumSmoothed(ICell, K) < 0.0_Real) {
+         if (GradRichNumSmoothed(ICell, K) <= 0.0_Real) {
             VertDiff(ICell, K) += BaseShearValue;
             VertVisc(ICell, K) += BaseShearValue;
-         } else if (GradRichNumSmoothed(ICell, K) >= 0.0_Real &&
+         } else if (GradRichNumSmoothed(ICell, K) > 0.0_Real &&
                     GradRichNumSmoothed(ICell, K) < ShearRiCrit) {
             VertDiff(ICell, K) +=
                 Kokkos::pow(
@@ -153,8 +153,9 @@ class GradRichardsonNum {
                 NormalVelocity(JEdge, K1) - NormalVelocity(JEdge, K2);
             Real DTanVel =
                 TangentialVelocity(JEdge, K1) - TangentialVelocity(JEdge, K2);
-            Real DzEdge = 0.5_Real * (ZMid(ICell, K1) + ZMid(JCell, K1) -
-                                      (ZMid(ICell, K2) + ZMid(JCell, K2)));
+            Real DzEdge =
+                0.5_Real * (GeomZMid(ICell, K1) + GeomZMid(JCell, K1) -
+                            (GeomZMid(ICell, K2) + GeomZMid(JCell, K2)));
             Real ShearSquared =
                 (DNormVel * DNormVel + DTanVel * DTanVel) / (DzEdge * DzEdge);
             Real RiEdge =
@@ -176,7 +177,7 @@ class GradRichardsonNum {
    }
 
  private:
-   Array2DReal ZMid;
+   Array2DReal GeomZMid;
    Array2DI4 EdgesOnCell;
    Array2DI4 CellsOnCell;
    Array2DI4 CellsOnEdge;

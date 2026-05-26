@@ -24,7 +24,7 @@ ConvectiveMix::ConvectiveMix(const VertCoord *VCoord)
 
 GradRichardsonNum::GradRichardsonNum(const HorzMesh *Mesh,
                                      const VertCoord *VCoord)
-    : NVertLayers(VCoord->NVertLayers), ZMid(VCoord->ZMid),
+    : NVertLayers(VCoord->NVertLayers), GeomZMid(VCoord->GeomZMid),
       NEdgesOnCell(Mesh->NEdgesOnCell), EdgesOnCell(Mesh->EdgesOnCell),
       CellsOnCell(Mesh->CellsOnCell), MinLayerCell(VCoord->MinLayerCell),
       MaxLayerCell(VCoord->MaxLayerCell),
@@ -199,7 +199,7 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                ComputeOneTwoOneFilter); /// Local view for 1-2-1 filter
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
-   OMEGA_SCOPE(NVertLayers, VCoord->NVertLayers);
+   // OMEGA_SCOPE(NVertLayers, VCoord->NVertLayers);
 
    /// Initialize VertDiff and VertVisc to background values
    deepCopy(LocVertDiff, BackDiff);

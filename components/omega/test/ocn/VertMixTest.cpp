@@ -113,14 +113,14 @@ void testGradRichNum() {
    VCoord->NVertLayersP1 = NVertLayersP1;
    I4 NCellsSize         = Mesh->NCellsSize;
    I4 NEdgesAll          = Mesh->NEdgesAll;
-   OMEGA_SCOPE(ZMid, VCoord->ZMid);
+   OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
    OMEGA_SCOPE(NEdgesOnCell, Mesh->NEdgesOnCell);
    OMEGA_SCOPE(EdgesOnCell, Mesh->EdgesOnCell);
    OMEGA_SCOPE(AreaCell, Mesh->AreaCell);
    OMEGA_SCOPE(DcEdge, Mesh->DcEdge);
    OMEGA_SCOPE(DvEdge, Mesh->DvEdge);
    OMEGA_SCOPE(CellsOnCell, Mesh->CellsOnCell);
-   OMEGA_SCOPE(CellsOnEdge, Mesh->CellsOnEdge);
+   // OMEGA_SCOPE(CellsOnEdge, Mesh->CellsOnEdge);
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
 
@@ -141,7 +141,7 @@ void testGradRichNum() {
    parallelFor(
        "populateArrays", {Mesh->NCellsAll, NVertLayers},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          ZMid(ICell, K)      = -K;
+          GeomZMid(ICell, K)  = -K;
           NEdgesOnCell(ICell) = 5;
           AreaCell(ICell)     = 3.6e10_Real;
        });
@@ -269,7 +269,7 @@ void testOneTwoOneFilter() {
    VCoord->NVertLayersP1 = NVertLayersP1;
    I4 NCellsSize         = Mesh->NCellsSize;
    I4 NChunks            = VCoord->NVertLayers / VecLength;
-   OMEGA_SCOPE(ZMid, VCoord->ZMid);
+   // OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
 
@@ -357,13 +357,13 @@ void testOneTwoOneFilter() {
 
 void testBackVertMix() {
    // Get mesh and coordinate info
-   const auto Mesh     = HorzMesh::getDefault();
-   const auto VCoord   = VertCoord::getDefault();
-   VCoord->NVertLayers = NVertLayers;
+   const auto Mesh       = HorzMesh::getDefault();
+   const auto VCoord     = VertCoord::getDefault();
+   VCoord->NVertLayers   = NVertLayers;
    VCoord->NVertLayersP1 = NVertLayersP1;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NEdgesSize       = Mesh->NEdgesSize;
-   I4 NEdgesAll        = Mesh->NEdgesAll;
+   I4 NCellsSize         = Mesh->NCellsSize;
+   I4 NEdgesSize         = Mesh->NEdgesSize;
+   I4 NEdgesAll          = Mesh->NEdgesAll;
    OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
 
    /// Get VertMix instance to test
@@ -489,13 +489,13 @@ void testBackVertMix() {
 
 void testConvVertMix() {
    // Get mesh and coordinate info
-   const auto Mesh     = HorzMesh::getDefault();
-   const auto VCoord   = VertCoord::getDefault();
-   VCoord->NVertLayers = NVertLayers;
+   const auto Mesh       = HorzMesh::getDefault();
+   const auto VCoord     = VertCoord::getDefault();
+   VCoord->NVertLayers   = NVertLayers;
    VCoord->NVertLayersP1 = NVertLayersP1;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NEdgesAll        = Mesh->NEdgesAll;
-   OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
+   I4 NCellsSize         = Mesh->NCellsSize;
+   // I4 NEdgesAll          = Mesh->NEdgesAll;
+   // OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
    I4 NChunks = VCoord->NVertLayers / VecLength;
 
    /// Get VertMix instance to test
@@ -762,12 +762,12 @@ void testShearVertMix() {
 /// Test vertical mixing coefficients calculation for all cells/layers
 void testTotalVertMix() {
    /// Get mesh and coordinate info
-   const auto Mesh     = HorzMesh::getDefault();
-   const auto VCoord   = VertCoord::getDefault();
-   VCoord->NVertLayers = NVertLayers;
+   const auto Mesh       = HorzMesh::getDefault();
+   const auto VCoord     = VertCoord::getDefault();
+   VCoord->NVertLayers   = NVertLayers;
    VCoord->NVertLayersP1 = NVertLayersP1;
-   I4 NCellsSize       = Mesh->NCellsSize;
-   I4 NEdgesAll        = Mesh->NEdgesAll;
+   I4 NCellsSize         = Mesh->NCellsSize;
+   I4 NEdgesAll          = Mesh->NEdgesAll;
    OMEGA_SCOPE(GeomZMid, VCoord->GeomZMid);
    OMEGA_SCOPE(NEdgesOnCell, Mesh->NEdgesOnCell);
    OMEGA_SCOPE(AreaCell, Mesh->AreaCell);
@@ -835,7 +835,7 @@ void testTotalVertMix() {
 
    OMEGA_SCOPE(VertDiffP, TestVertMix->VertDiff);
    OMEGA_SCOPE(VertViscP, TestVertMix->VertVisc);
-   OMEGA_SCOPE(GradRichNumSmoothed, TestVertMix->GradRichNumSmoothed);
+   // OMEGA_SCOPE(GradRichNumSmoothed, TestVertMix->GradRichNumSmoothed);
 
    /// Check all VertDiff array values against expected value
    int NumMismatches = 0;

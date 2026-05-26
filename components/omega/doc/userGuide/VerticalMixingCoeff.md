@@ -50,7 +50,7 @@ This is different than some current implementations (i.e. in MPAS-Ocean and the 
 
 ### 3. Shear-Instability-Driven Mixing
 
-Mixing induced by vertical velocity shear, implemented using the LMD94 scheme, through the gradient Richardson number (ratio of buoyancy to shear).
+Mixing induced by vertical pseudo-velocity shear, implemented using the LMD94 scheme, through the gradient Richardson number (ratio of buoyancy to shear).
 
 $$
 \nu_{shear} = = \kappa_{shear} = =
