@@ -16,9 +16,27 @@ class WindForcingAuxVars {
    Array1DReal NormalStressEdge;
    Array1DReal ZonalStressCell;
    Array1DReal MeridStressCell;
+   Array1DReal TemperaturePistonVelocity;
+   Array1DReal SalinityPistonVelocity;
+   Array1DReal TemperatureSurfaceRestoringValue;
+   Array1DReal SalinitySurfaceRestoringValue;
+   Array2DReal TemperatureInteriorRestoringRate;
+   Array2DReal SalinityInteriorRestoringRate;
+   Array2DReal TemperatureInteriorRestoringValue;
+   Array2DReal SalinityInteriorRestoringValue;
+   Array1DReal LatentHeatFlux;
+   Array1DReal SensibleHeatFlux;
+   Array1DReal ShortWaveHeatFlux;
+   Array1DReal EvaporationFlux;
+   Array1DReal RainFlux;
+   Array1DReal RiverRunoffFlux;
+   Array1DReal IceRunoffFlux;
+   Array1DReal SubglacialRunoffFlux;
+   Array1DReal IcebergFreshWaterFlux;
    InterpCellToEdgeOption InterpChoice;
 
-   WindForcingAuxVars(const std::string &AuxStateSuffix, const HorzMesh *Mesh);
+   WindForcingAuxVars(const std::string &AuxStateSuffix, const HorzMesh *Mesh,
+                      const VertCoord *VCoord = nullptr);
 
    KOKKOS_FUNCTION void computeVarsOnEdge(int IEdge) const {
       const Real ZonalStressEdge = Interp(IEdge, ZonalStressCell, InterpChoice);
