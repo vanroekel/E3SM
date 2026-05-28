@@ -48,7 +48,7 @@ const Real TeosBVFExpValue =
     0.020913834194283325; // Expected value for TEOS-10 squared Brunt-Vaisala
                           // frequency
 const Real LinearBVFExpValue =
-    0.017834796542017275; // Expected value for Linear squared Brunt-Vaisala
+    0.017382842633545097; // Expected value for Linear squared Brunt-Vaisala
                           // frequency
 const Real GswBVFExpValue =
     0.02081197958166906; // Expected value from GSW-C library

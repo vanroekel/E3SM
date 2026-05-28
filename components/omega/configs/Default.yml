@@ -68,6 +68,12 @@ Omega:
     #                     + ThicknessFlux * KPPThicknessFluxToBuoyancyFactor
     KPPHeatFluxToBuoyancyFactor: 4.78e-10
     KPPThicknessFluxToBuoyancyFactor: -2.72e-7
+    ThicknessVertAdvTendencyEnable: true
+    VelocityVertAdvTendencyEnable: true
+    TracerVertAdvTendencyEnable: true
+    PressureGradTendencyEnable: true
+    VelVertMixTendencyEnable: true
+    TracerVertMixTendencyEnable: true
   Tracers:
     Base: [Temperature, Salinity]
     Debug: [Debug1, Debug2, Debug3]
