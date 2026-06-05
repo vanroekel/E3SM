@@ -16,6 +16,7 @@
 #include "GlobalConstants.h"
 #include "HorzMesh.h"
 #include "HorzOperators.h"
+#include "KPPMix.h"
 #include "TimeStepper.h"
 #include "TriDiagSolvers.h"
 
@@ -221,6 +222,16 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                ComputeOneTwoOneFilter); /// Local view for 1-2-1 filter
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
+   const Real LocConvDiff       = LocComputeVertMixConv.ConvDiff;
+   const Real LocConvTriggerBVF = LocComputeVertMixConv.ConvTriggerBVF;
+   Array1DI4 KPPBoundaryLayerIndex("VertMix-KPPBoundaryLayerIndex",
+                                   Mesh->NCellsAll);
+   deepCopy(KPPBoundaryLayerIndex, -1);
+   KPPMix *KPPInstance = KPPMix::getInstance();
+   if (KPPInstance && KPPInstance->Enabled) {
+      deepCopy(KPPBoundaryLayerIndex, KPPInstance->IndexBoundaryLayerDepth);
+   }
+   OMEGA_SCOPE(LocKPPBoundaryLayerIndex, KPPBoundaryLayerIndex);
    // OMEGA_SCOPE(NVertLayers, VCoord->NVertLayers);
 
    /// Initialize VertDiff and VertVisc to background values
@@ -318,8 +329,25 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
 
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
-                    LocComputeVertMixConv(LocVertDiff, LocVertVisc, ICell,
-                                          KChunk, BruntVaisalaFreqSq);
+                    const I4 KStart =
+                        chunkStart(KChunk, MinLayerCell(ICell) + 1);
+                    const I4 KLen =
+                        chunkLength(KChunk, KStart, MaxLayerCell(ICell));
+
+                    for (int KVec = 0; KVec < KLen; ++KVec) {
+                       const I4 K = KStart + KVec;
+
+                       // With KPP enabled, avoid adding convective mixing in
+                       // the diagnosed KPP boundary layer.
+                       if (K <= LocKPPBoundaryLayerIndex(ICell)) {
+                          continue;
+                       }
+
+                       if (BruntVaisalaFreqSq(ICell, K) < LocConvTriggerBVF) {
+                          LocVertDiff(ICell, K) += LocConvDiff;
+                          LocVertVisc(ICell, K) += LocConvDiff;
+                       }
+                    }
                  });
 
              teamBarrier(Team);
@@ -453,8 +481,9 @@ void VertMix::applyVelVertMixImplicit(
    OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
    OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
 
-   const Array2DReal &NormalVelEdge   = State->NormalVelocity[VelTimeLevel];
-   const Array2DReal &PseudoThickCell = State->PseudoThickness[ThickTimeLevel];
+   const Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
+   const Array2DReal PseudoThickCell =
+       State->getPseudoThickness(ThickTimeLevel);
 
    // Compute velocity vertical mixing
    if (LocVelVertMixSetup.Enabled) {
@@ -552,7 +581,8 @@ void VertMix::applyTracerVertMixImplicit(
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
 
-   const Array2DReal &PseudoThickCell = State->PseudoThickness[ThickTimeLevel];
+   const Array2DReal PseudoThickCell =
+       State->getPseudoThickness(ThickTimeLevel);
 
    if (LocTracerVertMixSetup.Enabled) {
       Pacer::start("Tend:tracerVertMix", 1);
@@ -690,6 +720,32 @@ void VertMix::VertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
    // Compute vertical mixing coefficients
    computeVertMix(NormalVelEdge, LocTangentialVelocity,
                   EqState->BruntVaisalaFreqSq);
+
+   // Merge KPP output into VertDiff/VertVisc after base mixing is computed.
+   // Within the OBL, KPP values replace background/shear mixing (matching
+   // CVMix/MPAS behavior). Using max would keep background mixing even when
+   // KPP profile is near zero at the OBL base, causing overmixing.
+   // Also apply the enhanced diffusion value at the OBL base interface
+   // (k_final+1) set by UseEnhancedDiffusion in KPP.
+   KPPMix *KPPInstance = KPPMix::getInstance();
+   if (KPPInstance && KPPInstance->Enabled) {
+      const I4 NCellsAll   = Mesh->NCellsAll;
+      const I4 NVertLayers = VCoord->NVertLayers;
+      OMEGA_SCOPE(LocVertDiff, VertDiff);
+      OMEGA_SCOPE(LocVertVisc, VertVisc);
+      OMEGA_SCOPE(LocKPPVertDiff, KPPInstance->VertDiff);
+      OMEGA_SCOPE(LocKPPVertVisc, KPPInstance->VertVisc);
+      OMEGA_SCOPE(LocKPPIndexBoundaryLayerDepth,
+                  KPPInstance->IndexBoundaryLayerDepth);
+      parallelFor(
+          "KPP-MergeIntoVertMix", {NCellsAll, NVertLayers + 1},
+          KOKKOS_LAMBDA(I4 ICell, I4 K) {
+             if (K <= LocKPPIndexBoundaryLayerDepth(ICell) + 1) {
+                LocVertDiff(ICell, K) = LocKPPVertDiff(ICell, K);
+                LocVertVisc(ICell, K) = LocKPPVertVisc(ICell, K);
+             }
+          });
+   }
 
    // Apply implicit mixing to velocities
    applyVelVertMixImplicit(State, AuxState, TimeLevel, TimeLevel);

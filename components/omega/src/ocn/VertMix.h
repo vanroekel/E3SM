@@ -257,10 +257,12 @@ class VelVertMixSetupOnEdge {
       if (K < KMin || K > KMax) {
          X = 0.0_Real;
       } else {
+         const Real PseudoThickEdgeK = 0.5_Real * (PseudoThickCell(JCell0, K) +
+                                                   PseudoThickCell(JCell1, K));
+
+         H = PseudoThickEdgeK;
+
          if (K < KMax) {
-            const Real PseudoThickEdgeK =
-                0.5_Real *
-                (PseudoThickCell(JCell0, K) + PseudoThickCell(JCell1, K));
             const Real PseudoThickEdgeKp1 =
                 0.5_Real * (PseudoThickCell(JCell0, K + 1) +
                             PseudoThickCell(JCell1, K + 1));
@@ -281,9 +283,11 @@ class VelVertMixSetupOnEdge {
                 0.5_Real * (VertVisc(JCell0, K + 1) + VertVisc(JCell1, K + 1)) /
                 (LocRhoSw * SpecVolEdgeTop);
 
-            G = DT * ViscAlphaEdgeTop / (PseudoThickEdgeTop * PseudoThickEdgeK);
+            // G = DT * nu / dz (H = h_K absorbs layer thickness so the
+            // symmetric G is correct from both adjacent rows)
+            G = DT * ViscAlphaEdgeTop / PseudoThickEdgeTop;
          }
-         X = NormalVelEdge(IEdge, K);
+         X = PseudoThickEdgeK * NormalVelEdge(IEdge, K);
       }
    }
 
@@ -319,8 +323,11 @@ class TracerVertMixSetupOnCell {
       if (K < KMin || K > KMax) {
          X = 0.0_Real;
       } else {
+         const Real PseudoThickCellK = PseudoThickCell(ICell, K);
+
+         H = PseudoThickCellK;
+
          if (K < KMax) {
-            const Real PseudoThickCellK   = PseudoThickCell(ICell, K);
             const Real PseudoThickCellKp1 = PseudoThickCell(ICell, K + 1);
 
             const Real PseudoThickCellTop =
@@ -336,10 +343,11 @@ class TracerVertMixSetupOnCell {
             const Real DiffAlphaCellTop =
                 VertDiff(ICell, K + 1) / (LocRhoSw * SpecVolCellTop);
 
-            G = DT * DiffAlphaCellTop /
-                (PseudoThickCellTop * PseudoThickCell(ICell, K));
+            // G = DT * nu / dz (H = h_K absorbs layer thickness so the
+            // symmetric G is correct from both adjacent rows)
+            G = DT * DiffAlphaCellTop / PseudoThickCellTop;
          }
-         X = TracersOnCell(L, ICell, K);
+         X = PseudoThickCellK * TracersOnCell(L, ICell, K);
       }
    }
 

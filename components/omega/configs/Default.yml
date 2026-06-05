@@ -22,11 +22,21 @@ Omega:
     IODefaultFormat: pnetcdf
   State:
     NTimeLevels: 2
+    PrescribeThicknessType: None
+    PrescribeVelocityType: None
   Advection:
+    Coef3rdOrder: 0.25
     FluxThicknessType: Center
-    FluxTracerType: Center
+    HorzTracerFluxOrder: 2
+    VerticalTracerFluxLimiterEnable: true
+    VerticalTracerFluxOrder: 3
   WindStress:
     InterpType: Isotropic
+  SurfaceRestoring:
+    TracersToRestore: [Temperature, Salinity]
+    PistonVelocity: 1.585e-5
+  PressureGrad:
+    PressureGradType: Centered
   VertCoord:
     Density0: 1026.0
     MovementWeightType: Uniform
@@ -47,6 +57,7 @@ Omega:
     ProjVelDiffTendencyEnable: true
     ProjVelHyperDiffTendencyEnable: true
     WindForcingTendencyEnable: false
+    SurfaceTracerRestoringEnable: false
     BottomDragTendencyEnable: false
     BottomDragCoeff: 0.0
     TracerHorzAdvTendencyEnable: true
@@ -58,22 +69,15 @@ Omega:
     TracerNonLocalFluxTendencyEnable: true
     UseCustomTendency: false
     ManufacturedSolutionTendency: false
-    KPPColumnForcingEnable: false
-    KPPConstantWindStressZonal: 0.0
-    KPPConstantWindStressMeridional: 0.0
-    KPPConstantHeatFlux: 0.0
-    KPPConstantThicknessFlux: 0.0
-    # Optional conversion factors for simple 1-D KPP tests:
+    # Conversion factors for KPP surface forcing from NetCDF flux fields:
     # SurfaceBuoyancyFlux = HeatFlux * KPPHeatFluxToBuoyancyFactor
-    #                     + ThicknessFlux * KPPThicknessFluxToBuoyancyFactor
+    #                     + FreshwaterFlux * KPPThicknessFluxToBuoyancyFactor
     KPPHeatFluxToBuoyancyFactor: 4.78e-10
     KPPThicknessFluxToBuoyancyFactor: -2.72e-7
     ThicknessVertAdvTendencyEnable: true
     VelocityVertAdvTendencyEnable: true
     TracerVertAdvTendencyEnable: true
     PressureGradTendencyEnable: true
-    VelVertMixTendencyEnable: true
-    TracerVertMixTendencyEnable: true
   Tracers:
     Base: [Temperature, Salinity]
     Debug: [Debug1, Debug2, Debug3]
@@ -104,7 +108,6 @@ Omega:
       MatchTechnique: SimpleShapes
       InterpType2: LMD94
       UseEnhancedDiffusion: true
-      BoundaryLayerDepthScheme: SimpleShapes
       IceFractionThresholdForLangmuir: 0.05
       IceFractionThresholdForMinimumOBL: 0.15
       MinimumOBLUnderSeaIce: 5.0

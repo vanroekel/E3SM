@@ -18,6 +18,7 @@
 #include "HorzMesh.h"
 #include "IO.h"
 #include "IOStream.h"
+#include "KPPMix.h"
 #include "Logging.h"
 #include "MachEnv.h"
 #include "OceanDriver.h"
@@ -98,51 +99,15 @@ int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
 
    readTimingConfig();
 
-   // initialize remaining Omega modules
+   // initialize remaining Omega modules (IOStream, IO, Field, Decomp, Halo,
+   // HorzMesh, VertCoord, Tracers, VertAdv, AuxState, Eos, PGrad, VertMix,
+   // KPPMix, Tendencies, TimeStepper::init2, OceanState)
    Err = initOmegaModules(Comm);
    if (Err != 0)
       ABORT_ERROR("ocnInit: Error initializing Omega modules");
 
    TimeStepper *DefStepper = TimeStepper::getDefault();
    Clock *ModelClock       = DefStepper->getClock();
-
-   // Initialize IOStreams - this does not yet validate the contents
-   // of each file, only creates streams from Config
-   IOStream::init(ModelClock);
-
-   IO::init(Comm);
-   Field::init(ModelClock);
-   Decomp::init();
-
-   Err = Halo::init();
-   if (Err != 0) {
-      ABORT_ERROR("ocnInit: Error initializing default halo");
-   }
-
-   HorzMesh::init();
-   VertCoord::init();
-   Tracers::init();
-   VertAdv::init();
-   AuxiliaryState::init();
-   Eos::init();
-   PressureGrad::init();
-   VertMix::init();
-   Tendencies::init();
-
-   // Validate SurfaceTracerRestoring configuration
-   Tendencies *DefTend = Tendencies::getDefault();
-   if (DefTend->SurfaceTracerRestoring.Enabled &&
-       DefTend->SurfaceTracerRestoring.NTracersToRestore == 0) {
-      ABORT_ERROR("OceanInit: SurfaceTracerRestoring is enabled but "
-                  "TracersToRestore is empty");
-   }
-
-   TimeStepper::init2();
-
-   Err = OceanState::init();
-   if (Err != 0) {
-      ABORT_ERROR("ocnInit: Error initializing default state");
-   }
 
    // Now that all fields have been defined, validate all the streams
    // contents
@@ -173,6 +138,17 @@ int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
       CHECK_ERROR(Err1, "Errors encountered reading InitialState");
       CHECK_ERROR(Err2, "Errors encountered reading RestartRead");
       ABORT_ERROR("Error initializing ocean variables from input streams");
+   }
+
+   // Optional forcing stream for cases (e.g. column tests) where forcing
+   // variables are staged in a dedicated NetCDF file
+   Metadata ForcingReqMeta;
+   Error Err3 = IOStream::read("Forcing", ModelClock, ForcingReqMeta);
+   if (Err3.isFail()) {
+      if (Err3.Msg.find("Stream Forcing not found") == std::string::npos) {
+         CHECK_ERROR(Err3, "Errors encountered reading Forcing");
+         ABORT_ERROR("Error initializing forcing variables from input stream");
+      }
    }
 
    // If reading from restart, reset the current time to the input time
@@ -234,6 +210,8 @@ static int initOmegaModulesImpl(MPI_Comm Comm) {
    AuxiliaryState::init();
    Eos::init();
    PressureGrad::init();
+   VertMix::init();
+   KPPMix::init();
    Tendencies::init();
 
    // Validate SurfaceTracerRestoring configuration
