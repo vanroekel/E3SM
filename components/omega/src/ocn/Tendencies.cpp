@@ -470,8 +470,6 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
 
-   Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
-
    Pacer::start("Tend:computePseudoThicknessTendenciesOnly", 1);
 
    parallelForOuter(
@@ -485,6 +483,8 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
        });
 
    // Compute pseudo-thickness flux divergence
+   const Array2DReal &NormalTransportVelocity =
+       AuxState->TransportAux.NormalTransportVelocity;
    const Array2DReal &ThickFluxEdge =
        AuxState->PseudoThicknessAux.FluxPseudoThickEdge;
 
@@ -499,7 +499,7 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
                     LocThicknessFluxDiv(LocPseudoThicknessTend, ICell, KChunk,
-                                        ThickFluxEdge, NormalVelEdge);
+                                        ThickFluxEdge, NormalTransportVelocity);
                  });
           });
       Pacer::stop("Tend:thicknessFluxDiv", 2);
@@ -747,7 +747,8 @@ void Tendencies::computeTracerTendenciesOnly(
        });
 
    // compute tracer horizotal advection
-   Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
+   const Array2DReal &NormalTransportVelocity =
+       AuxState->TransportAux.NormalTransportVelocity;
    const Array2DReal &FluxPseudoThickEdge =
        AuxState->PseudoThicknessAux.FluxPseudoThickEdge;
    if (LocTracerHorzAdv.Enabled) {
@@ -761,7 +762,8 @@ void Tendencies::computeTracerTendenciesOnly(
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
                     LocTracerHorzAdv(L, IEdge, KChunk, TracerArray,
-                                     FluxPseudoThickEdge, NormalVelEdge);
+                                     FluxPseudoThickEdge,
+                                     NormalTransportVelocity);
                  });
           });
       parallelForOuter(
