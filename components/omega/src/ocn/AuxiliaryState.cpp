@@ -102,6 +102,35 @@ void AuxiliaryState::computeMomVertAux(const OceanState *State,
    Pacer::stop("AuxState:computeMomVertAux", 2);
 }
 
+// Compute the auxiliary variables needed for pseudo-thickness equation
+void AuxiliaryState::computePseudoThicknessAux(const OceanState *State,
+                                               const Array3DReal &TracerArray,
+                                               int ThickTimeLevel,
+                                               int VelTimeLevel) const {
+
+   Array2DReal PseudoThick = State->getPseudoThickness(ThickTimeLevel);
+   Array2DReal NormalVel   = State->getNormalVelocity(VelTimeLevel);
+   OMEGA_SCOPE(LocPseudoThicknessAux, PseudoThicknessAux);
+   OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
+   OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
+
+   Pacer::start("Tend:computePseudoThickAux", 2);
+   parallelForOuter(
+       "computePseudoThickAux", {Mesh->NEdgesAll},
+       KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
+          const int KMin   = MinLayerEdgeBot(IEdge);
+          const int KMax   = MaxLayerEdgeTop(IEdge);
+          const int KRange = vertRangeChunked(KMin, KMax);
+
+          parallelForInner(
+              Team, KRange, INNER_LAMBDA(int KChunk) {
+                 LocPseudoThicknessAux.computeVarsOnEdge(
+                     IEdge, KChunk, PseudoThick, NormalVel);
+              });
+       });
+   Pacer::stop("Tend:computePseudoThickAux", 2);
+}
+
 // Compute the auxiliary variables needed for momentum equation
 void AuxiliaryState::computeMomAux(const OceanState *State,
                                    const Array3DReal &TracerArray,

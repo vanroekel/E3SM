@@ -856,36 +856,15 @@ void Tendencies::computeTracerTendenciesOnly(
 void Tendencies::computePseudoThicknessTendencies(
     const OceanState *State,        ///< [in] State variables
     const AuxiliaryState *AuxState, ///< [in] Auxilary state variables
+    const Array3DReal &TracerArray, ///< [in] Tracer array
     int ThickTimeLevel,             ///< [in] Time level
     int VelTimeLevel,               ///< [in] Time level
     TimeInstant Time                ///< [in] Time
 ) {
-   // only need PseudoThicknessAux on edge
-   Array2DReal PseudoThick = State->getPseudoThickness(ThickTimeLevel);
-   Array2DReal NormVel     = State->getNormalVelocity(VelTimeLevel);
-   OMEGA_SCOPE(PseudoThicknessAux, AuxState->PseudoThicknessAux);
-   OMEGA_SCOPE(PseudoThickCell, PseudoThick);
-   OMEGA_SCOPE(NormalVelEdge, NormVel);
-   OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
-   OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
-
    Pacer::start("Tend:computePseudoThicknessTendencies", 1);
 
-   Pacer::start("Tend:computePseudoThickAux", 2);
-   parallelForOuter(
-       "computePseudoThickAux", {Mesh->NEdgesAll},
-       KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
-          const int KMin   = MinLayerEdgeBot(IEdge);
-          const int KMax   = MaxLayerEdgeTop(IEdge);
-          const int KRange = vertRangeChunked(KMin, KMax);
-
-          parallelForInner(
-              Team, KRange, INNER_LAMBDA(int KChunk) {
-                 PseudoThicknessAux.computeVarsOnEdge(
-                     IEdge, KChunk, PseudoThickCell, NormalVelEdge);
-              });
-       });
-   Pacer::stop("Tend:computePseudoThickAux", 2);
+   AuxState->computePseudoThicknessAux(State, TracerArray, ThickTimeLevel,
+                                       VelTimeLevel);
 
    computePseudoThicknessTendenciesOnly(State, AuxState, ThickTimeLevel,
                                         VelTimeLevel, Time);
