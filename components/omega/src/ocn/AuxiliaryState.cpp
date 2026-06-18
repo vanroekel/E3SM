@@ -278,6 +278,37 @@ void AuxiliaryState::computeMomAux(const OceanState *State,
    Pacer::stop("AuxState:computeMomAux", 1);
 }
 
+// Compute the auxiliary variables needed for tracer equation
+void AuxiliaryState::computeTracerAux(const OceanState *State,
+                                      const Array3DReal &TracerArray,
+                                      int ThickTimeLevel,
+                                      int VelTimeLevel) const {
+
+   OMEGA_SCOPE(LocTracerAux, TracerAux);
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
+   OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
+
+   const auto &MeanPseudoThickEdge = PseudoThicknessAux.MeanPseudoThickEdge;
+
+   const int NTracers = Tracers::getNumTracers();
+
+   Pacer::start("Tend:computeTracerAuxCell", 2);
+   parallelForOuter(
+       "computeTracerAuxCell", {NTracers, Mesh->NCellsAll},
+       KOKKOS_LAMBDA(int LTracer, int ICell, const TeamMember &Team) {
+          const int KMin   = MinLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell);
+          const int KRange = vertRangeChunked(KMin, KMax);
+
+          parallelForInner(
+              Team, KRange, INNER_LAMBDA(int KChunk) {
+                 LocTracerAux.computeVarsOnCells(
+                     LTracer, ICell, KChunk, MeanPseudoThickEdge, TracerArray);
+              });
+       });
+   Pacer::stop("Tend:computeTracerAuxCell", 2);
+}
+
 // Compute the auxiliary variables
 void AuxiliaryState::computeAll(const OceanState *State,
                                 const Array3DReal &TracerArray,
