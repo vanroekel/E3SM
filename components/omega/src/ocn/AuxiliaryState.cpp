@@ -105,6 +105,20 @@ void AuxiliaryState::computeMomVertAux(const OceanState *State,
    Pacer::stop("AuxState:computeMomVertAux", 2);
 }
 
+// Compute transport velocity for pseudo-thickness and tracers
+void AuxiliaryState::computeTransportVelocity(const OceanState *State,
+                                              const Array3DReal &TracerArray,
+                                              int ThickTimeLevel,
+                                              int VelTimeLevel) const {
+   Pacer::start("AuxState:computeTransportVelocity", 2);
+
+   Array2DReal NormalVel = State->getNormalVelocity(VelTimeLevel);
+
+   deep_copy(TransportAux.NormalTransportVelocity, NormalVel);
+
+   Pacer::stop("AuxState:computeTransportVelocity", 2);
+}
+
 // Compute the auxiliary variables needed for pseudo-thickness equation
 void AuxiliaryState::computePseudoThicknessAux(const OceanState *State,
                                                const Array3DReal &TracerArray,
