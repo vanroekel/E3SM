@@ -69,6 +69,8 @@ class Tendencies {
    VelocityHyperDiffOnEdge VelocityHyperDiff;
    SfcStressForcingOnEdge SfcStressForcing;
    BottomDragOnEdge BottomDrag;
+   SfcThicknessForcingOnCell SfcThicknessForcing;
+   SfcTracerForcingOnCell SfcTracerForcing;
    TracerHorzAdvOnCell TracerHorzAdv;
    TracerDiffOnCell TracerDiffusion;
    TracerHyperDiffOnCell TracerHyperDiff;
