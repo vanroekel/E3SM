@@ -3,6 +3,7 @@
 #include "Field.h"
 #include "Logging.h"
 #include "Pacer.h"
+#include "SubmesoEddies.h"
 #include "Tendencies.h"
 #include "TimeStepper.h"
 
@@ -118,7 +119,34 @@ void AuxiliaryState::computeTransportVelocity(const OceanState *State,
 
    Array2DReal NormalVel = State->getNormalVelocity(VelTimeLevel);
 
-   deep_copy(TransportAux.NormalTransportVelocity, NormalVel);
+   const auto &NormalTransportVelocity = TransportAux.NormalTransportVelocity;
+
+   deep_copy(NormalTransportVelocity, NormalVel);
+
+   auto *SubEddies = SubmesoEddies::getInstance();
+
+   if (SubEddies && SubEddies->Enable) {
+
+      Eos *EosInstance = Eos::getInstance();
+
+      const auto &MeanPseudoThickEdge = PseudoThicknessAux.MeanPseudoThickEdge;
+      const auto &SpecVol             = EosInstance->SpecVol;
+      const auto &BVFreqSq            = EosInstance->BruntVaisalaFreqSq;
+      const auto &GeomZMid            = VCoord->GeomZMid;
+
+      SubEddies->computeDenMixLayerDepth(SpecVol);
+      SubEddies->computeBuoyGrad(SpecVol, MeanPseudoThickEdge, GeomZMid,
+                                 BVFreqSq);
+      SubEddies->computeEddyVelocity(BVFreqSq, MeanPseudoThickEdge);
+
+      const auto &EddyVelocity = SubEddies->EddyVelocity;
+
+      parallelFor(
+          {Mesh->NEdgesAll, VCoord->NVertLayers},
+          KOKKOS_LAMBDA(int IEdge, int K) {
+             NormalTransportVelocity(IEdge, K) += EddyVelocity(IEdge, K);
+          });
+   }
 
    Pacer::stop("AuxState:computeTransportVelocity", 2);
 }
@@ -137,8 +165,6 @@ void AuxiliaryState::computePseudoThicknessAux(const OceanState *State,
 
    Pacer::start("Tend:computePseudoThickAux", 2);
 
-   computeTransportVelocity(State, TracerArray, ThickTimeLevel, VelTimeLevel);
-
    parallelForOuter(
        "computePseudoThickAux", {Mesh->NEdgesAll},
        KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
@@ -152,6 +178,14 @@ void AuxiliaryState::computePseudoThicknessAux(const OceanState *State,
                      IEdge, KChunk, PseudoThick, NormalVelEdge);
               });
        });
+
+   auto *SubEddies = SubmesoEddies::getInstance();
+
+   if (SubEddies && SubEddies->Enable) {
+      computeMomVertAux(State, TracerArray, ThickTimeLevel, VelTimeLevel);
+   }
+
+   computeTransportVelocity(State, TracerArray, ThickTimeLevel, VelTimeLevel);
 
    Pacer::stop("Tend:computePseudoThickAux", 2);
 }
@@ -186,8 +220,6 @@ void AuxiliaryState::computeMomAux(const OceanState *State,
    Pacer::start("AuxState:computeMomAux", 1);
 
    computeMomVertAux(State, TracerArray, ThickTimeLevel, VelTimeLevel);
-
-   computeTransportVelocity(State, TracerArray, ThickTimeLevel, VelTimeLevel);
 
    Pacer::start("AuxState:vertexAuxState1", 2);
    parallelForOuter(
@@ -245,6 +277,8 @@ void AuxiliaryState::computeMomAux(const OceanState *State,
                      IEdge, KChunk, VelocityDivCell, RelVortVertex);
               });
        });
+
+   computeTransportVelocity(State, TracerArray, ThickTimeLevel, VelTimeLevel);
 
    parallelForOuter(
        "edgeAuxState2", {Mesh->NEdgesAll},
@@ -322,6 +356,12 @@ void AuxiliaryState::computeTracerAux(const OceanState *State,
    const int NTracers = Tracers::getNumTracers();
 
    Pacer::start("Tend:computeTracerAuxCell", 2);
+
+   auto *SubEddies = SubmesoEddies::getInstance();
+
+   if (SubEddies && SubEddies->Enable) {
+      computeMomVertAux(State, TracerArray, ThickTimeLevel, VelTimeLevel);
+   }
 
    computeTransportVelocity(State, TracerArray, ThickTimeLevel, VelTimeLevel);
 

@@ -18,6 +18,7 @@
 #include "OceanDriver.h"
 #include "OceanState.h"
 #include "PGrad.h"
+#include "SubmesoEddies.h"
 #include "Tendencies.h"
 #include "TimeMgr.h"
 #include "TimeStepper.h"
@@ -42,6 +43,7 @@ int ocnFinalize(const TimeInstant &CurrTime ///< [in] current sim time
 
    Tracers::clear();
    TimeStepper::clear();
+   SubmesoEddies::destroyInstance();
    PressureGrad::clear();
    Eos::destroyInstance();
    Tendencies::clear();
