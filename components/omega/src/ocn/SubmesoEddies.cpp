@@ -116,12 +116,12 @@ void SubmesoEddies::defineFields() {
       DimNames[1] = "NVertLayersP1";
 
       auto BuoyancyGradientInterfaceField =
-          Field::create(GradBuoyEdgeInterface.label(),    // Field name
-                        "Buoyancy Gradient",              // Long Name
-                        "1/s^2",                          // Units
-                        "",                               // CF-ish Name
-                        std::numeric_limits<Real>::min(), // Min valid value
-                        std::numeric_limits<Real>::max(), // Max valid value
+          Field::create(GradBuoyEdgeInterface.label(),       // Field name
+                        "Buoyancy Gradient",                 // Long Name
+                        "1/s^2",                             // Units
+                        "",                                  // CF-ish Name
+                        std::numeric_limits<Real>::lowest(), // Min valid value
+                        std::numeric_limits<Real>::max(),    // Max valid value
                         NDims,     // Number of dimensions
                         DimNames   // Dimension names
           );
@@ -140,12 +140,12 @@ void SubmesoEddies::defineFields() {
       DimNames[1] = "NVertLayers";
 
       auto EddyVelocityField =
-          Field::create(EddyVelocity.label(),             // Field name
-                        "Eddy Velocity",                  // Long Name
-                        "m/s",                            // Units
-                        "",                               // CF-ish Name
-                        std::numeric_limits<Real>::min(), // Min valid value
-                        std::numeric_limits<Real>::max(), // Max valid value
+          Field::create(EddyVelocity.label(),                // Field name
+                        "Eddy Velocity",                     // Long Name
+                        "m/s",                               // Units
+                        "",                                  // CF-ish Name
+                        std::numeric_limits<Real>::lowest(), // Min valid value
+                        std::numeric_limits<Real>::max(),    // Max valid value
                         NDims,     // Number of dimensions
                         DimNames   // Dimension names
           );

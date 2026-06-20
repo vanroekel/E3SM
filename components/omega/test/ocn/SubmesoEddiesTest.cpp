@@ -706,7 +706,7 @@ Error testSubmesoEddies(MPI_Comm Comm, std::string MeshFile, int NVertLayers) {
 
    // Test retrieval
    if (!SubmesoEddies::getInstance()) {
-      ABORT_ERROR("SubmesoEddiesTest: SumesoEddies retrieval FAIL");
+      ABORT_ERROR("SubmesoEddiesTest: SubmesoEddies retrieval FAIL");
    }
 
    // Test mixed layer depth computation
