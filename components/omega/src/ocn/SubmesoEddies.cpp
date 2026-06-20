@@ -1,4 +1,5 @@
 #include "SubmesoEddies.h"
+#include "Field.h"
 #include "GlobalConstants.h"
 
 namespace OMEGA {
@@ -74,7 +75,86 @@ SubmesoEddies::SubmesoEddies(const HorzMesh *Mesh, const VertCoord *VCoord)
       DenMixLayerIndex("DenMixLayerIndex", Mesh->NCellsSize),
       GradBuoyEdgeInterface("GradBuoyEdgeInterface", Mesh->NEdgesSize,
                             VCoord->NVertLayersP1),
-      EddyVelocity("EddyVelocity", Mesh->NEdgesSize, VCoord->NVertLayers) {}
+      EddyVelocity("EddyVelocity", Mesh->NEdgesSize, VCoord->NVertLayers) {
+
+   // define fields for IO
+   defineFields();
+}
+
+void SubmesoEddies::defineFields() {
+
+   // Create a group for the submesoscale eddy parametrization fields
+   auto SubmesoGroup = FieldGroup::create("Submeso");
+
+   // Create and add mixed layer depth field
+   {
+      int NDims = 1;
+      std::vector<std::string> DimNames(NDims);
+      DimNames[0] = "NCells";
+
+      auto DenMixLayerDepthField =
+          Field::create(DenMixLayerDepth.label(),         // Field name
+                        "Mixed Layer Depth",              // Long Name
+                        "m",                              // Units
+                        "",                               // CF-ish Name
+                        0.0,                              // Min valid value
+                        std::numeric_limits<Real>::max(), // Max valid value
+                        NDims,   // Number of dimensions
+                        DimNames // Dimension names
+          );
+
+      DenMixLayerDepthField->attachData<Array1DReal>(DenMixLayerDepth);
+
+      SubmesoGroup->addField(DenMixLayerDepth.label());
+   }
+
+   // Create and add buoyancy gradient field
+   {
+      int NDims = 2;
+      std::vector<std::string> DimNames(NDims);
+      DimNames[0] = "NEdges";
+      DimNames[1] = "NVertLayersP1";
+
+      auto BuoyancyGradientInterfaceField =
+          Field::create(GradBuoyEdgeInterface.label(),    // Field name
+                        "Buoyancy Gradient",              // Long Name
+                        "1/s^2",                          // Units
+                        "",                               // CF-ish Name
+                        std::numeric_limits<Real>::min(), // Min valid value
+                        std::numeric_limits<Real>::max(), // Max valid value
+                        NDims,     // Number of dimensions
+                        DimNames   // Dimension names
+          );
+
+      BuoyancyGradientInterfaceField->attachData<Array2DReal>(
+          GradBuoyEdgeInterface);
+
+      SubmesoGroup->addField(GradBuoyEdgeInterface.label());
+   }
+
+   // Create and add eddy velocity field
+   {
+      int NDims = 2;
+      std::vector<std::string> DimNames(NDims);
+      DimNames[0] = "NEdges";
+      DimNames[1] = "NVertLayers";
+
+      auto EddyVelocityField =
+          Field::create(EddyVelocity.label(),             // Field name
+                        "Eddy Velocity",                  // Long Name
+                        "m/s",                            // Units
+                        "",                               // CF-ish Name
+                        std::numeric_limits<Real>::min(), // Min valid value
+                        std::numeric_limits<Real>::max(), // Max valid value
+                        NDims,     // Number of dimensions
+                        DimNames   // Dimension names
+          );
+
+      EddyVelocityField->attachData<Array2DReal>(EddyVelocity);
+
+      SubmesoGroup->addField(EddyVelocity.label());
+   }
+}
 
 void SubmesoEddies::computeTimeScale() {
    OMEGA_SCOPE(TimeScale, this->TimeScale);
@@ -225,7 +305,7 @@ void SubmesoEddies::computeBuoyGrad(const Array2DReal &SpecVol,
                  const int JCell0 = CellsOnEdge(IEdge, 0);
                  const int JCell1 = CellsOnEdge(IEdge, 1);
                  BVFSqEdge(K)     = 0.5_Real * (BruntVaisalaFreqSq(JCell1, K) +
-                                            BruntVaisalaFreqSq(JCell0, K));
+                                                BruntVaisalaFreqSq(JCell0, K));
               });
 
           teamBarrier(Team);

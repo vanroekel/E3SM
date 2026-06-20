@@ -105,6 +105,9 @@ class SubmesoEddies {
    SubmesoEddies(SubmesoEddies &&)                 = delete;
    SubmesoEddies &operator=(SubmesoEddies &&)      = delete;
 
+   // Define fields and metadata
+   void defineFields();
+
    // Private member variables
 
    // Instance pointer
