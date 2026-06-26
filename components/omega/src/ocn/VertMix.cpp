@@ -54,6 +54,10 @@ TracerVertMixSetupOnCell::TracerVertMixSetupOnCell(const HorzMesh *Mesh,
     : Enabled(false), LocRhoSw(RhoSw), NVertLayers(VCoord->NVertLayers),
       MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
 
+EnforceKPPNoFluxBC::EnforceKPPNoFluxBC(const VertCoord *VCoord)
+    : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell),
+      NVertLayers(VCoord->NVertLayers) {}
+
 /// Constructor for VertMix
 VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
                  const HorzMesh *Mesh,    ///< [in] Horizontal mesh
@@ -745,6 +749,16 @@ void VertMix::VertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
                 LocVertVisc(ICell, K) = LocKPPVertVisc(ICell, K);
              }
           });
+   }
+
+   // Enforce no-flux boundary conditions: zero VertDiff/VertVisc above
+   // minLevelCell and below maxLevelCell (matching MPAS-Ocean explicit BC
+   // enforcement)
+   if (KPPInstance && KPPInstance->Enabled) {
+      EnforceKPPNoFluxBC EnforceBC(VCoord);
+      parallelFor(
+          "VertMix-EnforceKPPNoFluxBC", {Mesh->NCellsAll},
+          KOKKOS_LAMBDA(I4 ICell) { EnforceBC(VertDiff, VertVisc, ICell); });
    }
 
    // Apply implicit mixing to velocities

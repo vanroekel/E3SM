@@ -594,6 +594,18 @@ class Eos {
                                   const Array2DReal &AbsSalinity,
                                   const Array2DReal &Pressure,
                                   const Array2DReal &SpecVol);
+
+   /// Compute per-cell surface thermal expansion (alpha) and haline
+   /// contraction (beta) at the top active layer using the active EOS.
+   /// Follows TEOS-10 sign convention:
+   ///   alpha = (1/v) dv/dCT  [1/degC]  (positive: warmer = lighter)
+   ///   beta  = -(1/v) dv/dSA [kg/g]   (positive: saltier = denser)
+   void computeSurfaceAlphaBeta(const Array2DReal &ConservTemp,
+                                const Array2DReal &AbsSalinity,
+                                const Array2DReal &PressureDbar,
+                                const Array2DReal &SpecVol,
+                                Array1DReal &SurfAlpha, Array1DReal &SurfBeta);
+
    /// Initialize EOS from config and mesh
    static void init();
 

@@ -69,11 +69,6 @@ Omega:
     TracerNonLocalFluxTendencyEnable: true
     UseCustomTendency: false
     ManufacturedSolutionTendency: false
-    # Conversion factors for KPP surface forcing from NetCDF flux fields:
-    # SurfaceBuoyancyFlux = HeatFlux * KPPHeatFluxToBuoyancyFactor
-    #                     + FreshwaterFlux * KPPThicknessFluxToBuoyancyFactor
-    KPPHeatFluxToBuoyancyFactor: 4.78e-10
-    KPPThicknessFluxToBuoyancyFactor: -2.72e-7
     ThicknessVertAdvTendencyEnable: true
     VelocityVertAdvTendencyEnable: true
     TracerVertAdvTendencyEnable: true

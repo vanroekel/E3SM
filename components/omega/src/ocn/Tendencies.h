@@ -48,6 +48,73 @@
 
 namespace OMEGA {
 
+/// KPP non-local tracer flux tendency for interior layers
+class NonLocalFluxInterior {
+ public:
+   /// Constructor
+   NonLocalFluxInterior(const HorzMesh *Mesh, const VertCoord *VCoord);
+
+   /// Compute interior non-local content tendency: tend += Q_surf *
+   /// (G(k)-G(k+1))
+   KOKKOS_FUNCTION void operator()(const Array2DReal &VertNonLocalFlux,
+                                   const Array2DReal &SurfaceTracerFlux,
+                                   Array3DReal &TracerTend, int L,
+                                   int ICell) const {
+      const I4 KMin = MinLayerCell(ICell);
+      const I4 KMax = MaxLayerCell(ICell);
+
+      for (I4 K = KMin + 1; K < KMax; ++K) {
+         TracerTend(L, ICell, K) +=
+             (SurfaceTracerFlux(L, ICell) * VertNonLocalFlux(ICell, K) -
+              SurfaceTracerFlux(L, ICell) * VertNonLocalFlux(ICell, K + 1));
+      }
+   }
+
+ private:
+   Array1DI4 MinLayerCell;
+   Array1DI4 MaxLayerCell;
+};
+
+/// KPP non-local tracer flux tendency for bottom boundary layer
+class NonLocalFluxBottom {
+ public:
+   /// Constructor
+   NonLocalFluxBottom(const HorzMesh *Mesh, const VertCoord *VCoord);
+
+   /// Bottom boundary (K=KMax): fluxBottomOfCell = 0 (below ocean)
+   KOKKOS_FUNCTION void operator()(const Array2DReal &VertNonLocalFlux,
+                                   const Array2DReal &SurfaceTracerFlux,
+                                   Array3DReal &TracerTend, int L,
+                                   int ICell) const {
+      const I4 KMax = MaxLayerCell(ICell);
+      TracerTend(L, ICell, KMax) +=
+          SurfaceTracerFlux(L, ICell) * VertNonLocalFlux(ICell, KMax);
+   }
+
+ private:
+   Array1DI4 MaxLayerCell;
+};
+
+/// KPP non-local tracer flux tendency for top boundary layer
+class NonLocalFluxTop {
+ public:
+   /// Constructor
+   NonLocalFluxTop(const HorzMesh *Mesh, const VertCoord *VCoord);
+
+   /// Top boundary (K=KMin): fluxTopOfCell = 0 (above surface)
+   KOKKOS_FUNCTION void operator()(const Array2DReal &VertNonLocalFlux,
+                                   const Array2DReal &SurfaceTracerFlux,
+                                   Array3DReal &TracerTend, int L,
+                                   int ICell) const {
+      const I4 KMin = MinLayerCell(ICell);
+      TracerTend(L, ICell, KMin) +=
+          -SurfaceTracerFlux(L, ICell) * VertNonLocalFlux(ICell, KMin + 1);
+   }
+
+ private:
+   Array1DI4 MinLayerCell;
+};
+
 /// A class that can be used to calculate the thickness,
 /// velocity, and tracer tendencies within the timestepping algorithm.
 class Tendencies {
@@ -84,8 +151,17 @@ class Tendencies {
    // Enables explicit non-local tracer tendency from KPP
    bool TracerNonLocalFluxEnabled = false;
 
-   Real KPPHeatFluxToBuoyancyFactor      = 0.0_Real;
-   Real KPPThicknessFluxToBuoyancyFactor = 0.0_Real;
+   // Temporary bridge: compute temperature surface tracer flux from forcing
+   // inside Tendencies until a dedicated forcing class provides this field.
+   // Keep this isolated and easy to disable/revert.
+   bool UseTempSurfaceTracerFluxBridge = true;
+
+   // Temporary bridge: apply a direct top-layer temperature tendency from
+   // SurfaceTracerFlux so cooling/warming appears explicitly in layer 1.
+   bool UseTempTopLayerFluxTendencyBridge = true;
+
+   // Controls whether KPP is recomputed during tendency stages.
+   bool StageVerticalMixingEnabled = true;
 
    std::string Name;
 

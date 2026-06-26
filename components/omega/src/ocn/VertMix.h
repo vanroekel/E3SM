@@ -357,6 +357,37 @@ class TracerVertMixSetupOnCell {
    Array1DI4 MaxLayerCell;
 };
 
+/// Enforce KPP no-flux boundary conditions
+class EnforceKPPNoFluxBC {
+ public:
+   /// Constructor
+   EnforceKPPNoFluxBC(const VertCoord *VCoord);
+
+   /// Enforce zero diffusivity/viscosity above minLevelCell and below
+   /// maxLevelCell
+   KOKKOS_FUNCTION void operator()(Array2DReal VertDiff, Array2DReal VertVisc,
+                                   I4 ICell) const {
+      const I4 KMin = MinLayerCell(ICell);
+      const I4 KMax = MaxLayerCell(ICell);
+
+      // Zero above minLevelCell
+      for (I4 k = 1; k < KMin; ++k) {
+         VertDiff(ICell, k) = 0.0_Real;
+         VertVisc(ICell, k) = 0.0_Real;
+      }
+      // Zero below maxLevelCell
+      for (I4 k = KMax + 1; k <= NVertLayers + 1; ++k) {
+         VertDiff(ICell, k) = 0.0_Real;
+         VertVisc(ICell, k) = 0.0_Real;
+      }
+   }
+
+ private:
+   Array1DI4 MinLayerCell;
+   Array1DI4 MaxLayerCell;
+   I4 NVertLayers;
+};
+
 /// Class for Vertical Mixing Coefficient (VertMix) calculations
 class VertMix {
  public:

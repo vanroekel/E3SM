@@ -310,6 +310,48 @@ void Eos::computeBruntVaisalaFreqSq(const Array2DReal &ConservTemp,
    }
 }
 
+/// Compute per-cell surface thermal expansion (alpha) and haline contraction
+/// (beta) at the top active layer of each column.
+void Eos::computeSurfaceAlphaBeta(const Array2DReal &ConservTemp,
+                                  const Array2DReal &AbsSalinity,
+                                  const Array2DReal &PressureDbar,
+                                  const Array2DReal &SpecVol,
+                                  Array1DReal &SurfAlpha,
+                                  Array1DReal &SurfBeta) {
+   OMEGA_SCOPE(LocComputeTeos10BVF, ComputeBruntVaisalaFreqSqTeos10);
+   OMEGA_SCOPE(LocComputeLinear, ComputeSpecVolLinear);
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
+
+   if (EosChoice == EosType::Teos10Eos) {
+      parallelFor(
+          "eos-surface-alphabeta-teos10", {Mesh->NCellsAll},
+          KOKKOS_LAMBDA(I4 ICell) {
+             const I4 K0    = MinLayerCell(ICell);
+             const Real Ct0 = ConservTemp(ICell, K0);
+             const Real Sa0 = AbsSalinity(ICell, K0);
+             const Real P0  = PressureDbar(ICell, K0);
+             const Real Sp0 = SpecVol(ICell, K0);
+             SurfAlpha(ICell) =
+                 LocComputeTeos10BVF.calcAlpha(Sa0, Ct0, P0, Sp0);
+             SurfBeta(ICell) = LocComputeTeos10BVF.calcBeta(Sa0, Ct0, P0, Sp0);
+          });
+   } else if (EosChoice == EosType::LinearEos) {
+      parallelFor(
+          "eos-surface-alphabeta-linear", {Mesh->NCellsAll},
+          KOKKOS_LAMBDA(I4 ICell) {
+             const I4 K0    = MinLayerCell(ICell);
+             const Real Sp0 = SpecVol(ICell, K0);
+             // alpha = -(1/rho) * d_rho/dT = -DRhodT * SpecVol (> 0, DRhodT <
+             // 0) beta  =  (1/rho) * d_rho/dS =  DRhodS * SpecVol (> 0)
+             SurfAlpha(ICell) = -LocComputeLinear.DRhodT * Sp0;
+             SurfBeta(ICell)  = LocComputeLinear.DRhodS * Sp0;
+          });
+   } else { // ConstantEos: no T/S sensitivity, no buoyancy from heat/fw flux
+      deepCopy(SurfAlpha, 0.0_Real);
+      deepCopy(SurfBeta, 0.0_Real);
+   }
+}
+
 /// Define IO fields and metadata for output
 void Eos::defineFields() {
 
