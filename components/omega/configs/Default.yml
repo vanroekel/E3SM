@@ -154,8 +154,8 @@ Omega:
       FreqUnits: OnStartup
       UseStartEnd: false
       Contents:
-        - WindStressZonal
-        - WindStressMeridional
+        - SfcStressZonal
+        - SfcStressMeridional
         - LatentHeatFlux
         - SensibleHeatFlux
         - ShortWaveHeatFlux
