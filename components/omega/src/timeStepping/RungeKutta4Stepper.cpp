@@ -142,8 +142,7 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
    // Apply implicit vertical mixing
    CurTracerArray = Tracers::getAll(CurLevel);
    if (VMix->VelVertMixSetup.Enabled or VMix->TracerVertMixSetup.Enabled) {
-      VMix->VertMixImplicit(State, AuxState, CurTracerArray, NTracers,
-                            State->CurTimeIndex);
+      VMix->VertMixImplicit(State, AuxState, CurTracerArray, NTracers, 0);
    }
 
    validateOceanState(State, AuxState, VertCoord::getDefault(), CurLevel);
