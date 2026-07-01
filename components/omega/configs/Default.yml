@@ -73,7 +73,6 @@ Omega:
     TracerVertAdvTendencyEnable: true
     PressureGradTendencyEnable: true
     VelVertMixTendencyEnable: true
-    TracerVertMixTendencyEnable: true
   ManufacturedSolution:
     WavelengthX: 5.0e6
     WavelengthY: 4.33013e6
@@ -100,6 +99,7 @@ Omega:
       BaseShearValue: 0.005
       RiCrit: 0.7
       Exponent: 3.0
+      RiSmoothLoops: 2
     KPP:
       Enable: true
       UseNonLocalFlux: true
