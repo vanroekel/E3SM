@@ -44,8 +44,22 @@ int ocnRun(TimeInstant &CurrTime ///< [inout] current sim time
       // track step count
       ++IStep;
 
-      // placeholder: call needed pre-timestep compute here
-      // (e.g. forcing routine)
+      // Refresh optional file-based forcing fields if the Forcing stream
+      // exists and is scheduled to read at this model time.
+      Metadata ForcingReqMeta;
+      Error ForcingReadErr =
+          IOStream::read("Forcing", OmegaClock, ForcingReqMeta);
+      if (ForcingReadErr.isFail()) {
+         if (ForcingReadErr.Msg.find("Stream Forcing not found") ==
+             std::string::npos) {
+            CHECK_ERROR(ForcingReadErr,
+                        "Errors encountered reading Forcing during run");
+            ABORT_ERROR("Error updating forcing variables from input stream");
+         }
+      }
+
+      // call forcing routines, anything needed pre-timestep
+      DefForcing->computeAll();
 
       // do forward time step
       // first call to doStep can sometimes take very long

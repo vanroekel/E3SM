@@ -756,6 +756,9 @@ class Eos {
    /// Convert potential temperature to Conservative Temperature
    Real calcCtFromPt(const Real &Sa, const Real &Pt) const;
 
+   Real getLinearDRhodT() const { return ComputeSpecVolLinear.DRhodT; }
+   Real getLinearDRhodS() const { return ComputeSpecVolLinear.DRhodS; }
+
    /// Initialize EOS from config and mesh
    static void init();
 
