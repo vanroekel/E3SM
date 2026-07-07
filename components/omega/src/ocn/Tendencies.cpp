@@ -353,6 +353,14 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
          this->TracerNonLocalFluxEnabled = false;
       }
 
+      Error TracerDiagErr =
+          TendConfig.get("TracerNonLocalDiagnosticsEnable",
+                         this->TracerNonLocalDiagnosticsEnable);
+      if (!TracerDiagErr.isSuccess()) {
+         TracerDiagErr.reset();
+         this->TracerNonLocalDiagnosticsEnable = true;
+      }
+
       Error TempFluxBridgeErr =
           TendConfig.get("UseTempSurfaceTracerFluxBridge",
                          this->UseTempSurfaceTracerFluxBridge);
@@ -367,26 +375,6 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
       if (!TempTopLayerBridgeErr.isSuccess()) {
          TempTopLayerBridgeErr.reset();
          this->UseTempTopLayerFluxTendencyBridge = true;
-      }
-
-      // Conversion factors: heat flux to buoyancy, freshwater flux to buoyancy.
-      // Fall back to physically-derived defaults if not in config.
-      const Real HFluxFac  = 1._Real / (RhoSw * CpSw);
-      const Real FwFluxFac = 1._Real / RhoFw;
-      Error HeatFacErr     = TendConfig.get("KPPHeatFluxToBuoyancyFactor",
-                                            this->KPPHeatFluxToBuoyancyFactor);
-      if (!HeatFacErr.isSuccess()) {
-         HeatFacErr.reset();
-         this->KPPHeatFluxToBuoyancyFactor = Gravity * 2.0e-4_Real * HFluxFac;
-      }
-      Error ThickFacErr =
-          TendConfig.get("KPPThicknessFluxToBuoyancyFactor",
-                         this->KPPThicknessFluxToBuoyancyFactor);
-      // FIXME - This has a magic number that needs to go away
-      if (!ThickFacErr.isSuccess()) {
-         ThickFacErr.reset();
-         this->KPPThicknessFluxToBuoyancyFactor =
-             -Gravity * 8.0e-4_Real * OcnRefSal * FwFluxFac;
       }
    }
 }
@@ -501,7 +489,19 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
                             VCoord->NVertLayers);
    SurfaceTracerFlux =
        Array2DReal("SurfaceTracerFlux", NTracersIn, Mesh->NCellsAll);
+   TempNonLocalTendDiag  = Array2DReal("TempNonLocalTendDiag", Mesh->NCellsSize,
+                                       VCoord->NVertLayers);
+   TempTopBridgeTendDiag = Array2DReal("TempTopBridgeTendDiag",
+                                       Mesh->NCellsSize, VCoord->NVertLayers);
+   TempNonLocalColumnSumDiag =
+       Array1DReal("TempNonLocalColumnSumDiag", Mesh->NCellsSize);
+   TempTopBridgeColumnSumDiag =
+       Array1DReal("TempTopBridgeColumnSumDiag", Mesh->NCellsSize);
    deepCopy(SurfaceTracerFlux, 0.0_Real);
+   deepCopy(TempNonLocalTendDiag, 0.0_Real);
+   deepCopy(TempTopBridgeTendDiag, 0.0_Real);
+   deepCopy(TempNonLocalColumnSumDiag, 0.0_Real);
+   deepCopy(TempTopBridgeColumnSumDiag, 0.0_Real);
 
    Name = Name_;
 
@@ -1833,6 +1833,16 @@ void Tendencies::computeTracerTendenciesOnly(
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
    OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
    OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
+   OMEGA_SCOPE(LocTempNonLocalTendDiag, TempNonLocalTendDiag);
+   OMEGA_SCOPE(LocTempTopBridgeTendDiag, TempTopBridgeTendDiag);
+   OMEGA_SCOPE(LocTempNonLocalColumnSumDiag, TempNonLocalColumnSumDiag);
+   OMEGA_SCOPE(LocTempTopBridgeColumnSumDiag, TempTopBridgeColumnSumDiag);
+   const bool LocTracerNonLocalDiagnosticsEnable =
+       TracerNonLocalDiagnosticsEnable;
+   I4 TempTracerIndex = -1;
+   const bool LocHasTempTracer =
+       (Tracers::getIndex(TempTracerIndex, "Temperature") == 0);
+   const I4 LocTempTracerIndex = TempTracerIndex;
 
    Pacer::start("Tend:computeTracerTendenciesOnly", 1);
 
@@ -1845,6 +1855,23 @@ void Tendencies::computeTracerTendenciesOnly(
               Team, Range{KMin, KMax},
               INNER_LAMBDA(int K) { LocTracerTend(L, ICell, K) = 0; });
        });
+
+   if (LocTracerNonLocalDiagnosticsEnable) {
+      parallelForOuter(
+          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+             const int KMin = MinLayerCell(ICell);
+             const int KMax = MaxLayerCell(ICell);
+             parallelForInner(
+                 Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
+                    LocTempNonLocalTendDiag(ICell, K)  = 0.0_Real;
+                    LocTempTopBridgeTendDiag(ICell, K) = 0.0_Real;
+                 });
+             Kokkos::single(Kokkos::PerTeam(Team), [&]() {
+                LocTempNonLocalColumnSumDiag(ICell)  = 0.0_Real;
+                LocTempTopBridgeColumnSumDiag(ICell) = 0.0_Real;
+             });
+          });
+   }
 
    // compute tracer horizotal advection
    Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
@@ -1968,28 +1995,60 @@ void Tendencies::computeTracerTendenciesOnly(
                        const I4 KLen   = chunkLength(KChunk, KStart, KMax);
                        for (int KVec = 0; KVec < KLen; ++KVec) {
                           const I4 K = KStart + KVec;
-                          LocTracerTend(L, ICell, K) +=
+                          const Real NonLocalTend =
                               LocSurfaceTracerFlux(L, ICell) *
-                                  LocNonLocalFlux(ICell, K) -
-                              LocSurfaceTracerFlux(L, ICell) *
-                                  LocNonLocalFlux(ICell, K + 1);
+                              (LocNonLocalFlux(ICell, K) -
+                               LocNonLocalFlux(ICell, K + 1));
+                          LocTracerTend(L, ICell, K) += NonLocalTend;
+
+                          if (LocTracerNonLocalDiagnosticsEnable &&
+                              LocHasTempTracer && L == LocTempTracerIndex) {
+                             LocTempNonLocalTendDiag(ICell, K) += NonLocalTend;
+                          }
                        }
                     });
              });
+
+         if (LocTracerNonLocalDiagnosticsEnable && LocHasTempTracer) {
+            parallelForOuter(
+                {Mesh->NCellsAll},
+                KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+                   const int KMin = MinLayerCell(ICell);
+                   const int KMax = MaxLayerCell(ICell);
+                   Real Sum       = 0.0_Real;
+                   parallelReduceInner(
+                       Team, Range{KMin, KMax},
+                       [&](int K, Real &LocalSum) {
+                          const Real NonLocalTend =
+                              LocSurfaceTracerFlux(LocTempTracerIndex, ICell) *
+                              (LocNonLocalFlux(ICell, K) -
+                               LocNonLocalFlux(ICell, K + 1));
+                          LocalSum += NonLocalTend;
+                       },
+                       Sum);
+                   Kokkos::single(Kokkos::PerTeam(Team), [&]() {
+                      LocTempNonLocalColumnSumDiag(ICell) = Sum;
+                   });
+                });
+         }
+
          Pacer::stop("Tend:tracerNonLocalFlux", 2);
       }
    }
 
    if (UseTempSurfaceTracerFluxBridge && UseTempTopLayerFluxTendencyBridge) {
-      I4 TempIdx = -1;
-      if (Tracers::getIndex(TempIdx, "Temperature") == 0) {
-         const I4 TempTracerIndex = TempIdx;
+      if (LocHasTempTracer) {
          parallelFor(
              "TempTopLayerFluxTendencyBridge", {Mesh->NCellsAll},
              KOKKOS_LAMBDA(I4 ICell) {
                 const I4 KMin = MinLayerCell(ICell);
-                LocTracerTend(TempTracerIndex, ICell, KMin) +=
-                    LocSurfaceTracerFlux(TempTracerIndex, ICell);
+                const Real TopBridgeTend =
+                    LocSurfaceTracerFlux(LocTempTracerIndex, ICell);
+                LocTracerTend(LocTempTracerIndex, ICell, KMin) += TopBridgeTend;
+                if (LocTracerNonLocalDiagnosticsEnable) {
+                   LocTempTopBridgeTendDiag(ICell, KMin) += TopBridgeTend;
+                   LocTempTopBridgeColumnSumDiag(ICell) += TopBridgeTend;
+                }
              });
       }
    }
@@ -2239,9 +2298,11 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
                KPPInstance->SurfaceFrictionVelocity);
    OMEGA_SCOPE(LocSurfaceBuoyancyFlux, KPPInstance->SurfaceBuoyancyFlux);
 
-   const Real LocKPPHeatFluxToBuoyancyFactor = KPPHeatFluxToBuoyancyFactor;
-   const Real LocKPPThicknessFluxToBuoyancyFactor =
-       KPPThicknessFluxToBuoyancyFactor;
+   const EosType LocEosChoice = EqState->EosChoice;
+   const Real LocLinearDRhodT = EqState->getLinearDRhodT();
+   const Real LocLinearDRhodS = EqState->getLinearDRhodS();
+   const Real HeatFluxToTracerFluxFactor =
+       1._Real / (RhoSw * (LocEosChoice == EosType::Teos10Eos ? Cp0Sw : CpSw));
 
    const auto *ForcingState = Forcing::getDefault();
    if (!ForcingState) {
@@ -2264,11 +2325,13 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
    OMEGA_SCOPE(LocIcebergFreshWaterFlux,
                SfcStressForcing.IcebergFreshWaterFlux);
    OMEGA_SCOPE(LocSurfaceTracerFlux, SurfaceTracerFlux);
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
+   OMEGA_SCOPE(LocSpecVol, EqState->SpecVol);
+   Teos10BruntVaisalaFreqSq Teos10Coeff(VCoord);
 
    const bool LocUseTempSurfaceTracerFluxBridge =
        TracerNonLocalFluxEnabled && UseTempSurfaceTracerFluxBridge;
-   const I4 TempTracerIndex              = TempIdx;
-   const Real HeatFluxToTracerFluxFactor = 1._Real / (RhoSw * CpSw);
+   const I4 TempTracerIndex = TempIdx;
 
    if (LocUseTempSurfaceTracerFluxBridge) {
       deepCopy(SurfaceTracerFlux, 0.0_Real);
@@ -2288,12 +2351,30 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
               LocRainFlux(ICell) + LocRiverRunoffFlux(ICell) +
               LocIceRunoffFlux(ICell) + LocSubglacialRunoffFlux(ICell) +
               LocIcebergFreshWaterFlux(ICell) - LocEvaporationFlux(ICell);
+          const I4 KSurf              = MinLayerCell(ICell);
+          const Real temp_flux        = heat_flux * HeatFluxToTracerFluxFactor;
+          const Real surface_salinity = AbsSalinity(ICell, KSurf);
+          const Real salt_flux = -freshwater_flux * surface_salinity / RhoFw;
+          const Real spec_vol =
+              Kokkos::max(1.0e-12_Real, LocSpecVol(ICell, KSurf));
+          const Real rho_surface = 1.0_Real / spec_vol;
+          Real alpha             = 0.0_Real;
+          Real beta              = 0.0_Real;
+          if (LocEosChoice == EosType::Teos10Eos) {
+             alpha = Teos10Coeff.calcAlpha(
+                 AbsSalinity(ICell, KSurf), ConservTemp(ICell, KSurf),
+                 PressureMidDbar(ICell, KSurf), spec_vol);
+             beta = Teos10Coeff.calcBeta(
+                 AbsSalinity(ICell, KSurf), ConservTemp(ICell, KSurf),
+                 PressureMidDbar(ICell, KSurf), spec_vol);
+          } else if (LocEosChoice == EosType::LinearEos) {
+             alpha = -LocLinearDRhodT / rho_surface;
+             beta  = LocLinearDRhodS / rho_surface;
+          }
           LocSurfaceBuoyancyFlux(ICell) =
-              heat_flux * LocKPPHeatFluxToBuoyancyFactor +
-              freshwater_flux * LocKPPThicknessFluxToBuoyancyFactor;
+              Gravity * (alpha * temp_flux - beta * salt_flux);
           if (LocUseTempSurfaceTracerFluxBridge) {
-             LocSurfaceTracerFlux(TempTracerIndex, ICell) =
-                 heat_flux * HeatFluxToTracerFluxFactor;
+             LocSurfaceTracerFlux(TempTracerIndex, ICell) = temp_flux;
           }
           IceFraction(ICell) = 0.0_Real;
        });

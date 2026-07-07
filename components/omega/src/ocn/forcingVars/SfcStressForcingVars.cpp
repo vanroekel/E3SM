@@ -19,8 +19,7 @@ SfcStressForcingVars::SfcStressForcingVars(const std::string &Suffix,
       RiverRunoffFlux("RiverRunoffFlux" + Suffix, Mesh->NCellsSize),
       IceRunoffFlux("IceRunoffFlux" + Suffix, Mesh->NCellsSize),
       SubglacialRunoffFlux("SubglacialRunoffFlux" + Suffix, Mesh->NCellsSize),
-      IcebergFreshWaterFlux("IcebergFreshWaterFlux" + Suffix,
-                            Mesh->NCellsSize),
+      IcebergFreshWaterFlux("IcebergFreshWaterFlux" + Suffix, Mesh->NCellsSize),
       CellsOnEdge(Mesh->CellsOnEdge), AngleEdge(Mesh->AngleEdge), Interp(Mesh) {
 }
 
@@ -39,6 +38,21 @@ void SfcStressForcingVars::registerFields(
    }
 
    DimNames[0] = "NCells" + DimSuffix;
+   std::vector<std::string> EdgeDimNames(1);
+   EdgeDimNames[0] = "NEdges" + DimSuffix;
+
+   auto NormalStressEdgeField =
+       Field::create(NormalStressEdge.label(),         // field name
+                     "edge-normal surface stress",     // long name/describe
+                     "N m^{-2}",                       // units
+                     "",                               // CF standard Name
+                     std::numeric_limits<Real>::min(), // min valid value
+                     std::numeric_limits<Real>::max(), // max valid value
+                     FillValue,                        // scalar for undefined
+                     1,                                // number of dimensions
+                     EdgeDimNames                      // dim names
+       );
+
    auto ZonalStressCellField =
        Field::create(ZonalStressCell.label(),          // field name
                      "zonal surface stress",           // long name/describe
@@ -65,23 +79,25 @@ void SfcStressForcingVars::registerFields(
                               const std::string &LongName,
                               const std::string &Units) {
       auto CellField =
-          Field::create(FieldData.label(),                  // field name
-                        LongName,                           // long name
-                        Units,                              // units
-                        "",                                 // CF standard Name
+          Field::create(FieldData.label(),                   // field name
+                        LongName,                            // long name
+                        Units,                               // units
+                        "",                                  // CF standard Name
                         std::numeric_limits<Real>::lowest(), // min valid value
                         std::numeric_limits<Real>::max(),    // max valid value
-                        FillValue,                          // fill value
-                        NDims,                              // number of dims
-                        DimNames                            // dimension names
+                        FillValue,                           // fill value
+                        NDims,                               // number of dims
+                        DimNames                             // dimension names
           );
       FieldGroup::addFieldToGroup(FieldData.label(), "Forcing");
       CellField->attachData<Array1DReal>(FieldData);
    };
 
+   FieldGroup::addFieldToGroup(NormalStressEdge.label(), "Forcing");
    FieldGroup::addFieldToGroup(ZonalStressCell.label(), "Forcing");
    FieldGroup::addFieldToGroup(MeridStressCell.label(), "Forcing");
 
+   NormalStressEdgeField->attachData<Array1DReal>(NormalStressEdge);
    ZonalStressCellField->attachData<Array1DReal>(ZonalStressCell);
    MeridStressCellField->attachData<Array1DReal>(MeridStressCell);
 
@@ -108,6 +124,7 @@ void SfcStressForcingVars::unregisterFields() const {
       }
    };
 
+   destroyIfExists(NormalStressEdge.label());
    destroyIfExists(ZonalStressCell.label());
    destroyIfExists(MeridStressCell.label());
    destroyIfExists(LatentHeatFlux.label());
