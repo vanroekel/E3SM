@@ -14,6 +14,7 @@
 #include "HorzMesh.h"
 #include "IO.h"
 #include "IOStream.h"
+#include "KPPMix.h"
 #include "Logging.h"
 #include "MachEnv.h"
 #include "OceanTestCommon.h"
@@ -144,6 +145,7 @@ int initTendenciesTest(const std::string &mesh) {
    Eos::init();
    Forcing::init();
    VertMix::init();
+   KPPMix::init();
 
    int StateErr = OceanState::init();
    if (StateErr != 0) {
@@ -305,6 +307,90 @@ int testTendencies() {
 
    DefTendencies->SfcStressForcing.Enabled = OrigSfcStressEnabled;
 
+   KPPMix *KPPInstance = KPPMix::getInstance();
+   if (KPPInstance == nullptr || !KPPInstance->Enabled) {
+      Err++;
+      LOG_ERROR("TendenciesTest: KPP instance unavailable for surface "
+                "buoyancy bridge test");
+   } else {
+      I4 TempIdx = -1;
+      I4 SaltIdx = -1;
+      if (Tracers::getIndex(TempIdx, "Temperature") != 0 ||
+          Tracers::getIndex(SaltIdx, "Salinity") != 0) {
+         Err++;
+         LOG_ERROR("TendenciesTest: Temperature/Salinity tracer lookup FAIL");
+      } else {
+         constexpr Real TestTemp     = 10.0_Real;
+         constexpr Real TestSalt     = 35.0_Real;
+         constexpr Real TestHeatFlux = -80.0_Real;
+
+         parallelFor(
+             "TendenciesTest:SetTS", {Mesh->NCellsAll, VCoord->NVertLayers},
+             KOKKOS_LAMBDA(I4 ICell, I4 K) {
+                TracerArray(TempIdx, ICell, K) = TestTemp;
+                TracerArray(SaltIdx, ICell, K) = TestSalt;
+             });
+
+         deepCopy(ZonalStressCell, 0.0_Real);
+         deepCopy(MeridStressCell, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.LatentHeatFlux, TestHeatFlux);
+         deepCopy(DefForcing->SfcStressForcing.SensibleHeatFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.ShortWaveHeatFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.EvaporationFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.RainFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.RiverRunoffFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.IceRunoffFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.SubglacialRunoffFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.IcebergFreshWaterFlux, 0.0_Real);
+
+         DefTendencies->computeStageVerticalMixing(
+             State, AuxState, TracerArray, ThickTimeLevel, VelTimeLevel);
+
+         const auto B0H =
+             createHostMirrorCopy(KPPInstance->SurfaceBuoyancyFlux);
+         const auto SurfaceTracerFluxH =
+             createHostMirrorCopy(DefTendencies->SurfaceTracerFlux);
+         const auto SpecVolH      = createHostMirrorCopy(EqState->SpecVol);
+         const auto PressureMidH  = createHostMirrorCopy(VCoord->PressureMid);
+         const auto MinLayerCellH = createHostMirrorCopy(VCoord->MinLayerCell);
+
+         const I4 TestCell = 0;
+         const I4 KSurf    = MinLayerCellH(TestCell);
+         const Real HeatFluxToTracerFluxFactor =
+             1.0_Real /
+             (RhoSw *
+              (EqState->EosChoice == EosType::Teos10Eos ? Cp0Sw : CpSw));
+         const Real ExpectedTempFlux =
+             TestHeatFlux * HeatFluxToTracerFluxFactor;
+         Real Alpha = 0.0_Real;
+         if (EqState->EosChoice == EosType::Teos10Eos) {
+            Teos10BruntVaisalaFreqSq Teos10Coeff(VCoord);
+            Alpha = Teos10Coeff.calcAlpha(
+                TestSalt, TestTemp, PressureMidH(TestCell, KSurf) * 1.0e-4_Real,
+                SpecVolH(TestCell, KSurf));
+         } else if (EqState->EosChoice == EosType::LinearEos) {
+            const Real RhoSurface = 1.0_Real / SpecVolH(TestCell, KSurf);
+            Alpha                 = -EqState->getLinearDRhodT() / RhoSurface;
+         }
+         const Real ExpectedB0 = Gravity * Alpha * ExpectedTempFlux;
+
+         if (!isApprox(SurfaceTracerFluxH(TempIdx, TestCell), ExpectedTempFlux,
+                       1.0e-12_Real)) {
+            Err++;
+            LOG_ERROR("TendenciesTest: SurfaceTracerFlux bridge FAIL: got {}, "
+                      "expected {}",
+                      SurfaceTracerFluxH(TempIdx, TestCell), ExpectedTempFlux);
+         }
+         if (!isApprox(B0H(TestCell), ExpectedB0, 1.0e-10_Real) ||
+             !(B0H(TestCell) < 0.0_Real)) {
+            Err++;
+            LOG_ERROR("TendenciesTest: KPP SurfaceBuoyancyFlux bridge FAIL: "
+                      "got {}, expected {}",
+                      B0H(TestCell), ExpectedB0);
+         }
+      }
+   }
+
    // check that everything got computed correctly
    int NCellsOwned = Mesh->NCellsOwned;
    int NEdgesOwned = Mesh->NEdgesOwned;
@@ -343,6 +429,7 @@ void finalizeTendenciesTest() {
    Forcing::clear();
    Tracers::clear();
    PressureGrad::clear();
+   KPPMix::destroyInstance();
    VertMix::destroyInstance();
    Eos::destroyInstance();
    AuxiliaryState::clear();

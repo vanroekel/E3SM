@@ -156,6 +156,7 @@ class KPPMix {
    std::string VertDiffFldName;
    std::string VertViscFldName;
    std::string OBLDepthFldName;
+   std::string OBLDepthIndexFldName;
    std::string NonLocalFluxFldName;
    std::string BulkRichardsonFldName;
    std::string BulkRichardsonShearFldName;

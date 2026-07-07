@@ -19,17 +19,27 @@ SfcStressForcingVars::SfcStressForcingVars(const std::string &Suffix,
       RiverRunoffFlux("RiverRunoffFlux" + Suffix, Mesh->NCellsSize),
       IceRunoffFlux("IceRunoffFlux" + Suffix, Mesh->NCellsSize),
       SubglacialRunoffFlux("SubglacialRunoffFlux" + Suffix, Mesh->NCellsSize),
-      IcebergFreshWaterFlux("IcebergFreshWaterFlux" + Suffix,
-                            Mesh->NCellsSize),
+      IcebergFreshWaterFlux("IcebergFreshWaterFlux" + Suffix, Mesh->NCellsSize),
       CellsOnEdge(Mesh->CellsOnEdge), AngleEdge(Mesh->AngleEdge), Interp(Mesh) {
+   deepCopy(NormalStressEdge, 0.0_Real);
+   deepCopy(ZonalStressCell, 0.0_Real);
+   deepCopy(MeridStressCell, 0.0_Real);
+   deepCopy(LatentHeatFlux, 0.0_Real);
+   deepCopy(SensibleHeatFlux, 0.0_Real);
+   deepCopy(ShortWaveHeatFlux, 0.0_Real);
+   deepCopy(EvaporationFlux, 0.0_Real);
+   deepCopy(RainFlux, 0.0_Real);
+   deepCopy(RiverRunoffFlux, 0.0_Real);
+   deepCopy(IceRunoffFlux, 0.0_Real);
+   deepCopy(SubglacialRunoffFlux, 0.0_Real);
+   deepCopy(IcebergFreshWaterFlux, 0.0_Real);
 }
 
 void SfcStressForcingVars::registerFields(
     const std::string &MeshName // name of horizontal mesh
 ) const {
 
-   const Real FillValue = -9.99e30;
-   int NDims            = 1;
+   int NDims = 1;
    std::vector<std::string> DimNames(NDims);
    std::string DimSuffix;
    if (MeshName == "Default") {
@@ -39,6 +49,20 @@ void SfcStressForcingVars::registerFields(
    }
 
    DimNames[0] = "NCells" + DimSuffix;
+   std::vector<std::string> EdgeDimNames(1);
+   EdgeDimNames[0] = "NEdges" + DimSuffix;
+
+   auto NormalStressEdgeField =
+       Field::create(NormalStressEdge.label(),         // field name
+                     "edge-normal surface stress",     // long name/describe
+                     "N m^{-2}",                       // units
+                     "",                               // CF standard Name
+                     std::numeric_limits<Real>::min(), // min valid value
+                     std::numeric_limits<Real>::max(), // max valid value
+                     1,                                // number of dimensions
+                     EdgeDimNames                      // dim names
+       );
+
    auto ZonalStressCellField =
        Field::create(ZonalStressCell.label(),          // field name
                      "zonal surface stress",           // long name/describe
@@ -65,25 +89,26 @@ void SfcStressForcingVars::registerFields(
                               const std::string &LongName,
                               const std::string &Units) {
       auto CellField =
-          Field::create(FieldData.label(),                  // field name
-                        LongName,                           // long name
-                        Units,                              // units
-                        "",                                 // CF standard Name
+          Field::create(FieldData.label(),                   // field name
+                        LongName,                            // long name
+                        Units,                               // units
+                        "",                                  // CF standard Name
                         std::numeric_limits<Real>::lowest(), // min valid value
                         std::numeric_limits<Real>::max(),    // max valid value
-                        FillValue,                          // fill value
-                        NDims,                              // number of dims
-                        DimNames                            // dimension names
+                        NDims,                               // number of dims
+                        DimNames                             // dimension names
           );
       FieldGroup::addFieldToGroup(FieldData.label(), "Forcing");
-      CellField->attachData<Array1DReal>(FieldData);
+      CellField->attachData<Array1DReal>(FieldData, false);
    };
 
+   FieldGroup::addFieldToGroup(NormalStressEdge.label(), "Forcing");
    FieldGroup::addFieldToGroup(ZonalStressCell.label(), "Forcing");
    FieldGroup::addFieldToGroup(MeridStressCell.label(), "Forcing");
 
-   ZonalStressCellField->attachData<Array1DReal>(ZonalStressCell);
-   MeridStressCellField->attachData<Array1DReal>(MeridStressCell);
+   NormalStressEdgeField->attachData<Array1DReal>(NormalStressEdge, false);
+   ZonalStressCellField->attachData<Array1DReal>(ZonalStressCell, false);
+   MeridStressCellField->attachData<Array1DReal>(MeridStressCell, false);
 
    createCellField(LatentHeatFlux, "latent heat flux", "W m^{-2}");
    createCellField(SensibleHeatFlux, "sensible heat flux", "W m^{-2}");
@@ -108,6 +133,7 @@ void SfcStressForcingVars::unregisterFields() const {
       }
    };
 
+   destroyIfExists(NormalStressEdge.label());
    destroyIfExists(ZonalStressCell.label());
    destroyIfExists(MeridStressCell.label());
    destroyIfExists(LatentHeatFlux.label());
