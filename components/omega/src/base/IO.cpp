@@ -849,13 +849,6 @@ void writeArray(void *Array,     // [in] array to be written
    if (Err != PIO_NOERR)
       ABORT_ERROR("IO::writeArray: Error in PIO writing distributed array");
 
-   // Make sure write is complete before returning
-   // We may be able to remove this for efficiency later but it was
-   // needed during testing
-   Err = PIOc_sync(FileID);
-   if (Err != PIO_NOERR)
-      LOG_WARN("IO::writeArray: Error in PIO sychronizing file after write");
-
    return;
 
 } // end writeArray

@@ -873,9 +873,9 @@ void IOStream::computeDecomp(
                   I4 IGlob = (DimOffsets[4])(I);
                   if (IGlob < 0)
                      continue;
-                  int Add = I * StrideLoc[4] + J * StrideLoc[3] +
-                            K * StrideLoc[2] + M * StrideLoc[1] +
-                            N * StrideLoc[0];
+                  int Add     = I * StrideLoc[4] + J * StrideLoc[3] +
+                                K * StrideLoc[2] + M * StrideLoc[1] +
+                                N * StrideLoc[0];
                   Offset[Add] = IGlob * StrideGlob[4] + JGlob * StrideGlob[3] +
                                 KGlob * StrideGlob[2] + MGlob * StrideGlob[1] +
                                 NGlob * StrideGlob[0];
@@ -963,7 +963,7 @@ void IOStream::writeFieldMeta(
 //------------------------------------------------------------------------------
 // Write a field's data array, performing any manipulations to reduce
 // precision or move data between host and device
-void IOStream::writeFieldData(
+int IOStream::writeFieldData(
     std::shared_ptr<Field> FieldPtr,      // [in] field to write
     int FileID,                           // [in] id assigned to open file
     int FieldID,                          // [in] id assigned to the field
@@ -1615,14 +1615,13 @@ void IOStream::writeFieldData(
       IO::writeArray(DataPtr, LocSize, FillValPtr, FileID, MyDecompID, FieldID,
                      FldFrame);
 
-      // Clean up the decomp
-      IO::destroyDecomp(MyDecompID);
+      return MyDecompID;
 
    } else {
       IO::writeNDVar(DataPtr, FileID, FieldID, FldFrame, &DimLengths);
    }
 
-   return;
+   return -1;
 
 } // end writeFieldData
 
@@ -2665,7 +2664,10 @@ void IOStream::writeStream(
    IO::endDefinePhase(OutFileID);
    DefineMode = false;
 
-   // Now write data arrays for all fields in contents
+   // Now write data arrays for all fields in contents. Each distributed
+   // field's PIO decomposition is not destroyed immediately since its write
+   // may still be buffered by PIO and not yet flushed to disk
+   std::vector<int> DecompIDsToFree;
    for (auto IFld = Contents.begin(); IFld != Contents.end(); ++IFld) {
 
       // Retrieve the field pointer and FieldID
@@ -2674,11 +2676,20 @@ void IOStream::writeStream(
       int FieldID                      = FieldIDs[FieldName];
 
       // Extract and write the data array
-      this->writeFieldData(ThisField, OutFileID, FieldID, AllDimIDs);
+      int DecompID =
+          this->writeFieldData(ThisField, OutFileID, FieldID, AllDimIDs);
+      if (DecompID >= 0)
+         DecompIDsToFree.push_back(DecompID);
    }
 
-   // Close output file
+   // Close output file - this syncs the file, guaranteeing all buffered
+   // writes above have been flushed before we free their decompositions
    IO::closeFile(OutFileID);
+
+   // Now that the file has been synced and closed, it is safe to destroy
+   // the decompositions used by the writes above
+   for (auto &DecompID : DecompIDsToFree)
+      IO::destroyDecomp(DecompID);
 
    // If using pointer files for this stream, write the filename to the pointer
    // after the file is successfully written
