@@ -405,10 +405,10 @@ void Tendencies::defineFields() {
    std::vector<std::string> DimNamesThickness(NDims);
    DimNamesThickness[0] = "NCells";
    DimNamesThickness[1] = "NVertLayers";
-      auto PseudoThicknessTendField = Field::create(
-         PseudoThicknessTendFieldName, "Pseudo-thickness tendency", "m/s",
-         "cell_thickness_tendency", -9.99E+10, 9.99E+10, NDims,
-         DimNamesThickness);
+   auto PseudoThicknessTendField =
+       Field::create(PseudoThicknessTendFieldName, "Pseudo-thickness tendency",
+                     "m/s", "cell_thickness_tendency", -9.99E+10, 9.99E+10,
+                     NDims, DimNamesThickness);
    NDims = 3;
    std::vector<std::string> DimNamesTracer(NDims);
    DimNamesTracer[0]    = "NTracers";
@@ -416,23 +416,23 @@ void Tendencies::defineFields() {
    DimNamesTracer[2]    = "NVertLayers";
    auto TracerTendField = Field::create(
        TracerTendFieldName, "Tracer tendency", "kg/m^3/s", "tracer_tendency",
-         -9.99E+10, 9.99E+10, NDims, DimNamesTracer);
+       -9.99E+10, 9.99E+10, NDims, DimNamesTracer);
    NDims = 2;
    std::vector<std::string> DimNamesVelocity(NDims);
    DimNamesVelocity[0] = "NEdges";
    DimNamesVelocity[1] = "NVertLayers";
-      auto NormalVelocityTendField = Field::create(
-         NormalVelocityTendFieldName, "Normal velocity tendency", "m/s^2",
-         "sea_water_velocity_tendency", -9.99E+10, 9.99E+10, NDims,
-         DimNamesVelocity);
+   auto NormalVelocityTendField =
+       Field::create(NormalVelocityTendFieldName, "Normal velocity tendency",
+                     "m/s^2", "sea_water_velocity_tendency", -9.99E+10,
+                     9.99E+10, NDims, DimNamesVelocity);
 
    NDims = 2;
    std::vector<std::string> DimNamesSurfaceFlux(NDims);
-   DimNamesSurfaceFlux[0]      = "NTracers";
-   DimNamesSurfaceFlux[1]      = "NCells";
-   auto SurfaceTracerFluxField = Field::create(
-       SurfaceTracerFluxFieldName, "Surface tracer flux", "1", "", -9.99E+10,
-         9.99E+10, NDims, DimNamesSurfaceFlux);
+   DimNamesSurfaceFlux[0] = "NTracers";
+   DimNamesSurfaceFlux[1] = "NCells";
+   auto SurfaceTracerFluxField =
+       Field::create(SurfaceTracerFluxFieldName, "Surface tracer flux", "1", "",
+                     -9.99E+10, 9.99E+10, NDims, DimNamesSurfaceFlux);
 
    NDims = 2;
    std::vector<std::string> DimNamesTempDiag(NDims);
@@ -441,23 +441,23 @@ void Tendencies::defineFields() {
    auto TempNonLocalDiagField =
        Field::create(TempNonLocalDiagFieldName,
                      "Temperature non-local KPP tendency diagnostic", "1", "",
-                   -9.99E+10, 9.99E+10, NDims, DimNamesTempDiag);
-   auto TempTopBridgeDiagField = Field::create(
-       TempTopBridgeDiagFieldName,
-       "Temperature top-layer bridge tendency diagnostic", "1", "", -9.99E+10,
-         9.99E+10, NDims, DimNamesTempDiag);
+                     -9.99E+10, 9.99E+10, NDims, DimNamesTempDiag);
+   auto TempTopBridgeDiagField =
+       Field::create(TempTopBridgeDiagFieldName,
+                     "Temperature top-layer bridge tendency diagnostic", "1",
+                     "", -9.99E+10, 9.99E+10, NDims, DimNamesTempDiag);
 
    NDims = 1;
    std::vector<std::string> DimNamesCellOnly(NDims);
-   DimNamesCellOnly[0]          = "NCells";
-   auto TempNonLocalColSumField = Field::create(
-       TempNonLocalColSumFieldName,
-       "Temperature non-local tendency column-sum diagnostic", "1", "",
-         -9.99E+10, 9.99E+10, NDims, DimNamesCellOnly);
-   auto TempTopBridgeColSumField = Field::create(
-       TempTopBridgeColSumFieldName,
-       "Temperature top-layer bridge column-sum diagnostic", "1", "", -9.99E+10,
-         9.99E+10, NDims, DimNamesCellOnly);
+   DimNamesCellOnly[0] = "NCells";
+   auto TempNonLocalColSumField =
+       Field::create(TempNonLocalColSumFieldName,
+                     "Temperature non-local tendency column-sum diagnostic",
+                     "1", "", -9.99E+10, 9.99E+10, NDims, DimNamesCellOnly);
+   auto TempTopBridgeColSumField =
+       Field::create(TempTopBridgeColSumFieldName,
+                     "Temperature top-layer bridge column-sum diagnostic", "1",
+                     "", -9.99E+10, 9.99E+10, NDims, DimNamesCellOnly);
 
    std::string TendGroupName = "Tendencies";
    if (Name != "Default") {
@@ -480,11 +480,11 @@ void Tendencies::defineFields() {
    SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux, false);
    TempNonLocalDiagField->attachData<Array2DReal>(TempNonLocalTendDiag, false);
    TempTopBridgeDiagField->attachData<Array2DReal>(TempTopBridgeTendDiag,
-                                                  false);
+                                                   false);
    TempNonLocalColSumField->attachData<Array1DReal>(TempNonLocalColumnSumDiag,
                                                     false);
-   TempTopBridgeColSumField->attachData<Array1DReal>(
-       TempTopBridgeColumnSumDiag, false);
+   TempTopBridgeColSumField->attachData<Array1DReal>(TempTopBridgeColumnSumDiag,
+                                                     false);
 
 } // end defineFields
 
@@ -559,19 +559,6 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
     : Tendencies(Name_, Mesh, VCoord, VAdv, PGrad, EqState, VMix, NTracersIn,
                  TimeStepIn, Options, CustomTendencyType{},
                  CustomTendencyType{}) {}
-
-Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
-                       const HorzMesh *Mesh,     ///< [in] Horizontal mesh
-                       VertCoord *VCoord,        ///< [in] Vertical coordinate
-                       VertAdv *VAdv,            ///< [in] Vertical advection
-                       PressureGrad *PGrad,      ///< [in] Pressure gradient
-                       Eos *EqState,             ///< [in] Equation of state
-                       int NTracersIn,           ///< [in] Number of tracers
-                       TimeInterval TimeStepIn,  ///< [in] Time step
-                       Config *Options)          ///< [in] Configuration options
-    : Tendencies(Name_, Mesh, VCoord, VAdv, PGrad, EqState,
-                 VertMix::getInstance(), NTracersIn, TimeStepIn, Options,
-                 CustomTendencyType{}, CustomTendencyType{}) {}
 
 //------------------------------------------------------------------------------
 // Compute tendencies for the pseudo-thickness equation
