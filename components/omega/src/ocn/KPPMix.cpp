@@ -12,6 +12,7 @@
 #include "KPPMix.h"
 #include "DataTypes.h"
 #include "Error.h"
+#include "FillValues.h"
 #include "GlobalConstants.h"
 #include "KPPConstants.h"
 #include "Logging.h"
@@ -593,9 +594,9 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
 
              Real w_turb = 0.0_Real;
              if (u_star > 1.0e-12_Real) {
-                const Real u3        = u_star * u_star * u_star;
-                const Real zeta      = sigma_loc * z_depth * VonKar * b0_eff /
-                                       Kokkos::max(u3, 1.0e-20_Real);
+                const Real u3   = u_star * u_star * u_star;
+                const Real zeta = sigma_loc * z_depth * VonKar * b0_eff /
+                                  Kokkos::max(u3, 1.0e-20_Real);
                 const Real phi_inv_s = KPP::KPPProfileS2(zeta);
                 w_turb = VonKar * u_star * Kokkos::max(phi_inv_s, 0.0_Real);
              } else if (b0_eff < 0.0_Real) {
@@ -847,7 +848,7 @@ void KPPMix::computeMixingCoefficients(
                 if (u_star > 0.0_Real) {
                    const Real u3 = u_star * u_star * u_star;
                    zeta          = sigma_loc * h_obl * b0 * LocKappa /
-                                   Kokkos::max(u3, 1.0e-20_Real);
+                          Kokkos::max(u3, 1.0e-20_Real);
 
                    // KPPProfileM2/S2 return phi^{-1}; do not invert again.
                    const Real phi_inv_m = KPP::KPPProfileM2(zeta);
@@ -1004,8 +1005,6 @@ void KPPMix::computeMixingCoefficients(
 
 /// Register fields with I/O system
 void KPPMix::defineFields() {
-   const Real FillValue = -9.99e30;
-
    // BoundaryLayerDepth on cells
    std::vector<std::string> CellDims(1);
    CellDims[0] = "NCells";
@@ -1016,11 +1015,9 @@ void KPPMix::defineFields() {
                      "",                               // CF standard name
                      0.0,                              // min valid value
                      std::numeric_limits<Real>::max(), // max valid value
-                     FillValue,                        // fill value
                      1,                                // number of dims
                      CellDims);
 
-   const I4 FillValueI4 = -999;
    auto OBLDepthIndexField =
        Field::create(OBLDepthIndexFldName,               // field name
                      "ocean boundary layer depth index", // long name
@@ -1028,7 +1025,6 @@ void KPPMix::defineFields() {
                      "",                                 // CF standard name
                      -1,                                 // min valid value
                      std::numeric_limits<I4>::max(),     // max valid value
-                     FillValueI4,                        // fill value
                      1,                                  // number of dims
                      CellDims);
 
@@ -1043,7 +1039,6 @@ void KPPMix::defineFields() {
                      "",                                  // CF standard name
                      std::numeric_limits<Real>::lowest(), // min valid value
                      std::numeric_limits<Real>::max(),    // max valid value
-                     FillValue,                           // fill value
                      2,                                   // number of dims
                      FluxDims);
 
@@ -1054,7 +1049,6 @@ void KPPMix::defineFields() {
                      "",                                  // CF standard name
                      std::numeric_limits<Real>::lowest(), // min valid value
                      std::numeric_limits<Real>::max(),    // max valid value
-                     FillValue,                           // fill value
                      2,                                   // number of dims
                      FluxDims);
 
@@ -1065,7 +1059,6 @@ void KPPMix::defineFields() {
                      "",                               // CF standard name
                      0.0,                              // min valid value
                      std::numeric_limits<Real>::max(), // max valid value
-                     FillValue,                        // fill value
                      2,                                // number of dims
                      FluxDims);
 
@@ -1076,7 +1069,6 @@ void KPPMix::defineFields() {
                      "",                               // CF standard name
                      0.0,                              // min valid value
                      std::numeric_limits<Real>::max(), // max valid value
-                     FillValue,                        // fill value
                      2,                                // number of dims
                      FluxDims);
 
@@ -1087,7 +1079,6 @@ void KPPMix::defineFields() {
                      "",                                    // CF standard name
                      std::numeric_limits<Real>::lowest(),   // min valid value
                      std::numeric_limits<Real>::max(),      // max valid value
-                     FillValue,                             // fill value
                      2,                                     // number of dims
                      FluxDims);
 
@@ -1098,7 +1089,6 @@ void KPPMix::defineFields() {
                      "",                               // CF standard name
                      0.0,                              // min valid value
                      std::numeric_limits<Real>::max(), // max valid value
-                     FillValue,                        // fill value
                      2,                                // number of dims
                      FluxDims);
 
@@ -1112,7 +1102,6 @@ void KPPMix::defineFields() {
                      "",                                  // CF standard name
                      std::numeric_limits<Real>::lowest(), // min valid value
                      std::numeric_limits<Real>::max(),    // max valid value
-                     FillValue,                           // fill value
                      2,                                   // number of dims
                      LayerDims);
 
@@ -1130,15 +1119,17 @@ void KPPMix::defineFields() {
    KPPGroup->addField(SurfFricVelFldName);
    KPPGroup->addField(SurfBuoyFluxFldName);
 
-   OBLDepthField->attachData<Array1DReal>(BoundaryLayerDepth);
-   OBLDepthIndexField->attachData<Array1DI4>(IndexBoundaryLayerDepth);
-   NonLocalFluxField->attachData<Array2DReal>(VertNonLocalFlux);
-   BulkRichardsonField->attachData<Array2DReal>(BulkRichardsonNumber);
-   BulkRichardsonShearField->attachData<Array2DReal>(BulkRichardsonShear);
-   UnresolvedShearField->attachData<Array2DReal>(UnresolvedShear);
-   BuoyancyJumpField->attachData<Array2DReal>(BuoyancyJump);
-   TurbulentVelScaleField->attachData<Array2DReal>(TurbulentVelocityScale);
-   PotentialDensityField->attachData<Array2DReal>(PotentialDensity);
+   OBLDepthField->attachData<Array1DReal>(BoundaryLayerDepth, false);
+   OBLDepthIndexField->attachData<Array1DI4>(IndexBoundaryLayerDepth, false);
+   NonLocalFluxField->attachData<Array2DReal>(VertNonLocalFlux, false);
+   BulkRichardsonField->attachData<Array2DReal>(BulkRichardsonNumber, false);
+   BulkRichardsonShearField->attachData<Array2DReal>(BulkRichardsonShear,
+                                                     false);
+   UnresolvedShearField->attachData<Array2DReal>(UnresolvedShear, false);
+   BuoyancyJumpField->attachData<Array2DReal>(BuoyancyJump, false);
+   TurbulentVelScaleField->attachData<Array2DReal>(TurbulentVelocityScale,
+                                                   false);
+   PotentialDensityField->attachData<Array2DReal>(PotentialDensity, false);
 
    // Surface forcing fields on cells
    auto SurfFricVelField =
@@ -1148,10 +1139,9 @@ void KPPMix::defineFields() {
                      "",                                 // CF standard name
                      0.0,                                // min valid value
                      std::numeric_limits<Real>::max(),   // max valid value
-                     FillValue,                          // fill value
                      1,                                  // number of dims
                      CellDims);
-   SurfFricVelField->attachData<Array1DReal>(SurfaceFrictionVelocity);
+   SurfFricVelField->attachData<Array1DReal>(SurfaceFrictionVelocity, false);
 
    auto SurfBuoyFluxField =
        Field::create(SurfBuoyFluxFldName,                 // field name
@@ -1160,10 +1150,21 @@ void KPPMix::defineFields() {
                      "",                                  // CF standard name
                      std::numeric_limits<Real>::lowest(), // min valid value
                      std::numeric_limits<Real>::max(),    // max valid value
-                     FillValue,                           // fill value
                      1,                                   // number of dims
                      CellDims);
-   SurfBuoyFluxField->attachData<Array1DReal>(SurfaceBuoyancyFlux);
+   SurfBuoyFluxField->attachData<Array1DReal>(SurfaceBuoyancyFlux, false);
+
+   OBLDepthField->addMetadata("_FillValue", FillValueReal);
+   OBLDepthIndexField->addMetadata("_FillValue", FillValueI4);
+   NonLocalFluxField->addMetadata("_FillValue", FillValueReal);
+   BulkRichardsonField->addMetadata("_FillValue", FillValueReal);
+   BulkRichardsonShearField->addMetadata("_FillValue", FillValueReal);
+   UnresolvedShearField->addMetadata("_FillValue", FillValueReal);
+   BuoyancyJumpField->addMetadata("_FillValue", FillValueReal);
+   TurbulentVelScaleField->addMetadata("_FillValue", FillValueReal);
+   PotentialDensityField->addMetadata("_FillValue", FillValueReal);
+   SurfFricVelField->addMetadata("_FillValue", FillValueReal);
+   SurfBuoyFluxField->addMetadata("_FillValue", FillValueReal);
 
    LOG_INFO("KPPMix::defineFields: registered {}, {}, {}, {}, {}, {}, {}, {}, "
             "{}, {}, {}",
