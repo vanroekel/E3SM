@@ -30,6 +30,26 @@ namespace OMEGA {
 Tendencies *Tendencies::DefaultTendencies = nullptr;
 std::map<std::string, std::unique_ptr<Tendencies>> Tendencies::AllTendencies;
 
+static void zeroActiveCellLayers(const Array2DReal &Arr, const HorzMesh *Mesh,
+                                 const VertCoord *VCoord) {
+   OMEGA_SCOPE(LocArr, Arr);
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
+   OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
+
+   parallelForOuter(
+       {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+          const int KMin   = MinLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell);
+          const int KRange = vertRangeChunked(KMin, KMax);
+
+          parallelForInner(
+              Team, KRange, INNER_LAMBDA(int KChunk) {
+                 const int K      = KMin + KChunk;
+                 LocArr(ICell, K) = 0;
+              });
+       });
+}
+
 //------------------------------------------------------------------------------
 // Initialize the tendencies. Assumes that HorzMesh, VertCoord, VertAdv, and
 // TimeStepper  has already been initialized.
@@ -425,8 +445,7 @@ void Tendencies::defineFields() {
    TendGroup->addField(TracerTend.label());
    TendGroup->addField(SurfaceTracerFlux.label());
 
-   PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend,
-                                                     false);
+   PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend);
    NormalVelocityTendField->attachData<Array2DReal>(NormalVelocityTend);
    TracerTendField->attachData<Array3DReal>(TracerTend);
    SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux, false);
@@ -488,6 +507,7 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
    TimeStep = TimeStepIn;
 
    defineFields();
+   zeroActiveCellLayers(PseudoThicknessTend, Mesh, VCoord);
 
 } // end constructor
 
@@ -524,18 +544,7 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
 
    Pacer::start("Tend:computePseudoThicknessTendenciesOnly", 1);
 
-   parallelForOuter(
-       {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
-          const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
-          const int KRange = vertRangeChunked(KMin, KMax);
-
-          parallelForInner(
-              Team, KRange, INNER_LAMBDA(int KChunk) {
-                 const int K                      = KMin + KChunk;
-                 LocPseudoThicknessTend(ICell, K) = 0;
-              });
-       });
+   zeroActiveCellLayers(PseudoThicknessTend, Mesh, VCoord);
 
    const Array2DReal &ThickFluxEdge =
        AuxState->PseudoThicknessAux.FluxPseudoThickEdge;
