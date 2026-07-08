@@ -71,6 +71,66 @@ constexpr char DefaultMeshFile[] = "OmegaSphereMesh.nc";
 using TestSetup                  = TestSetupSphere;
 #endif
 
+int checkZeroArray(const std::string &Name, const Array1DReal &Array) {
+   int Err           = 0;
+   const auto ArrayH = createHostMirrorCopy(Array);
+
+   for (int I = 0; I < ArrayH.extent_int(0); ++I) {
+      if (ArrayH(I) != 0.0_Real) {
+         LOG_ERROR("ForcingTest: {} expected zero at index {}, got {}", Name, I,
+                   ArrayH(I));
+         Err++;
+         break;
+      }
+   }
+
+   return Err;
+}
+
+int checkZeroForcingVars(const std::string &Name,
+                         const SfcStressForcingVars &Vars) {
+   int Err = 0;
+
+   Err += checkZeroArray(Name + ".NormalStressEdge", Vars.NormalStressEdge);
+   Err += checkZeroArray(Name + ".ZonalStressCell", Vars.ZonalStressCell);
+   Err += checkZeroArray(Name + ".MeridStressCell", Vars.MeridStressCell);
+   Err += checkZeroArray(Name + ".LatentHeatFlux", Vars.LatentHeatFlux);
+   Err += checkZeroArray(Name + ".SensibleHeatFlux", Vars.SensibleHeatFlux);
+   Err += checkZeroArray(Name + ".ShortWaveHeatFlux", Vars.ShortWaveHeatFlux);
+   Err += checkZeroArray(Name + ".EvaporationFlux", Vars.EvaporationFlux);
+   Err += checkZeroArray(Name + ".RainFlux", Vars.RainFlux);
+   Err += checkZeroArray(Name + ".RiverRunoffFlux", Vars.RiverRunoffFlux);
+   Err += checkZeroArray(Name + ".IceRunoffFlux", Vars.IceRunoffFlux);
+   Err += checkZeroArray(Name + ".SubglacialRunoffFlux",
+                         Vars.SubglacialRunoffFlux);
+   Err += checkZeroArray(Name + ".IcebergFreshWaterFlux",
+                         Vars.IcebergFreshWaterFlux);
+
+   return Err;
+}
+
+int testForcingNeutralDefaults() {
+   int Err = 0;
+
+   const auto Mesh = HorzMesh::getDefault();
+   SfcStressForcingVars FreshVars("NeutralDefaults", Mesh);
+   Err += checkZeroForcingVars("FreshSfcStressForcingVars", FreshVars);
+
+   Forcing *DefForcing = Forcing::getDefault();
+   if (DefForcing == nullptr) {
+      LOG_ERROR("ForcingTest: default forcing instance is null");
+      return Err + 1;
+   }
+   Err += checkZeroForcingVars("DefaultSfcStressForcingVars",
+                               DefForcing->SfcStressForcing);
+
+   if (Err == 0) {
+      LOG_INFO("ForcingTest: neutral defaults PASS");
+   }
+
+   return Err;
+}
+
 int testSfcStressForcingVars(Real RTol) {
    int Err = 0;
    TestSetup Setup;
@@ -345,6 +405,7 @@ int forcingTest() {
 
    Err += initForcingTest(DefaultMeshFile);
    Err += testForcingInitAndConfig();
+   Err += testForcingNeutralDefaults();
    Err += testForcingComputeAll();
    Err += testSfcStressForcingVars(RTol);
    Err += testForcingAPISmoke();

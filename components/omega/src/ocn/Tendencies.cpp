@@ -425,10 +425,11 @@ void Tendencies::defineFields() {
    TendGroup->addField(TracerTend.label());
    TendGroup->addField(SurfaceTracerFlux.label());
 
-   PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend);
+   PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend,
+                                                     false);
    NormalVelocityTendField->attachData<Array2DReal>(NormalVelocityTend);
    TracerTendField->attachData<Array3DReal>(TracerTend);
-   SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux);
+   SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux, false);
 
 } // end defineFields
 
@@ -522,6 +523,19 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
    Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
 
    Pacer::start("Tend:computePseudoThicknessTendenciesOnly", 1);
+
+   parallelForOuter(
+       {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+          const int KMin   = MinLayerCell(ICell);
+          const int KMax   = MaxLayerCell(ICell);
+          const int KRange = vertRangeChunked(KMin, KMax);
+
+          parallelForInner(
+              Team, KRange, INNER_LAMBDA(int KChunk) {
+                 const int K                      = KMin + KChunk;
+                 LocPseudoThicknessTend(ICell, K) = 0;
+              });
+       });
 
    const Array2DReal &ThickFluxEdge =
        AuxState->PseudoThicknessAux.FluxPseudoThickEdge;
@@ -2220,16 +2234,18 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
                                                     SurfacePressure);
 
    OMEGA_SCOPE(PressureMid, VCoord->PressureMid);
+   EqState->computeSpecVol(ConservTemp, AbsSalinity, PressureMid);
+   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity, PressureMid,
+                                      EqState->SpecVol);
+   const_cast<VertCoord *>(VCoord)->computeGeomZHeight(LayerThickCell,
+                                                       EqState->SpecVol);
+
    Array2DReal PressureMidDbar("KPP-PressureMidDbar", NCellsAll, NVertLayers);
    parallelFor(
        "KPP-PressureToDbar", {NCellsAll, NVertLayers},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          PressureMidDbar(ICell, K) = PressureMid(ICell, K) * 1.0e-4_Real;
+          PressureMidDbar(ICell, K) = PressureMid(ICell, K) * Pa2Db;
        });
-
-   EqState->computeSpecVol(ConservTemp, AbsSalinity, PressureMidDbar);
-   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity, PressureMidDbar,
-                                      EqState->SpecVol);
 
    Array2DReal PotentialDensity("KPP-PotentialDensity", NCellsAll, NVertLayers);
    OMEGA_SCOPE(SpecVol, EqState->SpecVol);
@@ -2281,6 +2297,10 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
                "been initialized, skipping KPP stage update");
       return;
    }
+   if (ForcingState->exchangeHalo() != 0) {
+      ABORT_ERROR("Tendencies::computeStageVerticalMixing: forcing halo "
+                  "exchange failed");
+   }
 
    const auto &SfcStressForcing = ForcingState->SfcStressForcing;
    OMEGA_SCOPE(ZonalStressCell, SfcStressForcing.ZonalStressCell);
@@ -2301,7 +2321,7 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
    Teos10BruntVaisalaFreqSq Teos10Coeff(VCoord);
 
    const bool LocUseTempSurfaceTracerFluxBridge =
-       TracerNonLocalFluxEnabled && UseTempSurfaceTracerFluxBridge;
+       UseTempSurfaceTracerFluxBridge;
    const I4 TempTracerIndex = TempIdx;
 
    if (LocUseTempSurfaceTracerFluxBridge) {

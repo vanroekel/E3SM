@@ -21,6 +21,18 @@ SfcStressForcingVars::SfcStressForcingVars(const std::string &Suffix,
       SubglacialRunoffFlux("SubglacialRunoffFlux" + Suffix, Mesh->NCellsSize),
       IcebergFreshWaterFlux("IcebergFreshWaterFlux" + Suffix, Mesh->NCellsSize),
       CellsOnEdge(Mesh->CellsOnEdge), AngleEdge(Mesh->AngleEdge), Interp(Mesh) {
+   deepCopy(NormalStressEdge, 0.0_Real);
+   deepCopy(ZonalStressCell, 0.0_Real);
+   deepCopy(MeridStressCell, 0.0_Real);
+   deepCopy(LatentHeatFlux, 0.0_Real);
+   deepCopy(SensibleHeatFlux, 0.0_Real);
+   deepCopy(ShortWaveHeatFlux, 0.0_Real);
+   deepCopy(EvaporationFlux, 0.0_Real);
+   deepCopy(RainFlux, 0.0_Real);
+   deepCopy(RiverRunoffFlux, 0.0_Real);
+   deepCopy(IceRunoffFlux, 0.0_Real);
+   deepCopy(SubglacialRunoffFlux, 0.0_Real);
+   deepCopy(IcebergFreshWaterFlux, 0.0_Real);
 }
 
 void SfcStressForcingVars::registerFields(
@@ -87,16 +99,16 @@ void SfcStressForcingVars::registerFields(
                         DimNames                             // dimension names
           );
       FieldGroup::addFieldToGroup(FieldData.label(), "Forcing");
-      CellField->attachData<Array1DReal>(FieldData);
+      CellField->attachData<Array1DReal>(FieldData, false);
    };
 
    FieldGroup::addFieldToGroup(NormalStressEdge.label(), "Forcing");
    FieldGroup::addFieldToGroup(ZonalStressCell.label(), "Forcing");
    FieldGroup::addFieldToGroup(MeridStressCell.label(), "Forcing");
 
-   NormalStressEdgeField->attachData<Array1DReal>(NormalStressEdge);
-   ZonalStressCellField->attachData<Array1DReal>(ZonalStressCell);
-   MeridStressCellField->attachData<Array1DReal>(MeridStressCell);
+   NormalStressEdgeField->attachData<Array1DReal>(NormalStressEdge, false);
+   ZonalStressCellField->attachData<Array1DReal>(ZonalStressCell, false);
+   MeridStressCellField->attachData<Array1DReal>(MeridStressCell, false);
 
    createCellField(LatentHeatFlux, "latent heat flux", "W m^{-2}");
    createCellField(SensibleHeatFlux, "sensible heat flux", "W m^{-2}");

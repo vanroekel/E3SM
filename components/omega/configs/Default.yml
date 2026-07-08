@@ -66,6 +66,9 @@ Omega:
     EddyDiff4: 0.0
     TracerVertMixTendencyEnable: true
     TracerNonLocalFluxTendencyEnable: true
+    TracerNonLocalDiagnosticsEnable: true
+    UseTempSurfaceTracerFluxBridge: true
+    UseTempTopLayerFluxTendencyBridge: true
     UseCustomTendency: false
     ManufacturedSolutionTendency: false
     ThicknessVertAdvTendencyEnable: true
