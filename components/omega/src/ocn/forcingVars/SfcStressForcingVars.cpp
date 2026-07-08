@@ -27,8 +27,7 @@ void SfcStressForcingVars::registerFields(
     const std::string &MeshName // name of horizontal mesh
 ) const {
 
-   const Real FillValue = -9.99e30;
-   int NDims            = 1;
+   int NDims = 1;
    std::vector<std::string> DimNames(NDims);
    std::string DimSuffix;
    if (MeshName == "Default") {
@@ -48,7 +47,6 @@ void SfcStressForcingVars::registerFields(
                      "",                               // CF standard Name
                      std::numeric_limits<Real>::min(), // min valid value
                      std::numeric_limits<Real>::max(), // max valid value
-                     FillValue,                        // scalar for undefined
                      1,                                // number of dimensions
                      EdgeDimNames                      // dim names
        );
@@ -85,7 +83,6 @@ void SfcStressForcingVars::registerFields(
                         "",                                  // CF standard Name
                         std::numeric_limits<Real>::lowest(), // min valid value
                         std::numeric_limits<Real>::max(),    // max valid value
-                        FillValue,                           // fill value
                         NDims,                               // number of dims
                         DimNames                             // dimension names
           );

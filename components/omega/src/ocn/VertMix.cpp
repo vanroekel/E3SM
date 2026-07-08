@@ -426,64 +426,6 @@ void VertMix::defineFields() {
        DimNames                                         // Dimension names
    );
 
-   /// Create fields for state variables
-   const Real FillValue = -9.99e30;
-   int NDims            = 2;
-   std::vector<std::string> DimNames(NDims);
-   DimNames[0] = "NCells";
-   DimNames[1] = "NVertLayersP1";
-
-   /// Create and register the Diffusivity field
-   auto VertDiffField =
-       Field::create(VertDiffFldName, // Field name
-                     "Vertical diffusivity at center of"
-                     " cell and top of layer",         // Long Name
-                     "m2 s-1",                         // Units
-                     "vertical_diffusivity",           // CF-ish Name
-                     0.0,                              // Min valid value
-                     std::numeric_limits<Real>::max(), // Max valid value
-                     FillValue, // Scalar used for undefined entries
-                     NDims,     // Number of dimensions
-                     DimNames   // Dimension names
-       );
-   /// Create and register the VertVisc field
-   auto VertViscField =
-       Field::create(VertViscFldName, // Field name
-                     "Vertical viscosity at center of"
-                     " cell and top of layer",         // Long Name
-                     "m2 s-1",                         // Units
-                     "vertical_viscosity",             // CF-ish Name
-                     0.0,                              // Min valid value
-                     std::numeric_limits<Real>::max(), // Max valid value
-                     FillValue, // Scalar used for undefined entried
-                     NDims,     // Number of dimensions
-                     DimNames   // Dimension names
-       );
-   /// Create and register the GradRichNum field
-   auto GradRichNumField =
-       Field::create(GradRichNumFldName,                     // Field name
-                     "Gradient Richardson number",           // Long Name
-                     "dimensionless",                        // Units
-                     "sea_water_gradient_richardson_number", // CF-ish Name
-                     std::numeric_limits<Real>::min(),       // Min valid value
-                     std::numeric_limits<Real>::max(),       // Max valid value
-                     FillValue, // Scalar used for undefined entries
-                     NDims,     // Number of dimensions
-                     DimNames   // Dimension names
-       );
-   /// Create and register the GradRichNumSmoothed field
-   auto GradRichNumSmoothedField = Field::create(
-       GradRichNumSmoothedFldName,                      // Field name
-       "Smoothed Gradient Richardson number",           // Long Name
-       "dimensionless",                                 // Units
-       "sea_water_gradient_richardson_number_smoothed", // CF-ish Name
-       std::numeric_limits<Real>::min(),                // Min valid value
-       std::numeric_limits<Real>::max(),                // Max valid value
-       FillValue, // Scalar used for undefined entries
-       NDims,     // Number of dimensions
-       DimNames   // Dimension names
-   );
-
    // Create a field group for the vertmix-specific state fields
    VertMixGroupName = "VertMix";
    if (Name != "Default") {
@@ -528,6 +470,15 @@ void VertMix::applyVelVertMixImplicit(
       Eos *EosInstance         = Eos::getInstance();
       VertMix *VertMixInstance = VertMix::getInstance();
 
+      // Obtain TimeStep
+      const auto *DefTimeStepper  = TimeStepper::getDefault();
+      const TimeInterval TimeStep = DefTimeStepper->getTimeStep();
+      R8 DT;
+      TimeStep.get(DT, TimeUnits::Seconds);
+
+      const auto &SpecVol  = EosInstance->SpecVol;
+      const auto &VertVisc = VertMixInstance->VertVisc;
+
       const int NVertLayers  = VCoord->NVertLayers;
       const int LocVecLength = VecLength;
       auto LConfig =
@@ -539,9 +490,7 @@ void VertMix::applyVelVertMixImplicit(
              const int ILen   = Kokkos::max(
                  0, Kokkos::min(LocVecLength, LocNEdgesAll - IStart));
 
-             const int NVertLayers = VCoord->NVertLayers;
-             auto LConfig =
-                 TriDiagSolver::makeLaunchConfig(Mesh->NEdgesAll, NVertLayers);
+             TriDiagDiffScratch Scratch(Team, NVertLayers);
 
              // Construct a tri-diag diffusion matrix and RHS
              parallelForInner(Team, NVertLayers, [=](int K) {
@@ -645,10 +594,6 @@ void VertMix::applyTracerVertMixImplicit(
                     0, Kokkos::min(LocVecLength, LocNCellsAll - IStart));
 
                 TriDiagDiffScratch Scratch(Team, NVertLayers);
-                const int LaneCount = Scratch.X.extent_int(1);
-                const int IStart    = Team.league_rank() * LaneCount;
-                const int ILen      = Kokkos::max(
-                    0, Kokkos::min(LaneCount, LocNCellsAll - IStart));
 
                 // Construct a tri-diag diffusion matrix and RHS
                 parallelForInner(Team, NVertLayers, [=](int K) {

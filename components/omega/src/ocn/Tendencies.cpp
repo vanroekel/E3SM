@@ -379,78 +379,56 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
    }
 }
 
-int NDims = 2;
-std::vector<std::string> DimNamesThickness(NDims);
-DimNamesThickness[0]          = "NCells";
-DimNamesThickness[1]          = "NVertLayers";
-auto PseudoThicknessTendField = Field::create(
-    PseudoThicknessTendFieldName, "Pseudo-thickness tendency", "m/s",
-    "cell_thickness_tendency", -9.99E+10, 9.99E+10, NDims, DimNamesThickness);
-NDims = 3;
-std::vector<std::string> DimNamesTracer(NDims);
-DimNamesTracer[0]    = "NTracers";
-DimNamesTracer[1]    = "NCells";
-DimNamesTracer[2]    = "NVertLayers";
-auto TracerTendField = Field::create(TracerTendFieldName, "Tracer tendency",
-                                     "kg/m^3/s", "tracer_tendency", -9.99E+10,
-                                     9.99E+10, NDims, DimNamesTracer);
-NDims                = 2;
-std::vector<std::string> DimNamesVelocity(NDims);
-DimNamesVelocity[0] = "NEdges";
-DimNamesVelocity[1] = "NVertLayers";
-auto NormalVelocityTendField =
-    Field::create(NormalVelocityTendFieldName, "Normal velocity tendency",
-                  "m/s^2", "sea_water_velocity_tendency", -9.99E+10, 9.99E+10,
-                  NDims, DimNamesVelocity);
+void Tendencies::defineFields() {
 
-int NDims = 2;
-std::vector<std::string> DimNamesThickness(NDims);
-DimNamesThickness[0] = "NCells";
-DimNamesThickness[1] = "NVertLayers";
-auto PseudoThicknessTendField =
-    Field::create(PseudoThicknessTendFieldName, "Pseudo-thickness tendency",
-                  "m/s", "cell_thickness_tendency", -9.99E+10, 9.99E+10,
-                  -9.99E+30, NDims, DimNamesThickness);
-NDims = 3;
-std::vector<std::string> DimNamesTracer(NDims);
-DimNamesTracer[0]    = "NTracers";
-DimNamesTracer[1]    = "NCells";
-DimNamesTracer[2]    = "NVertLayers";
-auto TracerTendField = Field::create(
-    TracerTendFieldName, "Tracer tendency", "kg/m^3/s", "tracer_tendency",
-    -9.99E+10, 9.99E+10, -9.99E+30, NDims, DimNamesTracer);
-NDims = 2;
-std::vector<std::string> DimNamesVelocity(NDims);
-DimNamesVelocity[0] = "NEdges";
-DimNamesVelocity[1] = "NVertLayers";
-auto NormalVelocityTendField =
-    Field::create(NormalVelocityTendFieldName, "Normal velocity tendency",
-                  "m/s^2", "sea_water_velocity_tendency", -9.99E+10, 9.99E+10,
-                  -9.99E+30, NDims, DimNamesVelocity);
+   int NDims = 2;
+   std::vector<std::string> DimNamesThickness(NDims);
+   DimNamesThickness[0] = "NCells";
+   DimNamesThickness[1] = "NVertLayers";
+   auto PseudoThicknessTendField =
+       Field::create(PseudoThicknessTend.label(), "Pseudo-thickness tendency",
+                     "m/s", "cell_thickness_tendency", -9.99E+10, 9.99E+10,
+                     NDims, DimNamesThickness);
+   NDims = 3;
+   std::vector<std::string> DimNamesTracer(NDims);
+   DimNamesTracer[0]    = "NTracers";
+   DimNamesTracer[1]    = "NCells";
+   DimNamesTracer[2]    = "NVertLayers";
+   auto TracerTendField = Field::create(
+       TracerTend.label(), "Tracer tendency", "kg/m^3/s", "tracer_tendency",
+       -9.99E+10, 9.99E+10, NDims, DimNamesTracer);
+   NDims = 2;
+   std::vector<std::string> DimNamesVelocity(NDims);
+   DimNamesVelocity[0] = "NEdges";
+   DimNamesVelocity[1] = "NVertLayers";
+   auto NormalVelocityTendField =
+       Field::create(NormalVelocityTend.label(), "Normal velocity tendency",
+                     "m/s^2", "sea_water_velocity_tendency", -9.99E+10,
+                     9.99E+10, NDims, DimNamesVelocity);
 
-NDims = 2;
-std::vector<std::string> DimNamesSurfaceFlux(NDims);
-DimNamesSurfaceFlux[0] = "NTracers";
-DimNamesSurfaceFlux[1] = "NCells";
-auto SurfaceTracerFluxField =
-    Field::create(SurfaceTracerFluxFieldName, "Surface tracer flux", "1", "",
-                  -9.99E+10, 9.99E+10, -9.99E+30, NDims, DimNamesSurfaceFlux);
+   NDims = 2;
+   std::vector<std::string> DimNamesSurfaceFlux(NDims);
+   DimNamesSurfaceFlux[0] = "NTracers";
+   DimNamesSurfaceFlux[1] = "NCells";
+   auto SurfaceTracerFluxField =
+       Field::create(SurfaceTracerFlux.label(), "Surface tracer flux", "1", "",
+                     -9.99E+10, 9.99E+10, NDims, DimNamesSurfaceFlux);
 
-std::string TendGroupName = "Tendencies";
-if (Name != "Default") {
-   TendGroupName.append(Name);
-}
-auto TendGroup = FieldGroup::create(TendGroupName);
+   std::string TendGroupName = "Tendencies";
+   if (Name != "Default") {
+      TendGroupName.append(Name);
+   }
+   auto TendGroup = FieldGroup::create(TendGroupName);
 
-TendGroup->addField(PseudoThicknessTendFieldName);
-TendGroup->addField(NormalVelocityTendFieldName);
-TendGroup->addField(TracerTendFieldName);
-TendGroup->addField(SurfaceTracerFluxFieldName);
+   TendGroup->addField(PseudoThicknessTend.label());
+   TendGroup->addField(NormalVelocityTend.label());
+   TendGroup->addField(TracerTend.label());
+   TendGroup->addField(SurfaceTracerFlux.label());
 
-PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend);
-NormalVelocityTendField->attachData<Array2DReal>(NormalVelocityTend);
-TracerTendField->attachData<Array3DReal>(TracerTend);
-SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux);
+   PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend);
+   NormalVelocityTendField->attachData<Array2DReal>(NormalVelocityTend);
+   TracerTendField->attachData<Array3DReal>(TracerTend);
+   SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux);
 
 } // end defineFields
 
@@ -526,19 +504,6 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
                  TimeStepIn, Options, CustomTendencyType{},
                  CustomTendencyType{}) {}
 
-Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
-                       const HorzMesh *Mesh,     ///< [in] Horizontal mesh
-                       VertCoord *VCoord,        ///< [in] Vertical coordinate
-                       VertAdv *VAdv,            ///< [in] Vertical advection
-                       PressureGrad *PGrad,      ///< [in] Pressure gradient
-                       Eos *EqState,             ///< [in] Equation of state
-                       int NTracersIn,           ///< [in] Number of tracers
-                       TimeInterval TimeStepIn,  ///< [in] Time step
-                       Config *Options)          ///< [in] Configuration options
-    : Tendencies(Name_, Mesh, VCoord, VAdv, PGrad, EqState,
-                 VertMix::getInstance(), NTracersIn, TimeStepIn, Options,
-                 CustomTendencyType{}, CustomTendencyType{}) {}
-
 //------------------------------------------------------------------------------
 // Compute tendencies for the pseudo-thickness equation
 void Tendencies::computePseudoThicknessTendenciesOnly(
@@ -558,37 +523,43 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
 
    Pacer::start("Tend:computePseudoThicknessTendenciesOnly", 1);
 
-   parallelForOuter(
-       {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
-          const int KMin   = MinLayerCell(ICell);
-          const int KMax   = MaxLayerCell(ICell);
-          const int KRange = vertRangeChunked(KMin, KMax);
+   const Array2DReal &ThickFluxEdge =
+       AuxState->PseudoThicknessAux.FluxPseudoThickEdge;
 
-          parallelForInner(
-              Team, KRange, INNER_LAMBDA(int KChunk) {
-                 LocThicknessFluxDiv(LocPseudoThicknessTend, ICell, KChunk,
-                                     ThickFluxEdge, NormalVelEdge);
-              });
-       });
-   Pacer::stop("Tend:thicknessFluxDiv", 2);
-}
+   if (LocThicknessFluxDiv.Enabled) {
+      Pacer::start("Tend:thicknessFluxDiv", 2);
+      parallelForOuter(
+          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+             const int KMin   = MinLayerCell(ICell);
+             const int KMax   = MaxLayerCell(ICell);
+             const int KRange = vertRangeChunked(KMin, KMax);
 
-Pacer::start("Tend:computePseudoThicknessVAdvTend", 2);
-// Compute thickness tendency from vertical advection
-VAdv->computePseudoThicknessVAdvTend(PseudoThicknessTend);
-Pacer::stop("Tend:computePseudoThicknessVAdvTend", 2);
+             parallelForInner(
+                 Team, KRange, INNER_LAMBDA(int KChunk) {
+                    LocThicknessFluxDiv(LocPseudoThicknessTend, ICell, KChunk,
+                                        ThickFluxEdge, NormalVelEdge);
+                 });
+          });
+      Pacer::stop("Tend:thicknessFluxDiv", 2);
+   }
 
-if (CustomThicknessTend) {
-   Pacer::start("Tend:customThicknessTend", 2);
-   CustomThicknessTend(LocPseudoThicknessTend, State, AuxState, ThickTimeLevel,
-                       VelTimeLevel, Time);
-   Pacer::stop("Tend:customThicknessTend", 2);
-}
+   Pacer::start("Tend:computePseudoThicknessVAdvTend", 2);
+   // Compute thickness tendency from vertical advection
+   VAdv->computePseudoThicknessVAdvTend(PseudoThicknessTend);
+   Pacer::stop("Tend:computePseudoThicknessVAdvTend", 2);
 
-Pacer::stop("Tend:computePseudoThicknessTendenciesOnly", 1);
+   if (CustomThicknessTend) {
+      Pacer::start("Tend:customThicknessTend", 2);
+      CustomThicknessTend(LocPseudoThicknessTend, State, AuxState,
+                          ThickTimeLevel, VelTimeLevel, Time);
+      Pacer::stop("Tend:customThicknessTend", 2);
+   }
 
-} // namespace OMEGA
+   Pacer::stop("Tend:computePseudoThicknessTendenciesOnly", 1);
 
+} // end computePseudoThicknessTendenciesOnly
+
+#if 0
 //------------------------------------------------------------------------------
 // Compute tendencies for normal velocity equation
 void Tendencies::computeVelocityTendenciesOnly(
@@ -1543,6 +1514,7 @@ void Tendencies::computeTracerTendenciesOnly(
    Pacer::stop("Tend:computePseudoThicknessTendenciesOnly", 1);
 
 } // end thickness tendency compute
+#endif
 
 //------------------------------------------------------------------------------
 // Compute tendencies for normal velocity equation
@@ -2076,8 +2048,7 @@ void Tendencies::computePseudoThicknessTendencies(
 
    Pacer::start("Tend:computePseudoThickAux", 2);
    parallelForOuter(
-       "computePseudoThickAux", {Mesh->NEdgesAll},
-       KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
+       {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
           const int KMin   = MinLayerEdgeBot(IEdge);
           const int KMax   = MaxLayerEdgeTop(IEdge);
           const int KRange = vertRangeChunked(KMin, KMax);
