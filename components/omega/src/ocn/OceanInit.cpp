@@ -35,6 +35,7 @@
 #include "VertMix.h"
 
 #include "mpi.h"
+#include <filesystem>
 
 namespace OMEGA {
 
@@ -79,6 +80,33 @@ static void readTimingConfig() {
 
    Err += TimingConfig.get("PrintAllRanks", Timing::PrintAllRanks);
    CHECK_ERROR_ABORT(Err, "Timing: PrintAllRanks not found in TimingConfig");
+}
+
+static bool forcingInputFileAvailable() {
+   Error Err;
+
+   Config *OmegaConfig = Config::getOmegaConfig();
+   Config StreamsConfig("IOStreams");
+   Err += OmegaConfig->get(StreamsConfig);
+   if (Err.isFail())
+      return false;
+
+   Config ForcingConfig("Forcing");
+   Err += StreamsConfig.get(ForcingConfig);
+   if (Err.isFail())
+      return false;
+
+   bool UsePointerFile = false;
+   Err += ForcingConfig.get("UsePointerFile", UsePointerFile);
+   if (Err.isFail() || UsePointerFile)
+      return true;
+
+   std::string Filename;
+   Err += ForcingConfig.get("Filename", Filename);
+   if (Err.isFail() || Filename.find("$") != std::string::npos)
+      return true;
+
+   return std::filesystem::exists(Filename);
 }
 
 int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
@@ -143,12 +171,15 @@ int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
 
    // Optional forcing stream for cases (e.g. column tests) where forcing
    // variables are staged in a dedicated NetCDF file
-   Metadata ForcingReqMeta;
-   Error Err3 = IOStream::read("Forcing", ModelClock, ForcingReqMeta);
-   if (Err3.isFail()) {
-      if (Err3.Msg.find("Stream Forcing not found") == std::string::npos) {
-         CHECK_ERROR(Err3, "Errors encountered reading Forcing");
-         ABORT_ERROR("Error initializing forcing variables from input stream");
+   if (forcingInputFileAvailable()) {
+      Metadata ForcingReqMeta;
+      Error Err3 = IOStream::read("Forcing", ModelClock, ForcingReqMeta);
+      if (Err3.isFail()) {
+         if (Err3.Msg.find("Stream Forcing not found") == std::string::npos) {
+            CHECK_ERROR(Err3, "Errors encountered reading Forcing");
+            ABORT_ERROR(
+                "Error initializing forcing variables from input stream");
+         }
       }
    }
 

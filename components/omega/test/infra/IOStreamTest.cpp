@@ -21,6 +21,7 @@
 #include "Forcing.h"
 #include "Halo.h"
 #include "HorzMesh.h"
+#include "KPPMix.h"
 #include "Logging.h"
 #include "MachEnv.h"
 #include "OceanState.h"
@@ -115,6 +116,12 @@ void initIOStreamTest(Clock *&ModelClock // Model clock
 
    // Initialize VertMix
    VertMix::init();
+
+   // Initialize KPP mixing
+   KPPMix::init();
+
+   // Initialize Forcing
+   Forcing::init();
 
    // Intialize Tendencies
    Tendencies::init();
@@ -238,6 +245,7 @@ int main(int argc, char **argv) {
    TimeStepper::clear();
    PressureGrad::clear();
    VertMix::destroyInstance();
+   KPPMix::destroyInstance();
    Tendencies::clear();
    Tracers::clear();
    OceanState::clear();
