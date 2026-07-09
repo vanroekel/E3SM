@@ -72,6 +72,7 @@ Omega:
     TracerVertAdvTendencyEnable: true
     PressureGradTendencyEnable: true
     VelVertMixTendencyEnable: true
+    TracerVertMixTendencyEnable: true
   ManufacturedSolution:
     WavelengthX: 5.0e6
     WavelengthY: 4.33013e6

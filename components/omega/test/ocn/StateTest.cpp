@@ -21,6 +21,7 @@
 #include "HorzMesh.h"
 #include "IO.h"
 #include "IOStream.h"
+#include "KPPMix.h"
 #include "Logging.h"
 #include "MachEnv.h"
 #include "OceanState.h"
@@ -108,8 +109,11 @@ void initStateTest() {
    // Initialize vertical mixing
    VertMix::init();
 
-   // Create tendencies
-   VertMix::init();
+   // Initialize KPP mixing
+   KPPMix::init();
+
+   // Initialize forcing
+   Forcing::init();
 
    // Create tendencies
    Tendencies::init();
@@ -426,6 +430,8 @@ int main(int argc, char *argv[]) {
       AuxiliaryState::clear();
       PressureGrad::clear();
       VertMix::destroyInstance();
+      KPPMix::destroyInstance();
+      Forcing::clear();
       Tendencies::clear();
       TimeStepper::clear();
       HorzMesh::clear();

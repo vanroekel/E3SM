@@ -5,14 +5,43 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Config.h"
 #include "Forcing.h"
 #include "IOStream.h"
 #include "OceanDriver.h"
 #include "OceanState.h"
 #include "TimeMgr.h"
 #include "TimeStepper.h"
+#include <filesystem>
 
 namespace OMEGA {
+
+static bool forcingInputFileAvailable() {
+   Error Err;
+
+   Config *OmegaConfig = Config::getOmegaConfig();
+   Config StreamsConfig("IOStreams");
+   Err += OmegaConfig->get(StreamsConfig);
+   if (Err.isFail())
+      return false;
+
+   Config ForcingConfig("Forcing");
+   Err += StreamsConfig.get(ForcingConfig);
+   if (Err.isFail())
+      return false;
+
+   bool UsePointerFile = false;
+   Err += ForcingConfig.get("UsePointerFile", UsePointerFile);
+   if (Err.isFail() || UsePointerFile)
+      return true;
+
+   std::string Filename;
+   Err += ForcingConfig.get("Filename", Filename);
+   if (Err.isFail() || Filename.find("$") != std::string::npos)
+      return true;
+
+   return std::filesystem::exists(Filename);
+}
 
 int ocnRun(TimeInstant &CurrTime ///< [inout] current sim time
 ) {
@@ -46,15 +75,18 @@ int ocnRun(TimeInstant &CurrTime ///< [inout] current sim time
 
       // Refresh optional file-based forcing fields if the Forcing stream
       // exists and is scheduled to read at this model time.
-      Metadata ForcingReqMeta;
-      Error ForcingReadErr =
-          IOStream::read("Forcing", OmegaClock, ForcingReqMeta);
-      if (ForcingReadErr.isFail()) {
-         if (ForcingReadErr.Msg.find("Stream Forcing not found") ==
-             std::string::npos) {
-            CHECK_ERROR(ForcingReadErr,
-                        "Errors encountered reading Forcing during run");
-            ABORT_ERROR("Error updating forcing variables from input stream");
+      if (forcingInputFileAvailable()) {
+         Metadata ForcingReqMeta;
+         Error ForcingReadErr =
+             IOStream::read("Forcing", OmegaClock, ForcingReqMeta);
+         if (ForcingReadErr.isFail()) {
+            if (ForcingReadErr.Msg.find("Stream Forcing not found") ==
+                std::string::npos) {
+               CHECK_ERROR(ForcingReadErr,
+                           "Errors encountered reading Forcing during run");
+               ABORT_ERROR(
+                   "Error updating forcing variables from input stream");
+            }
          }
       }
 
