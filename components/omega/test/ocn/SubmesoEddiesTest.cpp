@@ -1,4 +1,5 @@
 #include "SubmesoEddies.h"
+#include "FillValues.h"
 #include "GlobalConstants.h"
 #include "IO.h"
 #include "IOStream.h"
@@ -300,6 +301,7 @@ Array2DReal computeExactGradInterface(const Array2DReal &GeomZInterfaceEdge) {
 
    Array2DReal ExactGradInterface("ExactGradInterface", Mesh->NEdgesSize,
                                   VCoord->NVertLayersP1);
+   deepCopy(ExactGradInterface, FillValueReal);
 
    setVectorEdge(
        KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, int K, Real Lon, Real Lat,
@@ -311,13 +313,13 @@ Array2DReal computeExactGradInterface(const Array2DReal &GeomZInterfaceEdge) {
        MaxLayerEdgeTopP1, GeomZInterfaceEdge, ExchangeHalos::No,
        CartProjection::No);
 
-   // Zero gradient on boundary edges
+   // Boundary edges should have fill value
    parallelFor(
        {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge) {
           int MinLyrEdgeBot = MinLayerEdgeBot(IEdge);
           int MaxLyrEdgeTop = MaxLayerEdgeTop(IEdge);
           if (MaxLyrEdgeTop < MinLyrEdgeBot) {
-             ExactGradInterface(IEdge, MinLyrEdgeBot) = 0;
+             ExactGradInterface(IEdge, MinLyrEdgeBot) = FillValueReal;
           }
        });
 
@@ -334,6 +336,7 @@ Array1DReal computeExactGradML(const Array2DReal &GeomZInterfaceEdge,
    const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
 
    Array1DReal ExactGradML("ExactGradML", Mesh->NEdgesSize);
+
    setVectorEdge(
        KOKKOS_LAMBDA(Real(&VecField)[2], int IEdge, Real Lon, Real Lat) {
           const int JCell0 = CellsOnEdge(IEdge, 0);
@@ -349,16 +352,6 @@ Array1DReal computeExactGradML(const Array2DReal &GeomZInterfaceEdge,
        ExactGradML, EdgeComponent::Normal, Geom, Mesh, ExchangeHalos::No,
        CartProjection::No);
 
-   // Zero gradient on boundary edges
-   parallelFor(
-       {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge) {
-          int MinLyrEdgeBot = MinLayerEdgeBot(IEdge);
-          int MaxLyrEdgeTop = MaxLayerEdgeTop(IEdge);
-          if (MaxLyrEdgeTop < MinLyrEdgeBot) {
-             ExactGradML(IEdge) = 0;
-          }
-       });
-
    return ExactGradML;
 }
 
@@ -372,6 +365,7 @@ Array1DReal computeExactBVML(const Array2DReal &GeomZInterfaceEdge,
    const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
 
    Array1DReal ExactBVML("ExactBVML", Mesh->NEdgesSize);
+
    setScalar(
        KOKKOS_LAMBDA(int IEdge, Real Lon, Real Lat) {
           const int JCell0 = CellsOnEdge(IEdge, 0);
@@ -627,6 +621,8 @@ Error testEddyVelocity(const Array2DReal &GeomZInterfaceEdge,
    // Compute exact eddy velocity
    Array2DReal ExactEddyVelocity("ExactEddyVelocity", Mesh->NEdgesSize,
                                  VCoord->NVertLayers);
+   deepCopy(ExactEddyVelocity, FillValueReal);
+
    parallelForOuter(
        {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
           const int MinLyrEdgeBot = MinLayerEdgeBot(IEdge);
