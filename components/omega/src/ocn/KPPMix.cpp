@@ -149,6 +149,11 @@ void KPPMix::init() {
    if (!EnhancedErr.isSuccess()) {
       EnhancedErr.reset();
    }
+   Error BLDSmoothErr =
+       KPPConfig.get("UseBLDSmoothing", DefKPPMix->UseBLDSmoothing);
+   if (!BLDSmoothErr.isSuccess()) {
+      BLDSmoothErr.reset();
+   }
 
    // Keep active options focused on what is used in OMEGA.
    if (DefKPPMix->MatchTechniqueStr == "MatchGradient") {
@@ -396,6 +401,7 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
    OMEGA_SCOPE(ZMid, VCoord->GeomZMid);
    OMEGA_SCOPE(NEdgesOnCell, Mesh->NEdgesOnCell);
    OMEGA_SCOPE(EdgesOnCell, Mesh->EdgesOnCell);
+   OMEGA_SCOPE(CellsOnCell, Mesh->CellsOnCell);
    OMEGA_SCOPE(AreaCell, Mesh->AreaCell);
    OMEGA_SCOPE(DcEdge, Mesh->DcEdge);
    OMEGA_SCOPE(DvEdge, Mesh->DvEdge);
@@ -411,8 +417,10 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
    OMEGA_SCOPE(LocBulkRichardsonShear, BulkRichardsonShear);
    OMEGA_SCOPE(LocUnresolvedShear, UnresolvedShear);
    OMEGA_SCOPE(LocBuoyancyJump, BuoyancyJump);
+   const bool LocUseBLDSmoothing           = UseBLDSmoothing;
    const Real LocIceFracThresholdForMinOBL = IceFractionThresholdForMinimumOBL;
    const Real LocMinimumOBLUnderSeaIce     = MinimumOBLUnderSeaIce;
+   const Real LocStopOBLSearchMult         = StopOBLSearchMult;
 
    deepCopy(BulkRichardsonNumber, 0.0_Real);
    deepCopy(BulkRichardsonShear, 0.0_Real);
@@ -437,9 +445,11 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
 
           const Real iceFrac = LocIceFraction(ICell);
 
-          Real obl_depth        = Kokkos::abs(ZInterface(ICell, KIntDeep));
-          I4 k_cross            = -1;
-          const Real ri_crit    = LocCriticalRichardson;
+          Real obl_depth     = Kokkos::abs(ZInterface(ICell, KIntDeep));
+          I4 k_cross         = -1;
+          const Real ri_crit = LocCriticalRichardson;
+          const Real ri_stop_crit =
+              Kokkos::max(1.0e-6_Real, LocStopOBLSearchMult) * ri_crit;
           const Real ri_scaling = 1.0_Real - 0.5_Real * LocSurfaceLayerExtent;
           const Real b0_eff     = b0 * LocLangmuirFactor(ICell);
 
@@ -459,23 +469,48 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
           // MPAS-style area fractions for edge averaging.
           // Use edge kite area divided by cell area.
           const I4 nEdgesEff = Kokkos::min(nEdges, MAX_EDGES_ON_CELL);
+          bool edge_valid[MAX_EDGES_ON_CELL]   = {};
           Real edge_weights[MAX_EDGES_ON_CELL] = {};
           const Real inv_area_cell =
               1.0_Real / Kokkos::max(AreaCell(ICell), 1.0e-20_Real);
           for (I4 J = 0; J < nEdgesEff; ++J) {
              const I4 IEdge = EdgesOnCell(ICell, J);
-             edge_weights[J] =
-                 0.25_Real * DcEdge(IEdge) * DvEdge(IEdge) * inv_area_cell;
+             const I4 KEMin = MinLayerEdgeBot(IEdge);
+             const I4 KEMax = MaxLayerEdgeTop(IEdge);
+             edge_valid[J] =
+                 (KEMax >= KEMin && KEMin >= 0 && KEMin < NVertLayers);
+             if (edge_valid[J]) {
+                edge_weights[J] =
+                    0.25_Real * DcEdge(IEdge) * DvEdge(IEdge) * inv_area_cell;
+             }
           }
           if (nEdgesEff > 0) {
              Real sum_w = 0.0_Real;
              for (I4 J = 0; J < nEdgesEff; ++J) {
-                sum_w += edge_weights[J];
+                if (edge_valid[J]) {
+                   sum_w += edge_weights[J];
+                }
              }
              if (sum_w < 1.0e-20_Real) {
-                const Real equal_w = 1.0_Real / static_cast<Real>(nEdgesEff);
+                I4 n_edges_valid = 0;
                 for (I4 J = 0; J < nEdgesEff; ++J) {
-                   edge_weights[J] = equal_w;
+                   if (edge_valid[J]) {
+                      ++n_edges_valid;
+                   }
+                }
+                if (n_edges_valid > 0) {
+                   const Real equal_w =
+                       1.0_Real / static_cast<Real>(n_edges_valid);
+                   for (I4 J = 0; J < nEdgesEff; ++J) {
+                      edge_weights[J] = edge_valid[J] ? equal_w : 0.0_Real;
+                   }
+                }
+             } else {
+                const Real inv_sum_w = 1.0_Real / sum_w;
+                for (I4 J = 0; J < nEdgesEff; ++J) {
+                   if (edge_valid[J]) {
+                      edge_weights[J] *= inv_sum_w;
+                   }
                 }
              }
           }
@@ -502,7 +537,10 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
              Real sum_un_e[MAX_EDGES_ON_CELL]    = {};
              Real sum_vt_e[MAX_EDGES_ON_CELL]    = {};
 
-             for (I4 J = 0; J < nEdges && J < MAX_EDGES_ON_CELL; ++J) {
+             for (I4 J = 0; J < nEdgesEff; ++J) {
+                if (!edge_valid[J]) {
+                   continue;
+                }
                 const I4 IEdge    = EdgesOnCell(ICell, J);
                 const I4 KEMin    = MinLayerEdgeBot(IEdge);
                 k_surf_e[J]       = KEMin;
@@ -539,7 +577,10 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
              }
 
              // Advance per-edge surface averages for velocity
-             for (I4 J = 0; J < nEdges && J < MAX_EDGES_ON_CELL; ++J) {
+             for (I4 J = 0; J < nEdgesEff; ++J) {
+                if (!edge_valid[J]) {
+                   continue;
+                }
                 const I4 IEdge = EdgesOnCell(ICell, J);
                 const I4 KEMax = MaxLayerEdgeTop(IEdge);
                 while (k_surf_e[J] < k &&
@@ -571,6 +612,9 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
              Real deltaVsq = 0.0_Real;
              if (nEdges > 0) {
                 for (I4 J = 0; J < nEdgesEff; ++J) {
+                   if (!edge_valid[J]) {
+                      continue;
+                   }
                    const I4 IEdge = EdgesOnCell(ICell, J);
                    const I4 KEMin = MinLayerEdgeBot(IEdge);
                    const I4 KEMax = MaxLayerEdgeTop(IEdge);
@@ -621,7 +665,7 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
                                Kokkos::max(vel_scale2, 1.0e-12_Real);
              LocBulkRichardson(ICell, kInt) = ri_b;
 
-             if (k_cross < 0 && ri_b > ri_crit) {
+             if (k_cross < 0 && ri_b > ri_stop_crit) {
                 k_cross = k;
              }
           }
@@ -660,7 +704,7 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
                    // Ri(t) = A t^2 + slope_above t + ri_above
                    const Real A =
                        (ri_below - ri_above - slope_above * h) / (h * h);
-                   const Real C = ri_above - ri_crit;
+                   const Real C = ri_above - ri_stop_crit;
 
                    Real t_cross = h;
                    if (Kokkos::abs(A) < 1.0e-14_Real) {
@@ -670,7 +714,7 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
                          const Real frac = Kokkos::fmax(
                              0.0_Real,
                              Kokkos::fmin(1.0_Real,
-                                          (ri_crit - ri_above) / d_ri));
+                                          (ri_stop_crit - ri_above) / d_ri));
                          t_cross = frac * h;
                       }
                    } else {
@@ -738,6 +782,93 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
           LocBoundaryLayerDepth(ICell)      = obl_depth;
           LocIndexBoundaryLayerDepth(ICell) = k_final;
        });
+
+   if (LocUseBLDSmoothing) {
+      Array1DReal BoundaryLayerDepthSmooth("BoundaryLayerDepthSmooth",
+                                           Mesh->NCellsAll);
+      OMEGA_SCOPE(LocBoundaryLayerDepthSmooth, BoundaryLayerDepthSmooth);
+      OMEGA_SCOPE(LocNCellsAll, Mesh->NCellsAll);
+
+      parallelFor(
+          "KPP-OBLDepth-Smooth", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+             const I4 KMin = MinLayerCell(ICell);
+             if (KMin < 0 || KMin >= NVertLayers) {
+                LocBoundaryLayerDepthSmooth(ICell) =
+                    LocBoundaryLayerDepth(ICell);
+                return;
+             }
+
+             const I4 nEdges = NEdgesOnCell(ICell);
+             Real area_sum   = 0.0_Real;
+             Real bld_sum    = 0.0_Real;
+             I4 edge_count   = 0;
+
+             for (I4 J = 0; J < nEdges; ++J) {
+                const I4 INeighbor = CellsOnCell(ICell, J);
+                if (INeighbor == LocNCellsAll) {
+                   continue;
+                }
+
+                const I4 KMinNbr = MinLayerCell(INeighbor);
+                if (KMinNbr < 0 || KMinNbr >= NVertLayers) {
+                   continue;
+                }
+
+                const Real nbr_area = AreaCell(INeighbor);
+                bld_sum +=
+                    2.0_Real * nbr_area * LocBoundaryLayerDepth(INeighbor);
+                area_sum += 2.0_Real * nbr_area;
+                ++edge_count;
+             }
+
+             if (edge_count > 0) {
+                const Real self_area = AreaCell(ICell);
+                bld_sum += LocBoundaryLayerDepth(ICell) *
+                           static_cast<Real>(edge_count) * self_area;
+                area_sum += static_cast<Real>(edge_count) * self_area;
+             }
+
+             if (area_sum > 0.0_Real) {
+                LocBoundaryLayerDepthSmooth(ICell) = bld_sum / area_sum;
+             } else {
+                LocBoundaryLayerDepthSmooth(ICell) =
+                    LocBoundaryLayerDepth(ICell);
+             }
+          });
+
+      parallelFor(
+          "KPP-OBLDepth-CommitSmooth", {Mesh->NCellsAll},
+          KOKKOS_LAMBDA(I4 ICell) {
+             const I4 KMin = MinLayerCell(ICell);
+             const I4 KMax = MaxLayerCell(ICell);
+             if (KMin < 0 || KMax < KMin || KMin >= NVertLayers) {
+                return;
+             }
+
+             const I4 KIntTop = Kokkos::min(KMin + 1, NVertLayers);
+             const Real top_layer_thickness = Kokkos::abs(
+                 ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
+             const Real min_obl_depth = 0.5_Real * top_layer_thickness;
+             const Real max_obl_depth = Kokkos::abs(ZMid(ICell, KMax));
+
+             Real obl_depth = LocBoundaryLayerDepthSmooth(ICell);
+             obl_depth      = Kokkos::fmax(obl_depth, min_obl_depth);
+             obl_depth      = Kokkos::fmin(obl_depth, max_obl_depth);
+
+             I4 k_final = KMax;
+             for (I4 k = KMin; k < KMax; ++k) {
+                const Real z_above = Kokkos::abs(ZInterface(ICell, k));
+                const Real z_below = Kokkos::abs(ZInterface(ICell, k + 1));
+                if (obl_depth >= z_above && obl_depth <= z_below) {
+                   k_final = k;
+                   break;
+                }
+             }
+
+             LocBoundaryLayerDepth(ICell)      = obl_depth;
+             LocIndexBoundaryLayerDepth(ICell) = k_final;
+          });
+   }
 
    LOG_INFO("KPPMix::computeOBLDepth: OBL depth computed");
 }

@@ -103,6 +103,7 @@ Omega:
     KPP:
       Enable: true
       UseNonLocalFlux: true
+      UseBLDSmoothing: true
       CriticalBulkRichardsonNumber: 0.25
       MatchTechnique: SimpleShapes
       InterpType2: LMD94

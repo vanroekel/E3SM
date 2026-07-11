@@ -53,8 +53,8 @@ class KPPMix {
    /// Output arrays are computed in-place.
    void computeKPPMix(
        const Array2DReal
-           &PotentialDensity,             ///< Density (kg/m³) [NCells×NLevels]
-       const Array2DReal &NormalVelocity, ///< Normal vel on edges (m/s)
+           &PotentialDensity, ///< Density (kg/m³) [NCells×NLevels]
+       const Array2DReal &NormalVelocity,     ///< Normal vel on edges (m/s)
        const Array2DReal &TangentialVelocity, ///< Tangential vel on edges (m/s)
        const Array1DReal &SurfaceFrictionVelocity, ///< u* (m/s)
        const Array1DReal &SurfaceBuoyancyFlux,     ///< B_0 (m²/s³)
@@ -150,6 +150,7 @@ class KPPMix {
                        ///< ParabolicNonLocal
    std::string InterpType2Str = "LMD94"; ///< Linear, Quadratic, Cubic, LMD94
    bool UseEnhancedDiffusion  = true;    ///< Apply enhanced mixing at OBL base
+   bool UseBLDSmoothing = true; ///< Apply MPAS-style BLD horizontal smoothing
 
    // Field names for I/O
    std::string BuoyancyJumpFldName;
