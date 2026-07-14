@@ -52,6 +52,7 @@ userGuide/VertCoord
 userGuide/PGrad
 userGuide/Timing
 userGuide/VerticalMixingCoeff
+userGuide/KPPMix
 userGuide/VertAdv
 userGuide/Forcing
 userGuide/SfcCoupling
@@ -99,6 +100,7 @@ devGuide/VertCoord
 devGuide/PGrad
 devGuide/Timing
 devGuide/VerticalMixingCoeff
+devGuide/KPPMix
 devGuide/VertAdv
 devGuide/Forcing
 devGuide/SfcCoupling
@@ -144,6 +146,7 @@ design/TridiagonalSolver
 design/VertAdv
 design/VertCoord
 design/VerticalMixingCoeff
+design/KPPMix
 
 design/Template
 ```
