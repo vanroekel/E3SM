@@ -215,8 +215,10 @@ class IOStream {
    );
 
    /// Write a field's data array, performing any manipulations to reduce
-   /// precision or move data between host and device
-   void
+   /// precision or move data between host and device. Returns the PIO
+   /// decomposition ID used for a distributed field, so the caller can
+   /// destroy it only once the write has been flushed
+   int
    writeFieldData(std::shared_ptr<Field> FieldPtr, ///< [in] field to write
                   int FileID,  ///< [in] id assigned to open file
                   int FieldID, ///< [in] id assigned to the field
