@@ -315,7 +315,7 @@ Array2DReal computeExactGradInterface(const Array2DReal &GeomZInterfaceEdge) {
 
    // Boundary edges should have fill value
    parallelFor(
-       {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge) {
+       {Mesh->NEdgesOwned}, KOKKOS_LAMBDA(int IEdge) {
           int MinLyrEdgeBot = MinLayerEdgeBot(IEdge);
           int MaxLyrEdgeTop = MaxLayerEdgeTop(IEdge);
           if (MaxLyrEdgeTop < MinLyrEdgeBot) {

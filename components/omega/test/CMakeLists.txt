@@ -586,5 +586,5 @@ add_omega_test(
     SUBMESOEDDIES_TEST
     testSubmesoEddies.exe
     ocn/SubmesoEddiesTest.cpp
-    "-n;1"
+    "-n;2"
 )
