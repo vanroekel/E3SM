@@ -233,8 +233,9 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
    Array1DI4 KPPBoundaryLayerIndex("VertMix-KPPBoundaryLayerIndex",
                                    Mesh->NCellsAll);
    deepCopy(KPPBoundaryLayerIndex, -1);
-   KPPMix *KPPInstance = KPPMix::getInstance();
-   if (KPPInstance && KPPInstance->Enabled) {
+   KPPMix *KPPInstance      = KPPMix::getInstance();
+   const bool LocKPPEnabled = (KPPInstance && KPPInstance->Enabled);
+   if (LocKPPEnabled) {
       deepCopy(KPPBoundaryLayerIndex, KPPInstance->IndexBoundaryLayerDepth);
    }
    OMEGA_SCOPE(LocKPPBoundaryLayerIndex, KPPBoundaryLayerIndex);
@@ -341,8 +342,21 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
 
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
-                    LocComputeVertMixConv(LocVertDiff, LocVertVisc, ICell,
-                                          KChunk, BruntVaisalaFreqSq);
+                    const I4 KStart = chunkStart(KChunk, KMin);
+                    const I4 KLen   = chunkLength(KChunk, KStart, KMax);
+                    for (int KVec = 0; KVec < KLen; ++KVec) {
+                       const I4 K = KStart + KVec;
+                       // When KPP is enabled, apply convective mixing only
+                       // below the interface just beneath the diagnosed BLD.
+                       const bool ApplyConv =
+                           (!LocKPPEnabled) ||
+                           (K > LocKPPBoundaryLayerIndex(ICell) + 1);
+                       if (ApplyConv &&
+                           BruntVaisalaFreqSq(ICell, K) < LocConvTriggerBVF) {
+                          LocVertDiff(ICell, K) += LocConvDiff;
+                          LocVertVisc(ICell, K) += LocConvDiff;
+                       }
+                    }
                  });
           });
    }
@@ -709,6 +723,12 @@ void VertMix::VertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
    if (KPPInstance && KPPInstance->Enabled) {
       const I4 NCellsAll   = Mesh->NCellsAll;
       const I4 NVertLayers = VCoord->NVertLayers;
+      I4 KPPMergeMode = 0; // 0=additive (SimpleShapes/Parabolic), 1=MatchBoth
+      if (KPPInstance->MatchTechniqueStr == "MatchBoth") {
+         KPPMergeMode = 1;
+      }
+      const Real KPPBackgroundDiff = KPPInstance->BackgroundDiff;
+      const Real KPPBackgroundVisc = KPPInstance->BackgroundVisc;
       OMEGA_SCOPE(LocVertDiff, VertDiff);
       OMEGA_SCOPE(LocVertVisc, VertVisc);
       OMEGA_SCOPE(LocKPPVertDiff, KPPInstance->VertDiff);
@@ -719,9 +739,20 @@ void VertMix::VertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
       parallelFor(
           "KPP-MergeIntoVertMix", {NCellsAll, NVertLayers + 1},
           KOKKOS_LAMBDA(I4 ICell, I4 K) {
-             if (K <= LocKPPIndexBoundaryLayerDepth(ICell) + 1) {
-                LocVertDiff(ICell, K) = LocKPPVertDiff(ICell, K);
-                LocVertVisc(ICell, K) = LocKPPVertVisc(ICell, K);
+             if (KPPMergeMode == 1) {
+                // MatchBoth: follow KPP matched behavior in and at the BLD
+                // base.
+                if (K <= LocKPPIndexBoundaryLayerDepth(ICell) + 1) {
+                   LocVertDiff(ICell, K) = LocKPPVertDiff(ICell, K);
+                   LocVertVisc(ICell, K) = LocKPPVertVisc(ICell, K);
+                }
+             } else {
+                // SimpleShapes/ParabolicNonLocal: additive composition with
+                // single-count background via KPP anomaly.
+                LocVertDiff(ICell, K) +=
+                    LocKPPVertDiff(ICell, K) - KPPBackgroundDiff;
+                LocVertVisc(ICell, K) +=
+                    LocKPPVertVisc(ICell, K) - KPPBackgroundVisc;
              }
           });
 

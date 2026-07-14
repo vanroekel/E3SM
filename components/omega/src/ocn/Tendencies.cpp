@@ -1472,4 +1472,4 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
 
 } // end namespace OMEGA
 
-//===----------------------------------------------------------------------===//
+//===-----------------------------------------------------------
