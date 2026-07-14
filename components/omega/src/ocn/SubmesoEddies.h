@@ -12,7 +12,7 @@ KOKKOS_INLINE_FUNCTION Real linearInterp(Real x, Real y1, Real x1, Real y2,
                                          Real x2) {
    const Real A = (y1 - y2) / (x1 - x2);
    const Real B = y1 - A * x1;
-   return A * x + B;
+   return (x1 == x2) ? y1 : A * x + B;
 }
 
 // A class for the submesoscale eddy parametrization.
