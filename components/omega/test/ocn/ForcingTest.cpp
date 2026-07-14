@@ -96,11 +96,15 @@ int testSfcStressForcingVars(Real RTol) {
 
    // Set inputs
    Err += setScalar(
-       KOKKOS_LAMBDA(int ICell, Real X, Real Y) { return Setup.sfcStressX(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.sfcStressX(X, Y);
+       },
        SfcStressForcing.ZonalStressCell, Geom, Mesh, OnCell);
 
    Err += setScalar(
-       KOKKOS_LAMBDA(int ICell, Real X, Real Y) { return Setup.sfcStressY(X, Y); },
+       KOKKOS_LAMBDA(int ICell, Real X, Real Y) {
+          return Setup.sfcStressY(X, Y);
+       },
        SfcStressForcing.MeridStressCell, Geom, Mesh, OnCell);
 
    // Compute numerical result
