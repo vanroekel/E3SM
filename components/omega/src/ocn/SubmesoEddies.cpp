@@ -122,8 +122,8 @@ void SubmesoEddies::defineFields() {
                         "",                                  // CF-ish Name
                         std::numeric_limits<Real>::lowest(), // Min valid value
                         std::numeric_limits<Real>::max(),    // Max valid value
-                        NDims,     // Number of dimensions
-                        DimNames   // Dimension names
+                        NDims,   // Number of dimensions
+                        DimNames // Dimension names
           );
 
       BuoyancyGradientInterfaceField->attachData<Array2DReal>(
@@ -146,8 +146,8 @@ void SubmesoEddies::defineFields() {
                         "",                                  // CF-ish Name
                         std::numeric_limits<Real>::lowest(), // Min valid value
                         std::numeric_limits<Real>::max(),    // Max valid value
-                        NDims,     // Number of dimensions
-                        DimNames   // Dimension names
+                        NDims,   // Number of dimensions
+                        DimNames // Dimension names
           );
 
       EddyVelocityField->attachData<Array2DReal>(EddyVelocity);
@@ -401,6 +401,9 @@ void SubmesoEddies::computeEddyVelocity(
    const auto NVertLayers      = VCoord->NVertLayers;
    const auto NVertLayersP1    = VCoord->NVertLayersP1;
 
+   // Replace with global constant when added
+   const Real Tiny = 1e-12_Real;
+
    parallelForOuter(
        LaunchConfig({Mesh->NEdgesAll}, TeamScratch<Real>(NVertLayersP1)),
        KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
@@ -441,8 +444,8 @@ void SubmesoEddies::computeEddyVelocity(
                     const Real GradBuoy = GradBuoyEdgeInterface(IEdge, K);
 
                     const Real BVFEdge =
-                        Kokkos::sqrt(0.5_Real * (Kokkos::max(0._Real, BVFSq0) +
-                                                 Kokkos::max(0._Real, BVFSq1)));
+                        Kokkos::sqrt(0.5_Real * (Kokkos::max(Tiny, BVFSq0) +
+                                                 Kokkos::max(Tiny, BVFSq1)));
 
                     AccumThick += PseudoThickAvg;
                     AccumGradBuoy += PseudoThickAvg * GradBuoy;
