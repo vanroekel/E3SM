@@ -347,6 +347,8 @@ void SubmesoEddies::computeBuoyGrad(const Array2DReal &SpecVol,
                         CoeffK * GradBuoyEdge(K);
                  });
 
+             teamBarrier(Team);
+
              Kokkos::single(
                  PerTeam(Team), INNER_LAMBDA() {
                     SpecVolEdgeInterface(MinLyrEdgeBot) =
