@@ -159,7 +159,6 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
    }
 
    if constexpr (Array::rank == 2) {
-      const int NVertLayers = ScalarElement.extent_int(1);
 
       parallelForOuter(
           {NElementsSet}, KOKKOS_LAMBDA(int IElement, const TeamMember &Team) {

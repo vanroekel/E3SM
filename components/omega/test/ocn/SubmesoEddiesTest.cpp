@@ -284,13 +284,10 @@ Array2DReal computePseudoThickOnEdges() {
 }
 
 Array2DReal computeExactGradInterface(const Array2DReal &GeomZInterfaceEdge) {
-   auto *Mesh              = HorzMesh::getDefault();
-   const auto &CellsOnEdge = Mesh->CellsOnEdge;
-
+   auto *Mesh                  = HorzMesh::getDefault();
    auto *VCoord                = VertCoord::getDefault();
    const auto &MinLayerEdgeBot = VCoord->MinLayerEdgeBot;
    const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
-   const auto &GeomZInterface  = VCoord->GeomZInterface;
 
    Array1DI4 MaxLayerEdgeTopP1("MaxLayerEdgeTopP1", Mesh->NEdgesSize);
 
@@ -333,7 +330,6 @@ Array1DReal computeExactGradML(const Array2DReal &GeomZInterfaceEdge,
 
    auto *VCoord                = VertCoord::getDefault();
    const auto &MinLayerEdgeBot = VCoord->MinLayerEdgeBot;
-   const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
 
    Array1DReal ExactGradML("ExactGradML", Mesh->NEdgesSize);
 
@@ -362,7 +358,6 @@ Array1DReal computeExactBVML(const Array2DReal &GeomZInterfaceEdge,
 
    auto *VCoord                = VertCoord::getDefault();
    const auto &MinLayerEdgeBot = VCoord->MinLayerEdgeBot;
-   const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
 
    Array1DReal ExactBVML("ExactBVML", Mesh->NEdgesSize);
 
@@ -468,12 +463,10 @@ Error testBuoyancyGrad(const Array2DReal &MeanPseudoThickEdge,
 
    auto *Mesh = HorzMesh::getDefault();
 
-   auto *VCoord                = VertCoord::getDefault();
-   auto &GeomZMid              = VCoord->GeomZMid;
-   auto &GeomZInterface        = VCoord->GeomZInterface;
-   const auto &MaxLayerCell    = VCoord->MaxLayerCell;
-   const auto &MinLayerEdgeBot = VCoord->MinLayerEdgeBot;
-   const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
+   auto *VCoord             = VertCoord::getDefault();
+   auto &GeomZMid           = VCoord->GeomZMid;
+   auto &GeomZInterface     = VCoord->GeomZInterface;
+   const auto &MaxLayerCell = VCoord->MaxLayerCell;
 
    // Compute specific volume
    Array2DReal SpecVol("SpecVol", Mesh->NCellsSize, VCoord->NVertLayers);

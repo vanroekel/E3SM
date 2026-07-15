@@ -397,10 +397,8 @@ void SubmesoEddies::computeEddyVelocity(
    const auto &GeomZInterface = VCoord->GeomZInterface;
 
    const auto &MinLayerCell    = VCoord->MinLayerCell;
-   const auto &MaxLayerCell    = VCoord->MaxLayerCell;
    const auto &MinLayerEdgeBot = VCoord->MinLayerEdgeBot;
    const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
-   const auto NVertLayers      = VCoord->NVertLayers;
    const auto NVertLayersP1    = VCoord->NVertLayersP1;
 
    // Replace with global constant when added
