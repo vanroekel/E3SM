@@ -178,12 +178,22 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
                        X = LonElement(IElement);
                        Y = LatElement(IElement);
                     }
-                    if constexpr (ZCoordNull) {
-                       ScalarElement(IElement, K) = Fun(IElement, X, Y);
+
+                    // Workaround for a CUDA issue with capturing variables
+                    // inside `if constexpr`
+                    const auto &LocZElement      = ZElement;
+                    const auto &LocFun           = Fun;
+                    constexpr auto LocZCoordNull = ZCoordNull;
+
+                    Real ScalarValue;
+                    if constexpr (LocZCoordNull) {
+                       ScalarValue = LocFun(IElement, X, Y);
                     } else {
-                       const Real Z               = ZElement(IElement, K);
-                       ScalarElement(IElement, K) = Fun(IElement, K, X, Y, Z);
+                       const Real Z = LocZElement(IElement, K);
+                       ScalarValue  = LocFun(IElement, K, X, Y, Z);
                     }
+
+                    ScalarElement(IElement, K) = ScalarValue;
                  });
           });
    }
@@ -208,13 +218,22 @@ int setScalar(const Functor &Fun, const Array &ScalarElement, Geometry Geom,
                        X = LonElement(IElement);
                        Y = LatElement(IElement);
                     }
-                    if constexpr (ZCoordNull) {
-                       ScalarElement(L, IElement, K) = Fun(IElement, X, Y);
+
+                    // Workaround for a CUDA issue with capturing variables
+                    // inside `if constexpr`
+                    const auto &LocZElement      = ZElement;
+                    const auto &LocFun           = Fun;
+                    constexpr auto LocZCoordNull = ZCoordNull;
+
+                    Real ScalarValue;
+                    if constexpr (LocZCoordNull) {
+                       ScalarValue = LocFun(IElement, X, Y);
                     } else {
-                       const Real Z = ZElement(IElement, K);
-                       ScalarElement(L, IElement, K) =
-                           Fun(IElement, K, X, Y, Z);
+                       const Real Z = LocZElement(IElement, K);
+                       ScalarValue  = LocFun(IElement, K, X, Y, Z);
                     }
+
+                    ScalarElement(L, IElement, K) = ScalarValue;
                  });
           });
    }
@@ -284,16 +303,24 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
 
    auto ProjectVector = KOKKOS_LAMBDA(int IEdge, int K) {
       Real VecFieldEdge;
+
+      // Workaround for a CUDA issue with capturing variables inside `if
+      // constexpr`
+      const auto &LocZElement      = ZElement;
+      const auto &LocFun           = Fun;
+      constexpr auto LocZCoordNull = ZCoordNull;
+
       if (Geom == Geometry::Planar) {
          const Real XE = XEdge(IEdge);
          const Real YE = YEdge(IEdge);
 
          Real VecField[2];
-         if constexpr (ZCoordNull) {
-            Fun(VecField, IEdge, XE, YE);
+
+         if constexpr (LocZCoordNull) {
+            LocFun(VecField, IEdge, XE, YE);
          } else {
-            const Real ZE = ZElement(IEdge, K);
-            Fun(VecField, IEdge, K, XE, YE, ZE);
+            const Real ZE = LocZElement(IEdge, K);
+            LocFun(VecField, IEdge, K, XE, YE, ZE);
          }
 
          if (EdgeComp == EdgeComponent::Normal) {
@@ -314,11 +341,11 @@ int setVectorEdge(const Functor &Fun, const Array &VectorFieldEdge,
          const Real LatE = LatEdge(IEdge);
 
          Real VecField[2];
-         if constexpr (ZCoordNull) {
-            Fun(VecField, IEdge, LonE, LatE);
+         if constexpr (LocZCoordNull) {
+            LocFun(VecField, IEdge, LonE, LatE);
          } else {
-            const Real ZE = ZElement(IEdge, K);
-            Fun(VecField, IEdge, K, LonE, LatE, ZE);
+            const Real ZE = LocZElement(IEdge, K);
+            LocFun(VecField, IEdge, K, LonE, LatE, ZE);
          }
 
          if (CartProjectionOpt == CartProjection::Yes) {
