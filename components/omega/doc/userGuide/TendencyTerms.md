@@ -20,6 +20,8 @@ tendency terms are currently implemented:
 | TracerHyperDiffOnCell | biharmonic horizontal mixing of thickness-weighted tracers
 | SfcStressForcingOnEdge | forcing by surface stress (e.g. wind), defined on edges
 | BottomDragOnEdge | bottom drag, defined on edges
+| SfcThicknessForcingOnCell | surface pseudo-thickness forcing from coupled freshwater and salt fluxes, defined on cells
+| SfcTracerForcingOnCell | surface tracer forcing from coupled heat and salt fluxes, with direct heat always and mass-flux enthalpy terms gated by thickness forcing, defined on cells
 | SurfaceTracerRestoringOnCell | surface tracer restoring, defined on cells
 
 Among the internal data stored by each functor is a `bool` which can enable or
@@ -55,6 +57,8 @@ the currently available tendency terms:
 | SfcStressForcingOnEdge | SfcStressForcingTendencyEnable | enable/disable term
 | BottomDragOnEdge | BottomDragTendencyEnable | enable/disable term
 | | BottomDragCoeff | bottom drag coefficient
+| SfcThicknessForcingOnCell | SfcThicknessForcingTendencyEnable | enable/disable term
+| SfcTracerForcingOnCell | SfcTracerForcingTendencyEnable | enable/disable term
 | SurfaceTracerRestoringOnCell | SurfaceTracerRestoringEnable | enable/disable term
 
 ## Second Order Horizontal Advection Algorithm
@@ -140,5 +144,6 @@ Tracer higer order convergence example of a cosine bell advected on a sphere sho
 
 ## See Also
 
-Additional information on forcing (currently wind forcing and surface tracer
-restoring) is detailed in [](omega-user-forcing).
+Additional information on forcing, including surface stress forcing,
+surface thickness and tracer flux forcing, and surface tracer restoring, is detailed in
+[](omega-user-forcing).

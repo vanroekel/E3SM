@@ -6,7 +6,8 @@ This page describes design and implementation details for forcing-related
 pathways in Omega, currently this includes:
 
 - Surface stress forcing (e.g. wind stress)
-- Surface tracer restoring
+- Surface thickness and tracer flux forcing (actively coupled or data-forced)
+- Surface tracer restoring (soon to be ported)
 
 ## Surface stress forcing design
 
@@ -36,6 +37,65 @@ pathways in Omega, currently this includes:
   - mapped to `InterpCellToEdgeOption`
 - `Omega.Tendencies.SfcStressForcingTendencyEnable`
   - gates execution of surface stress forcing tendency kernel
+
+## Surface thickness and tracer flux forcing design
+
+### Surface thickness and tracer flux forcing data flow
+
+**Thickness equation pathway:**
+
+1. External fields provide freshwater and salt flux components:
+   - `SnowFlux`, `RainFlux`, `EvaporationFlux`
+   - `SeaIceFreshWaterFlux`, `IceRunoffFlux`, `RiverRunoffFlux`
+   - `SeaIceSaltFlux`
+2. `Forcing` stores the flux fields in `TracerForcingVars`
+3. The tendency term `SfcThicknessForcingOnCell` sums the freshwater and salt mass fluxes and applies them to
+the surface layer pseudo-thickness.
+
+**Tracer equation pathway:**
+
+1. External fields provide heat and salt flux components:
+   - `LatentHeatFlux`, `SensibleHeatFlux`
+   - `LongWaveHeatFluxUp`, `LongWaveHeatFluxDown`
+   - `SeaIceHeatFlux`, `ShortWaveHeatFlux`
+   - mass fluxes which add energy changes (`SnowFlux`, `RainFlux`, `IceRunoffFlux`, `RiverRunoffFlux`)
+   - `SeaIceSaltFlux`
+2. `Forcing` stores the flux fields in `TracerForcingVars`
+3. The tendency term `SfcTracerForcingOnCell` converts the summed external heat fluxes to a conservative-temperature tendency,
+  and applies the external sea-ice salt flux to the top layer salt content thus impacting salinity.
+
+### Surface thickness and tracer flux forcing key classes/components
+
+- `TracerForcingVars`
+  - Stores 13 coupled flux cell-centered fields: 6 freshwater fluxes, 6 heat
+    fluxes, and 1 salt flux component
+  - Fields initialized to zero and registered in `Forcing` field group
+- `SfcThicknessForcingOnCell` tendency term
+  - Computes the layer mass contribution (converted to pseudo-thickness): $\sum (\text{SnowFlux} + \text{RainFlux} + \text{EvaporationFlux} + \text{SeaIceFreshWaterFlux} + \text{IceRunoffFlux} + \text{RiverRunoffFlux} + \text{SeaIceSaltFlux}) / \rho_{sw}$
+  - Applied only at surface layer (top active layer) using `MinLayerCell`
+- `SfcTracerForcingOnCell` tendency term
+  - For temperature: adds the direct heat fluxes
+    $Q_{\text{latent}} + Q_{\text{sensible}} + Q_{\text{lw,up}} + Q_{\text{lw,down}} + Q_{\text{ice}} + Q_{\text{sw}}$
+, the phase change and enthalpy of added mass $(\text{RainFlux} + \text{RiverRunoffFlux}) c^0_{p,sw} C_T^{\text{top}} + (\text{SnowFlux} + \text{IceRunoffFlux})(c^0_{p,sw} C_T^{\text{frz}} - L_{\text{ice}})$,
+    (where $C_T^{\text{frz}}$ is from EOS at top-layer salinity and pressure),
+    and scales by $H_{\text{FluxFac}}$.
+  - For salinity: applies salt flux with unit conversion: $\text{SeaIceSaltFlux} \times S_{\text{FluxFac}}$
+  - Applied only at surface layer using `MinLayerCell`
+  - Uses tracer index validation to apply to specific tracers only
+- `Forcing`
+  - Manages `TracerForcingVars` instance
+- `Tendencies`
+  - Calls `SfcThicknessForcingOnCell` in `computePseudoThicknessTendenciesOnly`
+  - Calls `SfcTracerForcingOnCell` in `computeTracerTendenciesOnly` after surface tracer restoring
+
+### Surface thickness and tracer flux forcing config coupling
+
+- `Omega.Tendencies.SfcThicknessForcingTendencyEnable`
+  - gates execution of coupled flux thickness kernel
+  - controls freshwater and salt flux forcing on sea surface height
+- `Omega.Tendencies.SfcTracerForcingTendencyEnable`
+  - gates execution of coupled flux tracer kernel
+  - controls direct heat flux forcing on temperature and salt flux forcing on salinity
 
 ## Surface tracer restoring design
 

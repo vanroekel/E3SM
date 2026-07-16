@@ -11,6 +11,7 @@
 #include "TendencyTerms.h"
 #include "AuxiliaryState.h"
 #include "DataTypes.h"
+#include "Eos.h"
 #include "HorzMesh.h"
 #include "HorzOperators.h"
 #include "OceanState.h"
@@ -70,6 +71,19 @@ BottomDragOnEdge::BottomDragOnEdge(const HorzMesh *Mesh,
     : Enabled(false), Coeff(0), CellsOnEdge(Mesh->CellsOnEdge),
       NVertLayers(VCoord->NVertLayers), EdgeMask(VCoord->EdgeMask),
       MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
+
+SfcThicknessForcingOnCell::SfcThicknessForcingOnCell(const HorzMesh *Mesh,
+                                                     const VertCoord *VCoord)
+    : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
+
+SfcTracerForcingOnCell::SfcTracerForcingOnCell(const HorzMesh *Mesh,
+                                               const VertCoord *VCoord,
+                                               I4 TempTracerIndex,
+                                               I4 SaltTracerIndex,
+                                               const Eos *EosInst)
+    : TempIndex(TempTracerIndex), SaltIndex(SaltTracerIndex),
+      MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell),
+      EosImpl(VCoord) {}
 
 TracerHorzAdvOnCell::TracerHorzAdvOnCell(const HorzMesh *Mesh,
                                          const VertCoord *VCoord)

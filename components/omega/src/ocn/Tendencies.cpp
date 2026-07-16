@@ -247,6 +247,17 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
    Err += TendConfig.get("BottomDragCoeff", this->BottomDrag.Coeff);
    CHECK_ERROR_ABORT(Err,
                      "Tendencies: BottomDragCoeff not found in TendConfig");
+   Err += TendConfig.get("SfcThicknessForcingTendencyEnable",
+                         this->SfcThicknessForcing.Enabled);
+   CHECK_ERROR_ABORT(
+       Err,
+       "Tendencies: SfcThicknessForcingTendencyEnable not found in TendConfig");
+
+   Err += TendConfig.get("SfcTracerForcingTendencyEnable",
+                         this->SfcTracerForcing.Enabled);
+   CHECK_ERROR_ABORT(
+       Err,
+       "Tendencies: SfcTracerForcingTendencyEnable not found in TendConfig");
 
    if (this->TracerDiffusion.Enabled) {
       Err += TendConfig.get("EddyDiff2", this->TracerDiffusion.EddyDiff2);
@@ -507,6 +518,9 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
       KEGrad(Mesh, VCoord), SSHGrad(Mesh, VCoord),
       VelocityDiffusion(Mesh, VCoord), VelocityHyperDiff(Mesh, VCoord),
       SfcStressForcing(Mesh, VCoord), BottomDrag(Mesh, VCoord),
+      SfcThicknessForcing(Mesh, VCoord),
+      SfcTracerForcing(Mesh, VCoord, Tracers::IndxTemp, Tracers::IndxSalt,
+                       EqState),
       TracerDiffusion(Mesh, VCoord), TracerHyperDiff(Mesh, VCoord),
       TracerHorzAdv(Mesh, VCoord), SurfaceTracerRestoring(Mesh),
       PresGradZ(Mesh, VCoord), PresGradForce(Mesh, VCoord),
@@ -572,6 +586,7 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
 
    OMEGA_SCOPE(LocPseudoThicknessTend, PseudoThicknessTend);
    OMEGA_SCOPE(LocThicknessFluxDiv, PseudoThicknessFluxDiv);
+   OMEGA_SCOPE(LocSfcThicknessForcing, SfcThicknessForcing);
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
 
@@ -614,6 +629,32 @@ void Tendencies::computePseudoThicknessTendenciesOnly(
    // Compute thickness tendency from vertical advection
    VAdv->computePseudoThicknessVAdvTend(PseudoThicknessTend);
    Pacer::stop("Tend:computePseudoThicknessVAdvTend", 2);
+
+   if (LocSfcThicknessForcing.Enabled) {
+      Pacer::start("Tend:sfcThicknessForcing", 2);
+      const auto *ForcingState = Forcing::getDefault();
+
+      const auto &SnowFlux = ForcingState->TracerForcing.SnowFluxCell;
+      const auto &RainFlux = ForcingState->TracerForcing.RainFluxCell;
+      const auto &EvaporationFlux =
+          ForcingState->TracerForcing.EvaporationFluxCell;
+      const auto &SeaIceFreshWaterFlux =
+          ForcingState->TracerForcing.SeaIceFreshWaterFluxCell;
+      const auto &IceRunoffFlux = ForcingState->TracerForcing.IceRunoffFluxCell;
+      const auto &RiverRunoffFlux =
+          ForcingState->TracerForcing.RiverRunoffFluxCell;
+      const auto &SeaIceSaltFlux =
+          ForcingState->TracerForcing.SeaIceSaltFluxCell;
+
+      parallelFor(
+          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
+             LocSfcThicknessForcing(LocPseudoThicknessTend, ICell, SnowFlux,
+                                    RainFlux, EvaporationFlux,
+                                    SeaIceFreshWaterFlux, IceRunoffFlux,
+                                    RiverRunoffFlux, SeaIceSaltFlux);
+          });
+      Pacer::stop("Tend:sfcThicknessForcing", 2);
+   }
 
    if (CustomThicknessTend) {
       Pacer::start("Tend:customThicknessTend", 2);
@@ -911,6 +952,7 @@ void Tendencies::computeTracerTendenciesOnly(
    OMEGA_SCOPE(LocTracerHyperDiff, TracerHyperDiff);
    OMEGA_SCOPE(LocSurfaceTracerRestoring, SurfaceTracerRestoring);
    OMEGA_SCOPE(LocSurfaceTracerFlux, SurfaceTracerFlux);
+   OMEGA_SCOPE(LocSfcTracerForcing, SfcTracerForcing);
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
    OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
@@ -1118,21 +1160,40 @@ void Tendencies::computeTracerTendenciesOnly(
       }
    }
 
-   if (UseTempSurfaceTracerFluxBridge && UseTempTopLayerFluxTendencyBridge) {
-      if (LocHasTempTracer) {
-         parallelFor(
-             "TempTopLayerFluxTendencyBridge", {Mesh->NCellsAll},
-             KOKKOS_LAMBDA(I4 ICell) {
-                const I4 KMin = MinLayerCell(ICell);
-                const Real TopBridgeTend =
-                    LocSurfaceTracerFlux(LocTempTracerIndex, ICell);
-                LocTracerTend(LocTempTracerIndex, ICell, KMin) += TopBridgeTend;
-                if (LocTracerNonLocalDiagnosticsEnable) {
-                   LocTempTopBridgeTendDiag(ICell, KMin) += TopBridgeTend;
-                   LocTempTopBridgeColumnSumDiag(ICell) += TopBridgeTend;
-                }
-             });
-      }
+   // compute tracer forcing tendency
+   if (LocSfcTracerForcing.Enabled) {
+      Pacer::start("Tend:sfcTracerForcing", 2);
+      const auto *ForcingState = Forcing::getDefault();
+      const auto &LatentHeatFlux =
+          ForcingState->TracerForcing.LatentHeatFluxCell;
+      const auto &SensibleHeatFlux =
+          ForcingState->TracerForcing.SensibleHeatFluxCell;
+      const auto &LongWaveHeatFluxUp =
+          ForcingState->TracerForcing.LongWaveHeatFluxUpCell;
+      const auto &LongWaveHeatFluxDown =
+          ForcingState->TracerForcing.LongWaveHeatFluxDownCell;
+      const auto &SeaIceHeatFlux =
+          ForcingState->TracerForcing.SeaIceHeatFluxCell;
+      const auto &ShortWaveHeatFlux =
+          ForcingState->TracerForcing.ShortWaveHeatFluxCell;
+      const auto &SnowFlux      = ForcingState->TracerForcing.SnowFluxCell;
+      const auto &RainFlux      = ForcingState->TracerForcing.RainFluxCell;
+      const auto &IceRunoffFlux = ForcingState->TracerForcing.IceRunoffFluxCell;
+      const auto &RiverRunoffFlux =
+          ForcingState->TracerForcing.RiverRunoffFluxCell;
+      const auto &SeaIceSaltFlux =
+          ForcingState->TracerForcing.SeaIceSaltFluxCell;
+      const auto &PressureMid = VCoord->PressureMid;
+
+      parallelFor(
+          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
+             LocSfcTracerForcing(
+                 LocTracerTend, ICell, TracerArray, PressureMid, LatentHeatFlux,
+                 SensibleHeatFlux, LongWaveHeatFluxUp, LongWaveHeatFluxDown,
+                 SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux, RainFlux,
+                 IceRunoffFlux, RiverRunoffFlux, SeaIceSaltFlux);
+          });
+      Pacer::stop("Tend:sfcTracerForcing", 2);
    }
 
    Pacer::stop("Tend:computeTracerTendenciesOnly", 1);
