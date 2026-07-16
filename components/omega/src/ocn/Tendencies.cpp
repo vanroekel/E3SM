@@ -1348,24 +1348,29 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
                                                     SurfacePressure);
 
    OMEGA_SCOPE(PressureMid, VCoord->PressureMid);
-   Array2DReal PressureMidDbar("KPP-PressureMidDbar", NCellsAll, NVertLayers);
-   parallelFor(
-       "KPP-PressureToDbar", {NCellsAll, NVertLayers},
-       KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          PressureMidDbar(ICell, K) = PressureMid(ICell, K) * 1.0e-4_Real;
-       });
 
-   EqState->computeSpecVol(ConservTemp, AbsSalinity, PressureMidDbar);
-   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity, PressureMidDbar,
+   EqState->computeSpecVol(ConservTemp, AbsSalinity, PressureMid);
+   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity, PressureMid,
                                       EqState->SpecVol);
 
+   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    Array2DReal PotentialDensity("KPP-PotentialDensity", NCellsAll, NVertLayers);
-   OMEGA_SCOPE(SpecVol, EqState->SpecVol);
+   Array2DReal PotentialDensityPressure("KPP-PotentialDensityPressure",
+                                        NCellsAll, NVertLayers);
+   parallelFor(
+       "KPP-PotentialDensityPressure", {NCellsAll, NVertLayers},
+       KOKKOS_LAMBDA(I4 ICell, I4 K) {
+          const I4 KSurf                     = MinLayerCell(ICell);
+          PotentialDensityPressure(ICell, K) = PressureMid(ICell, KSurf);
+       });
+   EqState->computeSpecVolDisp(ConservTemp, AbsSalinity,
+                               PotentialDensityPressure, 0);
+   OMEGA_SCOPE(SpecVolPotential, EqState->SpecVolDisplaced);
    parallelFor(
        "KPP-PotentialDensity", {NCellsAll, NVertLayers},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
           PotentialDensity(ICell, K) =
-              1.0_Real / Kokkos::max(1.0e-12_Real, SpecVol(ICell, K));
+              1.0_Real / Kokkos::max(1.0e-12_Real, SpecVolPotential(ICell, K));
        });
 
    // Compute tangential velocity on edges (same pattern as
@@ -1476,10 +1481,10 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
           if (LocEosChoice == EosType::Teos10Eos) {
              alpha = Teos10Coeff.calcAlpha(
                  AbsSalinity(ICell, KSurf), ConservTemp(ICell, KSurf),
-                 PressureMidDbar(ICell, KSurf), spec_vol);
+                 PressureMid(ICell, KSurf) * Pa2Db, spec_vol);
              beta = Teos10Coeff.calcBeta(
                  AbsSalinity(ICell, KSurf), ConservTemp(ICell, KSurf),
-                 PressureMidDbar(ICell, KSurf), spec_vol);
+                 PressureMid(ICell, KSurf) * Pa2Db, spec_vol);
           } else if (LocEosChoice == EosType::LinearEos) {
              alpha = -LocLinearDRhodT / rho_surface;
              beta  = LocLinearDRhodS / rho_surface;

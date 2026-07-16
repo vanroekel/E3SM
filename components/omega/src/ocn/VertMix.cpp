@@ -370,129 +370,128 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
           LocVertDiff(ICell, KMax) = 0.0_Real;
           LocVertVisc(ICell, KMax) = 0.0_Real;
        });
-   } // computeVertMix
+} // computeVertMix
 
-   /// Define IO fields and metadata for output
-   void VertMix::defineFields() {
+/// Define IO fields and metadata for output
+void VertMix::defineFields() {
 
-      /// Set field names (append Name if not default)
-      VertDiffFldName            = "VertDiff";
-      VertViscFldName            = "VertVisc";
-      GradRichNumFldName         = "GradRichNum";
-      GradRichNumSmoothedFldName = "GradRichNumSmoothed";
-      if (Name != "Default") {
-         VertDiffFldName.append(Name);
-         VertViscFldName.append(Name);
-         GradRichNumFldName.append(Name);
-         GradRichNumSmoothedFldName.append(Name);
-      }
+   /// Set field names (append Name if not default)
+   VertDiffFldName            = "VertDiff";
+   VertViscFldName            = "VertVisc";
+   GradRichNumFldName         = "GradRichNum";
+   GradRichNumSmoothedFldName = "GradRichNumSmoothed";
+   if (Name != "Default") {
+      VertDiffFldName.append(Name);
+      VertViscFldName.append(Name);
+      GradRichNumFldName.append(Name);
+      GradRichNumSmoothedFldName.append(Name);
+   }
 
-      /// Create fields for state variables
-      int NDims = 2;
-      std::vector<std::string> DimNames(NDims);
-      DimNames[0] = "NCells";
-      DimNames[1] = "NVertLayersP1";
+   /// Create fields for state variables
+   int NDims = 2;
+   std::vector<std::string> DimNames(NDims);
+   DimNames[0] = "NCells";
+   DimNames[1] = "NVertLayersP1";
 
-      /// Create and register the Diffusivity field
-      auto VertDiffField =
-          Field::create(VertDiffFldName, // Field name
-                        "Vertical diffusivity at center of"
-                        " cell and top of layer",         // Long Name
-                        "m2 s-1",                         // Units
-                        "vertical_diffusivity",           // CF-ish Name
-                        0.0,                              // Min valid value
-                        std::numeric_limits<Real>::max(), // Max valid value
-                        NDims,   // Number of dimensions
-                        DimNames // Dimension names
-          );
-      /// Create and register the VertVisc field
-      auto VertViscField =
-          Field::create(VertViscFldName, // Field name
-                        "Vertical viscosity at center of"
-                        " cell and top of layer",         // Long Name
-                        "m2 s-1",                         // Units
-                        "vertical_viscosity",             // CF-ish Name
-                        0.0,                              // Min valid value
-                        std::numeric_limits<Real>::max(), // Max valid value
-                        NDims,   // Number of dimensions
-                        DimNames // Dimension names
-          );
-      /// Create and register the GradRichNum field
-      auto GradRichNumField =
-          Field::create(GradRichNumFldName,                     // Field name
-                        "Gradient Richardson number",           // Long Name
-                        "dimensionless",                        // Units
-                        "sea_water_gradient_richardson_number", // CF-ish Name
-                        std::numeric_limits<Real>::min(), // Min valid value
-                        std::numeric_limits<Real>::max(), // Max valid value
-                        NDims,   // Number of dimensions
-                        DimNames // Dimension names
-          );
-      /// Create and register the GradRichNumSmoothed field
-      auto GradRichNumSmoothedField = Field::create(
-          GradRichNumSmoothedFldName,                      // Field name
-          "Smoothed Gradient Richardson number",           // Long Name
-          "dimensionless",                                 // Units
-          "sea_water_gradient_richardson_number_smoothed", // CF-ish Name
-          std::numeric_limits<Real>::min(),                // Min valid value
-          std::numeric_limits<Real>::max(),                // Max valid value
-          NDims,   // Number of dimensions
-          DimNames // Dimension names
-      );
+   /// Create and register the Diffusivity field
+   auto VertDiffField =
+       Field::create(VertDiffFldName, // Field name
+                     "Vertical diffusivity at center of"
+                     " cell and top of layer",         // Long Name
+                     "m2 s-1",                         // Units
+                     "vertical_diffusivity",           // CF-ish Name
+                     0.0,                              // Min valid value
+                     std::numeric_limits<Real>::max(), // Max valid value
+                     NDims,                            // Number of dimensions
+                     DimNames                          // Dimension names
+       );
+   /// Create and register the VertVisc field
+   auto VertViscField =
+       Field::create(VertViscFldName, // Field name
+                     "Vertical viscosity at center of"
+                     " cell and top of layer",         // Long Name
+                     "m2 s-1",                         // Units
+                     "vertical_viscosity",             // CF-ish Name
+                     0.0,                              // Min valid value
+                     std::numeric_limits<Real>::max(), // Max valid value
+                     NDims,                            // Number of dimensions
+                     DimNames                          // Dimension names
+       );
+   /// Create and register the GradRichNum field
+   auto GradRichNumField =
+       Field::create(GradRichNumFldName,                     // Field name
+                     "Gradient Richardson number",           // Long Name
+                     "dimensionless",                        // Units
+                     "sea_water_gradient_richardson_number", // CF-ish Name
+                     std::numeric_limits<Real>::min(),       // Min valid value
+                     std::numeric_limits<Real>::max(),       // Max valid value
+                     NDims,   // Number of dimensions
+                     DimNames // Dimension names
+       );
+   /// Create and register the GradRichNumSmoothed field
+   auto GradRichNumSmoothedField = Field::create(
+       GradRichNumSmoothedFldName,                      // Field name
+       "Smoothed Gradient Richardson number",           // Long Name
+       "dimensionless",                                 // Units
+       "sea_water_gradient_richardson_number_smoothed", // CF-ish Name
+       std::numeric_limits<Real>::min(),                // Min valid value
+       std::numeric_limits<Real>::max(),                // Max valid value
+       NDims,                                           // Number of dimensions
+       DimNames                                         // Dimension names
+   );
 
-      // Create a field group for the vertmix-specific state fields
-      VertMixGroupName = "VertMix";
-      if (Name != "Default") {
-         VertMixGroupName.append(Name);
-      }
-      auto VertMixGroup = FieldGroup::create(VertMixGroupName);
+   // Create a field group for the vertmix-specific state fields
+   VertMixGroupName = "VertMix";
+   if (Name != "Default") {
+      VertMixGroupName.append(Name);
+   }
+   auto VertMixGroup = FieldGroup::create(VertMixGroupName);
 
-      // Add fields to the VertMix group
-      VertMixGroup->addField(VertDiffFldName);
-      VertMixGroup->addField(VertViscFldName);
-      VertMixGroup->addField(GradRichNumFldName);
-      VertMixGroup->addField(GradRichNumSmoothedFldName);
+   // Add fields to the VertMix group
+   VertMixGroup->addField(VertDiffFldName);
+   VertMixGroup->addField(VertViscFldName);
+   VertMixGroup->addField(GradRichNumFldName);
+   VertMixGroup->addField(GradRichNumSmoothedFldName);
 
-      // Attach Kokkos views to the fields
-      VertDiffField->attachData<Array2DReal>(VertDiff);
-      VertViscField->attachData<Array2DReal>(VertVisc);
-      GradRichNumField->attachData<Array2DReal>(GradRichNum);
-      GradRichNumSmoothedField->attachData<Array2DReal>(GradRichNumSmoothed);
+   // Attach Kokkos views to the fields
+   VertDiffField->attachData<Array2DReal>(VertDiff);
+   VertViscField->attachData<Array2DReal>(VertVisc);
+   GradRichNumField->attachData<Array2DReal>(GradRichNum);
+   GradRichNumSmoothedField->attachData<Array2DReal>(GradRichNumSmoothed);
 
-   } // end defineIOFields
+} // end defineIOFields
 
-   // Apply implicit velocity vertical mixing
-   void VertMix::applyVelVertMixImplicit(
-       OceanState * State,             ///< [in] State variables
-       const AuxiliaryState *AuxState, ///< [in] Auxilary state variables
-       int ThickTimeLevel,             ///< [in] Time level
-       int VelTimeLevel                ///< [in] Time level
-   ) {
+// Apply implicit velocity vertical mixing
+void VertMix::applyVelVertMixImplicit(
+    OceanState *State,              ///< [in] State variables
+    const AuxiliaryState *AuxState, ///< [in] Auxilary state variables
+    int ThickTimeLevel,             ///< [in] Time level
+    int VelTimeLevel                ///< [in] Time level
+) {
 
-      OMEGA_SCOPE(LocNEdgesAll, Mesh->NEdgesAll);
-      OMEGA_SCOPE(LocVelVertMixSetup, VelVertMixSetup);
-      OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
-      OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
+   OMEGA_SCOPE(LocNEdgesAll, Mesh->NEdgesAll);
+   OMEGA_SCOPE(LocVelVertMixSetup, VelVertMixSetup);
+   OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
+   OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
 
-      const Array2DReal &NormalVelEdge = State->NormalVelocity[VelTimeLevel];
-      const Array2DReal &PseudoThickCell =
-          State->PseudoThickness[ThickTimeLevel];
+   const Array2DReal &NormalVelEdge   = State->NormalVelocity[VelTimeLevel];
+   const Array2DReal &PseudoThickCell = State->PseudoThickness[ThickTimeLevel];
 
-      // Compute velocity vertical mixing
-      if (LocVelVertMixSetup.Enabled) {
-         Pacer::start("Tend:velocityVertMix", 1);
+   // Compute velocity vertical mixing
+   if (LocVelVertMixSetup.Enabled) {
+      Pacer::start("Tend:velocityVertMix", 1);
 
-         Eos *EosInstance         = Eos::getInstance();
-         VertMix *VertMixInstance = VertMix::getInstance();
+      Eos *EosInstance         = Eos::getInstance();
+      VertMix *VertMixInstance = VertMix::getInstance();
 
-         // Obtain TimeStep
-         const auto *DefTimeStepper  = TimeStepper::getDefault();
-         const TimeInterval TimeStep = DefTimeStepper->getTimeStep();
-         R8 DT;
-         TimeStep.get(DT, TimeUnits::Seconds);
+      // Obtain TimeStep
+      const auto *DefTimeStepper  = TimeStepper::getDefault();
+      const TimeInterval TimeStep = DefTimeStepper->getTimeStep();
+      R8 DT;
+      TimeStep.get(DT, TimeUnits::Seconds);
 
-         const auto &SpecVol  = EosInstance->SpecVol;
-         const auto &VertVisc = VertMixInstance->VertVisc;
+      const auto &SpecVol  = EosInstance->SpecVol;
+      const auto &VertVisc = VertMixInstance->VertVisc;
 
       const int NVertLayers = VCoord->NVertLayers;
       auto LConfig =
