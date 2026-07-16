@@ -371,22 +371,6 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
          TracerDiagErr.reset();
          this->TracerNonLocalDiagnosticsEnable = true;
       }
-
-      Error TempFluxBridgeErr =
-          TendConfig.get("UseTempSurfaceTracerFluxBridge",
-                         this->UseTempSurfaceTracerFluxBridge);
-      if (!TempFluxBridgeErr.isSuccess()) {
-         TempFluxBridgeErr.reset();
-         this->UseTempSurfaceTracerFluxBridge = true;
-      }
-
-      Error TempTopLayerBridgeErr =
-          TendConfig.get("UseTempTopLayerFluxTendencyBridge",
-                         this->UseTempTopLayerFluxTendencyBridge);
-      if (!TempTopLayerBridgeErr.isSuccess()) {
-         TempTopLayerBridgeErr.reset();
-         this->UseTempTopLayerFluxTendencyBridge = true;
-      }
    }
 }
 
@@ -398,18 +382,14 @@ void Tendencies::defineFields() {
    std::string TracerTendFieldName          = "TracerTend";
    std::string SurfaceTracerFluxFieldName   = "SurfaceTracerFlux";
    std::string TempNonLocalDiagFieldName    = "TempNonLocalTendDiag";
-   std::string TempTopBridgeDiagFieldName   = "TempTopBridgeTendDiag";
    std::string TempNonLocalColSumFieldName  = "TempNonLocalColumnSumDiag";
-   std::string TempTopBridgeColSumFieldName = "TempTopBridgeColumnSumDiag";
    if (Name != "Default") {
       PseudoThicknessTendFieldName.append(Name);
       NormalVelocityTendFieldName.append(Name);
       TracerTendFieldName.append(Name);
       SurfaceTracerFluxFieldName.append(Name);
       TempNonLocalDiagFieldName.append(Name);
-      TempTopBridgeDiagFieldName.append(Name);
       TempNonLocalColSumFieldName.append(Name);
-      TempTopBridgeColSumFieldName.append(Name);
    }
 
    int NDims = 2;
@@ -453,10 +433,6 @@ void Tendencies::defineFields() {
        Field::create(TempNonLocalDiagFieldName,
                      "Temperature non-local KPP tendency diagnostic", "1", "",
                      -9.99E+10, 9.99E+10, NDims, DimNamesTempDiag);
-   auto TempTopBridgeDiagField =
-       Field::create(TempTopBridgeDiagFieldName,
-                     "Temperature top-layer bridge tendency diagnostic", "1",
-                     "", -9.99E+10, 9.99E+10, NDims, DimNamesTempDiag);
 
    NDims = 1;
    std::vector<std::string> DimNamesCellOnly(NDims);
@@ -465,10 +441,6 @@ void Tendencies::defineFields() {
        Field::create(TempNonLocalColSumFieldName,
                      "Temperature non-local tendency column-sum diagnostic",
                      "1", "", -9.99E+10, 9.99E+10, NDims, DimNamesCellOnly);
-   auto TempTopBridgeColSumField =
-       Field::create(TempTopBridgeColSumFieldName,
-                     "Temperature top-layer bridge column-sum diagnostic", "1",
-                     "", -9.99E+10, 9.99E+10, NDims, DimNamesCellOnly);
 
    std::string TendGroupName = "Tendencies";
    if (Name != "Default") {
@@ -481,21 +453,15 @@ void Tendencies::defineFields() {
    TendGroup->addField(TracerTendFieldName);
    TendGroup->addField(SurfaceTracerFluxFieldName);
    TendGroup->addField(TempNonLocalDiagFieldName);
-   TendGroup->addField(TempTopBridgeDiagFieldName);
    TendGroup->addField(TempNonLocalColSumFieldName);
-   TendGroup->addField(TempTopBridgeColSumFieldName);
 
    PseudoThicknessTendField->attachData<Array2DReal>(PseudoThicknessTend);
    NormalVelocityTendField->attachData<Array2DReal>(NormalVelocityTend);
    TracerTendField->attachData<Array3DReal>(TracerTend);
    SurfaceTracerFluxField->attachData<Array2DReal>(SurfaceTracerFlux, false);
    TempNonLocalDiagField->attachData<Array2DReal>(TempNonLocalTendDiag, false);
-   TempTopBridgeDiagField->attachData<Array2DReal>(TempTopBridgeTendDiag,
-                                                   false);
    TempNonLocalColSumField->attachData<Array1DReal>(TempNonLocalColumnSumDiag,
                                                     false);
-   TempTopBridgeColSumField->attachData<Array1DReal>(TempTopBridgeColumnSumDiag,
-                                                     false);
 
 } // end defineFields
 
@@ -537,19 +503,13 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
                             VCoord->NVertLayers);
    SurfaceTracerFlux =
        Array2DReal("SurfaceTracerFlux", NTracersIn, Mesh->NCellsAll);
-   TempNonLocalTendDiag  = Array2DReal("TempNonLocalTendDiag", Mesh->NCellsSize,
-                                       VCoord->NVertLayers);
-   TempTopBridgeTendDiag = Array2DReal("TempTopBridgeTendDiag",
-                                       Mesh->NCellsSize, VCoord->NVertLayers);
+   TempNonLocalTendDiag = Array2DReal("TempNonLocalTendDiag", Mesh->NCellsSize,
+                                      VCoord->NVertLayers);
    TempNonLocalColumnSumDiag =
        Array1DReal("TempNonLocalColumnSumDiag", Mesh->NCellsSize);
-   TempTopBridgeColumnSumDiag =
-       Array1DReal("TempTopBridgeColumnSumDiag", Mesh->NCellsSize);
    deepCopy(SurfaceTracerFlux, 0.0_Real);
    deepCopy(TempNonLocalTendDiag, 0.0_Real);
-   deepCopy(TempTopBridgeTendDiag, 0.0_Real);
    deepCopy(TempNonLocalColumnSumDiag, 0.0_Real);
-   deepCopy(TempTopBridgeColumnSumDiag, 0.0_Real);
 
    Name = Name_;
 
@@ -958,9 +918,7 @@ void Tendencies::computeTracerTendenciesOnly(
    OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
    OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
    OMEGA_SCOPE(LocTempNonLocalTendDiag, TempNonLocalTendDiag);
-   OMEGA_SCOPE(LocTempTopBridgeTendDiag, TempTopBridgeTendDiag);
    OMEGA_SCOPE(LocTempNonLocalColumnSumDiag, TempNonLocalColumnSumDiag);
-   OMEGA_SCOPE(LocTempTopBridgeColumnSumDiag, TempTopBridgeColumnSumDiag);
    const bool LocTracerNonLocalDiagnosticsEnable =
        TracerNonLocalDiagnosticsEnable;
    I4 TempTracerIndex = -1;
@@ -987,12 +945,10 @@ void Tendencies::computeTracerTendenciesOnly(
              const int KMax = MaxLayerCell(ICell);
              parallelForInner(
                  Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
-                    LocTempNonLocalTendDiag(ICell, K)  = 0.0_Real;
-                    LocTempTopBridgeTendDiag(ICell, K) = 0.0_Real;
+                    LocTempNonLocalTendDiag(ICell, K) = 0.0_Real;
                  });
              Kokkos::single(Kokkos::PerTeam(Team), [&]() {
-                LocTempNonLocalColumnSumDiag(ICell)  = 0.0_Real;
-                LocTempTopBridgeColumnSumDiag(ICell) = 0.0_Real;
+                LocTempNonLocalColumnSumDiag(ICell) = 0.0_Real;
              });
           });
    }
@@ -1455,28 +1411,33 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
    }
 
    const auto &SfcStressForcing = ForcingState->SfcStressForcing;
+   const auto &TracerForcing    = ForcingState->TracerForcing;
    OMEGA_SCOPE(ZonalStressCell, SfcStressForcing.ZonalStressCell);
    OMEGA_SCOPE(MeridStressCell, SfcStressForcing.MeridStressCell);
-   OMEGA_SCOPE(LocLatentHeatFlux, SfcStressForcing.LatentHeatFlux);
-   OMEGA_SCOPE(LocSensibleHeatFlux, SfcStressForcing.SensibleHeatFlux);
-   OMEGA_SCOPE(LocShortWaveHeatFlux, SfcStressForcing.ShortWaveHeatFlux);
-   OMEGA_SCOPE(LocEvaporationFlux, SfcStressForcing.EvaporationFlux);
-   OMEGA_SCOPE(LocRainFlux, SfcStressForcing.RainFlux);
-   OMEGA_SCOPE(LocRiverRunoffFlux, SfcStressForcing.RiverRunoffFlux);
-   OMEGA_SCOPE(LocIceRunoffFlux, SfcStressForcing.IceRunoffFlux);
-   OMEGA_SCOPE(LocSubglacialRunoffFlux, SfcStressForcing.SubglacialRunoffFlux);
-   OMEGA_SCOPE(LocIcebergFreshWaterFlux,
-               SfcStressForcing.IcebergFreshWaterFlux);
+   OMEGA_SCOPE(LocLatentHeatFlux, TracerForcing.LatentHeatFluxCell);
+   OMEGA_SCOPE(LocSensibleHeatFlux, TracerForcing.SensibleHeatFluxCell);
+   OMEGA_SCOPE(LocLongWaveHeatFluxUp, TracerForcing.LongWaveHeatFluxUpCell);
+   OMEGA_SCOPE(LocLongWaveHeatFluxDown, TracerForcing.LongWaveHeatFluxDownCell);
+   OMEGA_SCOPE(LocSeaIceHeatFlux, TracerForcing.SeaIceHeatFluxCell);
+   OMEGA_SCOPE(LocShortWaveHeatFlux, TracerForcing.ShortWaveHeatFluxCell);
+   OMEGA_SCOPE(LocSnowFlux, TracerForcing.SnowFluxCell);
+   OMEGA_SCOPE(LocRainFlux, TracerForcing.RainFluxCell);
+   OMEGA_SCOPE(LocEvaporationFlux, TracerForcing.EvaporationFluxCell);
+   OMEGA_SCOPE(LocSeaIceFreshWaterFlux, TracerForcing.SeaIceFreshWaterFluxCell);
+   OMEGA_SCOPE(LocIceRunoffFlux, TracerForcing.IceRunoffFluxCell);
+   OMEGA_SCOPE(LocRiverRunoffFlux, TracerForcing.RiverRunoffFluxCell);
+   OMEGA_SCOPE(LocSeaIceSaltFlux, TracerForcing.SeaIceSaltFluxCell);
    OMEGA_SCOPE(LocSurfaceTracerFlux, SurfaceTracerFlux);
    OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(LocSpecVol, EqState->SpecVol);
    Teos10BruntVaisalaFreqSq Teos10Coeff(VCoord);
+   Teos10Eos Teos10EosImpl(VCoord);
 
-   const bool LocUseTempSurfaceTracerFluxBridge =
-       TracerNonLocalFluxEnabled && UseTempSurfaceTracerFluxBridge;
-   const I4 TempTracerIndex = TempIdx;
+   const bool LocUpdateSurfaceTracerFlux = TracerNonLocalFluxEnabled;
+   const I4 TempTracerIndex              = TempIdx;
+   const I4 SaltTracerIndex              = SaltIdx;
 
-   if (LocUseTempSurfaceTracerFluxBridge) {
+   if (LocUpdateSurfaceTracerFlux) {
       deepCopy(SurfaceTracerFlux, 0.0_Real);
    }
 
@@ -1487,17 +1448,26 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
           const Real tau_mag = Kokkos::sqrt(tau_x * tau_x + tau_y * tau_y);
           LocSurfaceFrictionVelocity(ICell) =
               Kokkos::sqrt(Kokkos::max(0.0_Real, tau_mag / RhoSw));
-          const Real heat_flux = LocLatentHeatFlux(ICell) +
-                                 LocSensibleHeatFlux(ICell) +
-                                 LocShortWaveHeatFlux(ICell);
-          const Real freshwater_flux =
-              LocRainFlux(ICell) + LocRiverRunoffFlux(ICell) +
-              LocIceRunoffFlux(ICell) + LocSubglacialRunoffFlux(ICell) +
-              LocIcebergFreshWaterFlux(ICell) - LocEvaporationFlux(ICell);
           const I4 KSurf              = MinLayerCell(ICell);
-          const Real temp_flux        = heat_flux * HeatFluxToTracerFluxFactor;
           const Real surface_salinity = AbsSalinity(ICell, KSurf);
-          const Real salt_flux = -freshwater_flux * surface_salinity / RhoFw;
+          const Real surface_temp     = ConservTemp(ICell, KSurf);
+          const Real ct_freezing      = Teos10EosImpl.calcCtFreezing(
+              surface_salinity, PressureMidDbar(ICell, KSurf), 0.0_Real);
+          const Real heat_flux =
+              LocLatentHeatFlux(ICell) + LocSensibleHeatFlux(ICell) +
+              LocLongWaveHeatFluxUp(ICell) + LocLongWaveHeatFluxDown(ICell) +
+              LocSeaIceHeatFlux(ICell) + LocShortWaveHeatFlux(ICell) +
+              (LocRainFlux(ICell) + LocRiverRunoffFlux(ICell)) * Cp0Sw *
+                  surface_temp +
+              (LocSnowFlux(ICell) + LocIceRunoffFlux(ICell)) *
+                  (Cp0Sw * ct_freezing - LatIce);
+          const Real freshwater_flux =
+              LocSnowFlux(ICell) + LocRainFlux(ICell) +
+              LocSeaIceFreshWaterFlux(ICell) + LocIceRunoffFlux(ICell) +
+              LocRiverRunoffFlux(ICell) + LocEvaporationFlux(ICell);
+          const Real temp_flux = heat_flux * HeatFluxToTracerFluxFactor;
+          const Real salt_flux = LocSeaIceSaltFlux(ICell) / RhoSw -
+                                 freshwater_flux * surface_salinity / RhoSw;
           const Real spec_vol =
               Kokkos::max(1.0e-12_Real, LocSpecVol(ICell, KSurf));
           const Real rho_surface = 1.0_Real / spec_vol;
@@ -1516,8 +1486,9 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
           }
           LocSurfaceBuoyancyFlux(ICell) =
               Gravity * (alpha * temp_flux - beta * salt_flux);
-          if (LocUseTempSurfaceTracerFluxBridge) {
+          if (LocUpdateSurfaceTracerFlux) {
              LocSurfaceTracerFlux(TempTracerIndex, ICell) = temp_flux;
+             LocSurfaceTracerFlux(SaltTracerIndex, ICell) = salt_flux;
           }
           IceFraction(ICell) = 0.0_Real;
        });

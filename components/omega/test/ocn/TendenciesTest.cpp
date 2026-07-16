@@ -314,7 +314,7 @@ int testTendencies() {
    if (KPPInstance == nullptr || !KPPInstance->Enabled) {
       Err++;
       LOG_ERROR("TendenciesTest: KPP instance unavailable for surface "
-                "buoyancy bridge test");
+                "buoyancy forcing test");
    } else {
       I4 TempIdx = -1;
       I4 SaltIdx = -1;
@@ -336,15 +336,20 @@ int testTendencies() {
 
          deepCopy(ZonalStressCell, 0.0_Real);
          deepCopy(MeridStressCell, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.LatentHeatFlux, TestHeatFlux);
-         deepCopy(DefForcing->SfcStressForcing.SensibleHeatFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.ShortWaveHeatFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.EvaporationFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.RainFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.RiverRunoffFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.IceRunoffFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.SubglacialRunoffFlux, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.IcebergFreshWaterFlux, 0.0_Real);
+         deepCopy(DefForcing->SfcStressForcing.LatentHeatFlux, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.LatentHeatFluxCell, TestHeatFlux);
+         deepCopy(DefForcing->TracerForcing.SensibleHeatFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.LongWaveHeatFluxUpCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.LongWaveHeatFluxDownCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.SeaIceHeatFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.ShortWaveHeatFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.SnowFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.RainFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.EvaporationFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.SeaIceFreshWaterFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.IceRunoffFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.RiverRunoffFluxCell, 0.0_Real);
+         deepCopy(DefForcing->TracerForcing.SeaIceSaltFluxCell, 0.0_Real);
 
          DefTendencies->computeStageVerticalMixing(
              State, AuxState, TracerArray, ThickTimeLevel, VelTimeLevel);
@@ -380,14 +385,14 @@ int testTendencies() {
          if (!isApprox(SurfaceTracerFluxH(TempIdx, TestCell), ExpectedTempFlux,
                        1.0e-12_Real)) {
             Err++;
-            LOG_ERROR("TendenciesTest: SurfaceTracerFlux bridge FAIL: got {}, "
+            LOG_ERROR("TendenciesTest: SurfaceTracerFlux forcing FAIL: got {}, "
                       "expected {}",
                       SurfaceTracerFluxH(TempIdx, TestCell), ExpectedTempFlux);
          }
          if (!isApprox(B0H(TestCell), ExpectedB0, 1.0e-10_Real) ||
              !(B0H(TestCell) < 0.0_Real)) {
             Err++;
-            LOG_ERROR("TendenciesTest: KPP SurfaceBuoyancyFlux bridge FAIL: "
+            LOG_ERROR("TendenciesTest: KPP SurfaceBuoyancyFlux forcing FAIL: "
                       "got {}, expected {}",
                       B0H(TestCell), ExpectedB0);
          }

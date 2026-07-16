@@ -86,24 +86,13 @@ class Tendencies {
    // Diagnostics for temperature forcing pathways used in KPP comparison.
    // These are raw contributions added to TracerTend before tracer update.
    Array2DReal TempNonLocalTendDiag;
-   Array2DReal TempTopBridgeTendDiag;
    Array1DReal TempNonLocalColumnSumDiag;
-   Array1DReal TempTopBridgeColumnSumDiag;
 
    // Enables explicit non-local tracer tendency from KPP
    bool TracerNonLocalFluxEnabled = false;
 
-   // Enable diagnostics that isolate temperature non-local and bridge terms.
+   // Enable diagnostics that isolate temperature non-local terms.
    bool TracerNonLocalDiagnosticsEnable = true;
-
-   // Temporary bridge: compute temperature surface tracer flux from forcing
-   // inside Tendencies until a dedicated forcing class provides this field.
-   // Keep this isolated and easy to disable/revert.
-   bool UseTempSurfaceTracerFluxBridge = true;
-
-   // Temporary bridge: apply a direct top-layer temperature tendency from
-   // SurfaceTracerFlux so cooling/warming appears explicitly in layer 1.
-   bool UseTempTopLayerFluxTendencyBridge = true;
 
    // Controls whether KPP is recomputed during tendency stages.
    bool StageVerticalMixingEnabled = true;
