@@ -1305,8 +1305,8 @@ void Tendencies::setSurfaceTracerFlux(const Array2DReal &Flux) {
 }
 
 //------------------------------------------------------------------------------
-// Run KPP mixing for the current stage. VertMixImplicit merges the KPP
-// coefficients into VertMix after the base coefficients are recomputed.
+// Prepare KPP state for the current stage. Final VertDiff/VertVisc coefficient
+// assembly is owned by VertMix::computeVertMix.
 void Tendencies::computeStageVerticalMixing(const OceanState *State,
                                             const AuxiliaryState *AuxState,
                                             const Array3DReal &TracerArray,
@@ -1433,18 +1433,19 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
    OMEGA_SCOPE(LocRiverRunoffFlux, TracerForcing.RiverRunoffFluxCell);
    OMEGA_SCOPE(LocSeaIceSaltFlux, TracerForcing.SeaIceSaltFluxCell);
    OMEGA_SCOPE(LocSurfaceTracerFlux, SurfaceTracerFlux);
-   OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
    OMEGA_SCOPE(LocSpecVol, EqState->SpecVol);
    Teos10BruntVaisalaFreqSq Teos10Coeff(VCoord);
    Teos10Eos Teos10EosImpl(VCoord);
 
    const bool LocUpdateSurfaceTracerFlux = TracerNonLocalFluxEnabled;
+   const bool LocUseTracerForcing        = SfcTracerForcing.Enabled;
    const I4 TempTracerIndex              = TempIdx;
    const I4 SaltTracerIndex              = SaltIdx;
 
    if (LocUpdateSurfaceTracerFlux) {
       deepCopy(SurfaceTracerFlux, 0.0_Real);
    }
+   deepCopy(KPPInstance->SurfaceBuoyancyFlux, 0.0_Real);
 
    parallelFor(
        "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
@@ -1453,11 +1454,22 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
           const Real tau_mag = Kokkos::sqrt(tau_x * tau_x + tau_y * tau_y);
           LocSurfaceFrictionVelocity(ICell) =
               Kokkos::sqrt(Kokkos::max(0.0_Real, tau_mag / RhoSw));
+          LocSurfaceBuoyancyFlux(ICell) = 0.0_Real;
+          if (LocUpdateSurfaceTracerFlux) {
+             LocSurfaceTracerFlux(TempTracerIndex, ICell) = 0.0_Real;
+             LocSurfaceTracerFlux(SaltTracerIndex, ICell) = 0.0_Real;
+          }
+          IceFraction(ICell) = 0.0_Real;
+
+          if (!LocUseTracerForcing) {
+             return;
+          }
+
           const I4 KSurf              = MinLayerCell(ICell);
           const Real surface_salinity = AbsSalinity(ICell, KSurf);
           const Real surface_temp     = ConservTemp(ICell, KSurf);
           const Real ct_freezing      = Teos10EosImpl.calcCtFreezing(
-              surface_salinity, PressureMidDbar(ICell, KSurf), 0.0_Real);
+              surface_salinity, PressureMid(ICell, KSurf) * Pa2Db, 0.0_Real);
           const Real heat_flux =
               LocLatentHeatFlux(ICell) + LocSensibleHeatFlux(ICell) +
               LocLongWaveHeatFluxUp(ICell) + LocLongWaveHeatFluxDown(ICell) +
@@ -1495,7 +1507,6 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
              LocSurfaceTracerFlux(TempTracerIndex, ICell) = temp_flux;
              LocSurfaceTracerFlux(SaltTracerIndex, ICell) = salt_flux;
           }
-          IceFraction(ICell) = 0.0_Real;
        });
 
    Array1DReal WindSpeed10m;
@@ -1503,8 +1514,8 @@ void Tendencies::computeStageVerticalMixing(const OceanState *State,
        PotentialDensity, NormalVelEdge, TangentialVelEdge,
        KPPInstance->SurfaceFrictionVelocity, KPPInstance->SurfaceBuoyancyFlux,
        EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m);
-   // KPP VertDiff/VertVisc are merged into VertMix inside VertMixImplicit(),
-   // after computeVertMix() resets them, so no merge needed here.
+   // KPP non-local flux is now ready for tracer tendencies. Final mixing
+   // coefficients are computed at the KPP stage inside VertMix::computeVertMix.
 }
 
 } // end namespace OMEGA

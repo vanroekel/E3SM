@@ -120,7 +120,7 @@ void KPPMix::init() {
    Config KPPConfig("KPP");
    Err += VertMixConfig.get(KPPConfig);
    if (Err.isFail()) {
-      LOG_INFO("KPPMix::init: KPP subgroup not found, using defaults");
+      LOG_WARN("KPPMix::init: KPP subgroup not found, using defaults");
       return; // Continue with defaults
    }
 
@@ -186,12 +186,18 @@ void KPPMix::init() {
       DebugErr.reset();
       DefKPPMix->DebugDiagnostics = false;
    }
+   if (DefKPPMix->DebugDiagnostics) {
+      LOG_WARN("KPP debug diagnostics enabled");
+   }
 
    // Background mixing
    Err += KPPConfig.get("BackgroundViscosity", DefKPPMix->BackgroundVisc);
    Err += KPPConfig.get("BackgroundDiffusivity", DefKPPMix->BackgroundDiff);
 
-   LOG_INFO("KPPMix::init: KPP initialized");
+   LOG_WARN("KPPMix::init: KPP initialized enabled={} debugDiagnostics={} "
+            "match={}",
+            DefKPPMix->Enabled, DefKPPMix->DebugDiagnostics,
+            DefKPPMix->MatchTechniqueStr);
 }
 
 /// Main computation routine
@@ -248,6 +254,8 @@ void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
    const auto B0H           = createHostMirrorCopy(SurfaceBuoyancyFlux);
    const auto OBLDepthH     = createHostMirrorCopy(BoundaryLayerDepth);
    const auto OBLIndexH     = createHostMirrorCopy(IndexBoundaryLayerDepth);
+   const auto VertDiffH     = createHostMirrorCopy(VertDiff);
+   const auto VertViscH     = createHostMirrorCopy(VertVisc);
 
    // NormalVelocity and TangentialVelocity are edge-based; not accessed here
    (void)NormalVelocity;
@@ -261,8 +269,14 @@ void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
    // Domain-wide diagnostic to avoid misleading single-cell checks.
    Real maxAbsB0       = 0.0_Real;
    Real maxAbsUStar    = 0.0_Real;
+   Real maxVertDiff    = 0.0_Real;
+   Real maxVertVisc    = 0.0_Real;
    int maxAbsB0Cell    = -1;
    int maxAbsUStarCell = -1;
+   int maxVertDiffCell = -1;
+   int maxVertDiffK    = -1;
+   int maxVertViscCell = -1;
+   int maxVertViscK    = -1;
    for (int C = 0; C < NCellsAll; ++C) {
       const Real b0c = B0H(C);
       const Real usc = UStarH(C);
@@ -276,9 +290,29 @@ void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
          maxAbsUStar     = aus;
          maxAbsUStarCell = C;
       }
+      const int KCMin = MinLayerCellH(C);
+      const int KCMax = MaxLayerCellH(C) + 1;
+      for (int K = KCMin; K <= KCMax; ++K) {
+         const Real diff = VertDiffH(C, K);
+         const Real visc = VertViscH(C, K);
+         if (diff > maxVertDiff) {
+            maxVertDiff     = diff;
+            maxVertDiffCell = C;
+            maxVertDiffK    = K;
+         }
+         if (visc > maxVertVisc) {
+            maxVertVisc     = visc;
+            maxVertViscCell = C;
+            maxVertViscK    = K;
+         }
+      }
    }
-   LOG_INFO("KPP debug domain: max|b0|={} at cell={} max|u*|={} at cell={}",
-            maxAbsB0, maxAbsB0Cell, maxAbsUStar, maxAbsUStarCell);
+   LOG_WARN("KPP debug domain post-coeff: max|b0|={} at cell={} max|u*|={} "
+            "at cell={} maxKPPDiff={} at cell={},k={} maxKPPVisc={} at "
+            "cell={},k={}",
+            maxAbsB0, maxAbsB0Cell, maxAbsUStar, maxAbsUStarCell, maxVertDiff,
+            maxVertDiffCell, maxVertDiffK, maxVertVisc, maxVertViscCell,
+            maxVertViscK);
 
    const int ICell       = 0;
    const int KMin        = MinLayerCellH(ICell);
@@ -304,10 +338,17 @@ void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
                               : 1.0_Real;
    const Real b0_eff = b0 * langmuir_factor;
 
-   LOG_INFO("KPP debug: cell={} h_obl={} m k_obl={} u*={} b0={} b0_eff={} "
+   LOG_WARN("KPP debug: cell={} h_obl={} m k_obl={} u*={} b0={} b0_eff={} "
             "langmuir={}",
             ICell, OBLDepthH(ICell), OBLIndexH(ICell), u_star, b0, b0_eff,
             langmuir_factor);
+
+   const int KOblIface = Kokkos::min(
+       NVertLayers, Kokkos::max(KMin, static_cast<int>(OBLIndexH(ICell)) + 1));
+   LOG_WARN("KPP debug coeff target: cell={} k_obl={} iface={} diff={} "
+            "visc={}",
+            ICell, OBLIndexH(ICell), KOblIface, VertDiffH(ICell, KOblIface),
+            VertViscH(ICell, KOblIface));
 
    const int KTop   = Kokkos::min(KMax, KMin + 3);
    const int k_obl  = OBLIndexH(ICell);
@@ -345,7 +386,7 @@ void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
       const Real phi_m = KPP::KPPProfileM2(zeta);
       const Real phi_s = KPP::KPPProfileS2(zeta);
 
-      LOG_INFO(
+      LOG_WARN(
           "KPP debug top: cell={} k={} z={} ri_b={} zeta={} phi_m={} phi_s={}",
           ICell, K, z_depth, ri_b, zeta, phi_m, phi_s);
    }
@@ -873,11 +914,12 @@ void KPPMix::computeOBLDepth(const Array2DReal &PotentialDensity,
    LOG_INFO("KPPMix::computeOBLDepth: OBL depth computed");
 }
 
-/// Stage 2: Compute mixing coefficients within and below OBL
+/// Stage 2: Compute KPP mixing contribution or matched coefficients
 void KPPMix::computeMixingCoefficients(
     const Array2DReal &PotentialDensity,
     const Array1DReal &SurfaceFrictionVelocity,
-    const Array1DReal &SurfaceBuoyancyFlux) {
+    const Array1DReal &SurfaceBuoyancyFlux, const Array2DReal &InteriorVertDiff,
+    const Array2DReal &InteriorVertVisc) {
 
    using namespace KPP;
 
@@ -900,10 +942,10 @@ void KPPMix::computeMixingCoefficients(
    OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
    OMEGA_SCOPE(ZInterface, VCoord->GeomZInterface);
    OMEGA_SCOPE(ZMid, VCoord->GeomZMid);
+   OMEGA_SCOPE(LocInteriorVertDiff, InteriorVertDiff);
+   OMEGA_SCOPE(LocInteriorVertVisc, InteriorVertVisc);
 
    // Capture member variables for use in lambda
-   Real LocBackgroundDiff           = BackgroundDiff;
-   Real LocBackgroundVisc           = BackgroundVisc;
    bool LocUseNonLocalFlux          = UseNonLocalFlux;
    const Real LocSurfaceLayerExtent = SurfaceLayerExtent;
    I4 LocMatchTechnique = 0; // 0=SimpleShapes, 1=MatchBoth, 2=ParabolicNonLocal
@@ -922,15 +964,20 @@ void KPPMix::computeMixingCoefficients(
                    1.0_Real / 3.0_Real);
    bool LocUseEnhancedDiffusion = UseEnhancedDiffusion;
    const Real LocKappa          = VonKar;
+   const bool LocUseInteriorMix =
+       InteriorVertDiff.data() != nullptr && InteriorVertVisc.data() != nullptr;
 
    // =======================================================================
-   // Initialize with background mixing
+   // Initialize with zero KPP contribution, or precomputed interior mixing for
+   // matched-coefficient construction.
    // =======================================================================
    parallelFor(
        "KPP-Coeffs-Init", {Mesh->NCellsAll, NVertLayers + 1},
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          LocVertDiff(ICell, K)               = LocBackgroundDiff;
-          LocVertVisc(ICell, K)               = LocBackgroundVisc;
+          LocVertDiff(ICell, K) =
+              LocUseInteriorMix ? LocInteriorVertDiff(ICell, K) : 0.0_Real;
+          LocVertVisc(ICell, K) =
+              LocUseInteriorMix ? LocInteriorVertVisc(ICell, K) : 0.0_Real;
           LocVertNonLocalFlux(ICell, K)       = 0.0;
           LocTurbulentVelocityScale(ICell, K) = 0.0;
        });
@@ -946,9 +993,11 @@ void KPPMix::computeMixingCoefficients(
 
           const I4 KMin = MinLayerCell(ICell);
           const I4 KMax = MaxLayerCell(ICell);
+          const I4 KMatch =
+              Kokkos::min(KMax + 1, LocIndexBoundaryLayerDepth(ICell) + 1);
 
           // =============================================================
-          // Compute turbulent velocity scale w_s
+          // Compute turbulent velocity scales
           // =============================================================
           Real u_star = LocSurfaceFrictionVelocity(ICell);
           Real b0     = LocSurfaceBuoyancyFlux(ICell);
@@ -1001,16 +1050,33 @@ void KPPMix::computeMixingCoefficients(
                                                      1.0_Real / 3.0_Real);
                 }
 
+                const Real match_visc_shape =
+                    (LocUseInteriorMix && LocMatchTechnique == 1 &&
+                     h_obl > 0.0_Real && w_m_turb > 0.0_Real)
+                        ? LocInteriorVertVisc(ICell, KMatch) /
+                              Kokkos::max(h_obl * w_m_turb, 1.0e-20_Real)
+                        : 0.0_Real;
+                const Real match_diff_shape =
+                    (LocUseInteriorMix && LocMatchTechnique == 1 &&
+                     h_obl > 0.0_Real && w_s_turb > 0.0_Real)
+                        ? LocInteriorVertDiff(ICell, KMatch) /
+                              Kokkos::max(h_obl * w_s_turb, 1.0e-20_Real)
+                        : 0.0_Real;
+
                 // ========================================================
-                // Momentum mixing: K_m = u_star * w_s * M1(σ) * M2(zeta)
+                // Momentum mixing contribution.
                 // ========================================================
-                Real m1               = KPP::KPPProfileM1(sigma);
+                Real m1 = (LocUseInteriorMix && LocMatchTechnique == 1)
+                              ? KPP::KPPProfileMatched(sigma, match_visc_shape)
+                              : KPP::KPPProfileM1(sigma);
                 LocVertVisc(ICell, k) = h_obl * w_m_turb * m1;
 
                 // ========================================================
-                // Tracer mixing: K_s = u_star * w_s * S1(σ) * S2(zeta)
+                // Tracer mixing contribution.
                 // ========================================================
-                Real s1                             = KPP::KPPProfileS1(sigma);
+                Real s1 = (LocUseInteriorMix && LocMatchTechnique == 1)
+                              ? KPP::KPPProfileMatched(sigma, match_diff_shape)
+                              : KPP::KPPProfileS1(sigma);
                 LocVertDiff(ICell, k)               = h_obl * w_s_turb * s1;
                 LocTurbulentVelocityScale(ICell, k) = w_s_turb;
 
@@ -1036,9 +1102,14 @@ void KPPMix::computeMixingCoefficients(
                 }
 
              } else {
-                // Below OBL: use background values
-                LocVertDiff(ICell, k)               = LocBackgroundDiff;
-                LocVertVisc(ICell, k)               = LocBackgroundVisc;
+                // Below OBL: preserve interior values for MatchBoth, otherwise
+                // no KPP contribution.
+                LocVertDiff(ICell, k)               = LocUseInteriorMix
+                                                          ? LocInteriorVertDiff(ICell, k)
+                                                          : 0.0_Real;
+                LocVertVisc(ICell, k)               = LocUseInteriorMix
+                                                          ? LocInteriorVertVisc(ICell, k)
+                                                          : 0.0_Real;
                 LocVertNonLocalFlux(ICell, k)       = 0.0;
                 LocTurbulentVelocityScale(ICell, k) = 0.0;
              }
@@ -1097,10 +1168,29 @@ void KPPMix::computeMixingCoefficients(
                                                   1.0_Real / 3.0_Real);
              }
 
+             const Real match_visc_shape =
+                 (LocUseInteriorMix && LocMatchTechnique == 1 &&
+                  h_obl > 0.0_Real && w_m_ktup > 0.0_Real)
+                     ? LocInteriorVertVisc(ICell, KMatch) /
+                           Kokkos::max(h_obl * w_m_ktup, 1.0e-20_Real)
+                     : 0.0_Real;
+             const Real match_diff_shape =
+                 (LocUseInteriorMix && LocMatchTechnique == 1 &&
+                  h_obl > 0.0_Real && w_s_ktup > 0.0_Real)
+                     ? LocInteriorVertDiff(ICell, KMatch) /
+                           Kokkos::max(h_obl * w_s_ktup, 1.0e-20_Real)
+                     : 0.0_Real;
+
              const Real visc_ktup =
-                 h_obl * w_m_ktup * KPP::KPPProfileM1(sigma_ktup);
+                 h_obl * w_m_ktup *
+                 ((LocUseInteriorMix && LocMatchTechnique == 1)
+                      ? KPP::KPPProfileMatched(sigma_ktup, match_visc_shape)
+                      : KPP::KPPProfileM1(sigma_ktup));
              const Real diff_ktup =
-                 h_obl * w_s_ktup * KPP::KPPProfileS1(sigma_ktup);
+                 h_obl * w_s_ktup *
+                 ((LocUseInteriorMix && LocMatchTechnique == 1)
+                      ? KPP::KPPProfileMatched(sigma_ktup, match_diff_shape)
+                      : KPP::KPPProfileS1(sigma_ktup));
 
              const Real visc_profile = LocVertVisc(ICell, k_target);
              const Real diff_profile = LocVertDiff(ICell, k_target);
@@ -1112,10 +1202,16 @@ void KPPMix::computeMixingCoefficients(
                  one_minus_delta * one_minus_delta * diff_ktup +
                  delta * delta * diff_profile;
 
+             const Real old_visc = LocUseInteriorMix
+                                       ? LocInteriorVertVisc(ICell, k_target)
+                                       : 0.0_Real;
+             const Real old_diff = LocUseInteriorMix
+                                       ? LocInteriorVertDiff(ICell, k_target)
+                                       : 0.0_Real;
              const Real new_visc =
-                 one_minus_delta * LocBackgroundVisc + delta * enh_visc;
+                 one_minus_delta * old_visc + delta * enh_visc;
              const Real new_diff =
-                 one_minus_delta * LocBackgroundDiff + delta * enh_diff;
+                 one_minus_delta * old_diff + delta * enh_diff;
 
              LocVertVisc(ICell, k_target) = new_visc;
              LocVertDiff(ICell, k_target) = new_diff;

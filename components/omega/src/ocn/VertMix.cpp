@@ -17,10 +17,103 @@
 #include "HorzMesh.h"
 #include "HorzOperators.h"
 #include "KPPMix.h"
+#include "Logging.h"
 #include "TimeStepper.h"
 #include "TriDiagSolvers.h"
 
 namespace OMEGA {
+
+static void logVertMixKPPDiagnostics(const char *Label, const VertCoord *VCoord,
+                                     const Array2DReal &VertDiff,
+                                     const Array2DReal &VertVisc,
+                                     const KPPMix *KPPInstance) {
+   if (!KPPInstance || !KPPInstance->DebugDiagnostics) {
+      return;
+   }
+
+   const auto MinLayerCellH = createHostMirrorCopy(VCoord->MinLayerCell);
+   const auto MaxLayerCellH = createHostMirrorCopy(VCoord->MaxLayerCell);
+   const auto VertDiffH     = createHostMirrorCopy(VertDiff);
+   const auto VertViscH     = createHostMirrorCopy(VertVisc);
+   const auto KPPDiffH      = createHostMirrorCopy(KPPInstance->VertDiff);
+   const auto KPPViscH      = createHostMirrorCopy(KPPInstance->VertVisc);
+   const auto BLDH = createHostMirrorCopy(KPPInstance->BoundaryLayerDepth);
+   const auto BLDIndexH =
+       createHostMirrorCopy(KPPInstance->IndexBoundaryLayerDepth);
+   const auto UStarH =
+       createHostMirrorCopy(KPPInstance->SurfaceFrictionVelocity);
+   const auto B0H = createHostMirrorCopy(KPPInstance->SurfaceBuoyancyFlux);
+
+   const int NCells = BLDH.extent(0);
+   if (NCells <= 0) {
+      LOG_WARN("VertMix KPP debug {}: no cells", Label);
+      return;
+   }
+
+   int MaxBLDCell = 0;
+   Real MaxBLD    = BLDH(0);
+   for (int ICell = 1; ICell < NCells; ++ICell) {
+      if (BLDH(ICell) > MaxBLD) {
+         MaxBLD     = BLDH(ICell);
+         MaxBLDCell = ICell;
+      }
+   }
+
+   auto LogCell = [&](int ICell) {
+      const int KMin = MinLayerCellH(ICell);
+      const int KMax = MaxLayerCellH(ICell) + 1;
+      if (KMin > KMax) {
+         LOG_WARN("VertMix KPP debug {}: cell={} has no active levels", Label,
+                  ICell);
+         return;
+      }
+
+      Real MaxVertDiff = 0.0_Real;
+      Real MaxVertVisc = 0.0_Real;
+      Real MaxKPPDiff  = 0.0_Real;
+      Real MaxKPPVisc  = 0.0_Real;
+      int MaxVertDiffK = KMin;
+      int MaxVertViscK = KMin;
+      int MaxKPPDiffK  = KMin;
+      int MaxKPPViscK  = KMin;
+      for (int K = KMin; K <= KMax; ++K) {
+         if (VertDiffH(ICell, K) > MaxVertDiff) {
+            MaxVertDiff  = VertDiffH(ICell, K);
+            MaxVertDiffK = K;
+         }
+         if (VertViscH(ICell, K) > MaxVertVisc) {
+            MaxVertVisc  = VertViscH(ICell, K);
+            MaxVertViscK = K;
+         }
+         if (KPPDiffH(ICell, K) > MaxKPPDiff) {
+            MaxKPPDiff  = KPPDiffH(ICell, K);
+            MaxKPPDiffK = K;
+         }
+         if (KPPViscH(ICell, K) > MaxKPPVisc) {
+            MaxKPPVisc  = KPPViscH(ICell, K);
+            MaxKPPViscK = K;
+         }
+      }
+
+      const int KObl = Kokkos::min(
+          KMax, Kokkos::max(KMin, static_cast<int>(BLDIndexH(ICell)) + 1));
+      LOG_WARN("VertMix KPP debug {}: enabled={} match={} cell={} h_obl={} "
+               "k_obl={} iface={} u*={} b0={} vertDiff={} vertVisc={} "
+               "kppDiff={} kppVisc={} maxVertDiff={}@{} maxVertVisc={}@{} "
+               "maxKPPDiff={}@{} maxKPPVisc={}@{}",
+               Label, KPPInstance->Enabled, KPPInstance->MatchTechniqueStr,
+               ICell, BLDH(ICell), BLDIndexH(ICell), KObl, UStarH(ICell),
+               B0H(ICell), VertDiffH(ICell, KObl), VertViscH(ICell, KObl),
+               KPPDiffH(ICell, KObl), KPPViscH(ICell, KObl), MaxVertDiff,
+               MaxVertDiffK, MaxVertVisc, MaxVertViscK, MaxKPPDiff, MaxKPPDiffK,
+               MaxKPPVisc, MaxKPPViscK);
+   };
+
+   LogCell(0);
+   if (MaxBLDCell != 0) {
+      LogCell(MaxBLDCell);
+   }
+}
 
 ShearMix::ShearMix(const VertCoord *VCoord)
     : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
@@ -264,6 +357,11 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                  }
               });
        });
+   if (LocKPPEnabled) {
+      logVertMixKPPDiagnostics("after-background", VCoord, VertDiff, VertVisc,
+                               KPPInstance);
+   }
+
    /// Second, compute shear mixing if enabled
    if (LocComputeVertMixShear.Enabled) {
       /// Compute Richardson number
@@ -331,7 +429,44 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                  });
           });
    }
-   /// Third, compute convective mixing if enabled
+   if (LocKPPEnabled) {
+      logVertMixKPPDiagnostics("after-shear-before-kpp", VCoord, VertDiff,
+                               VertVisc, KPPInstance);
+   }
+
+   /// Third, apply KPP mixing if enabled
+   if (LocKPPEnabled) {
+      const I4 NVertLayers = VCoord->NVertLayers;
+      I4 KPPMergeMode      = 0; // 0=additive profile, 1=matched coefficients
+      if (KPPInstance->MatchTechniqueStr == "MatchBoth") {
+         KPPMergeMode = 1;
+      }
+
+      OMEGA_SCOPE(LocKPPVertDiff, KPPInstance->VertDiff);
+      OMEGA_SCOPE(LocKPPVertVisc, KPPInstance->VertVisc);
+
+      logVertMixKPPDiagnostics("before-kpp-add", VCoord, VertDiff, VertVisc,
+                               KPPInstance);
+
+      parallelFor(
+          "VertMix-KPP", {Mesh->NCellsAll, NVertLayers + 1},
+          KOKKOS_LAMBDA(I4 ICell, I4 K) {
+             if (K <= LocKPPBoundaryLayerIndex(ICell) + 1) {
+                if (KPPMergeMode == 1) {
+                   LocVertDiff(ICell, K) = LocKPPVertDiff(ICell, K);
+                   LocVertVisc(ICell, K) = LocKPPVertVisc(ICell, K);
+                } else {
+                   LocVertDiff(ICell, K) += LocKPPVertDiff(ICell, K);
+                   LocVertVisc(ICell, K) += LocKPPVertVisc(ICell, K);
+                }
+             }
+          });
+
+      logVertMixKPPDiagnostics("after-kpp-add", VCoord, VertDiff, VertVisc,
+                               KPPInstance);
+   }
+
+   /// Fourth, compute convective mixing if enabled
    if (LocComputeVertMixConv.Enabled) {
       parallelForOuter(
           "VertMix-Conv", {Mesh->NCellsAll},
@@ -360,6 +495,10 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
                  });
           });
    }
+   if (LocKPPEnabled) {
+      logVertMixKPPDiagnostics("after-convection", VCoord, VertDiff, VertVisc,
+                               KPPInstance);
+   }
    /// Finally, zero viscosity/diffusivity at surface and bottom boundaries
    parallelFor(
        "VertMix-Boundaries", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
@@ -370,6 +509,10 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
           LocVertDiff(ICell, KMax) = 0.0_Real;
           LocVertVisc(ICell, KMax) = 0.0_Real;
        });
+   if (LocKPPEnabled) {
+      logVertMixKPPDiagnostics("after-boundaries", VCoord, VertDiff, VertVisc,
+                               KPPInstance);
+   }
 } // computeVertMix
 
 /// Define IO fields and metadata for output
@@ -717,51 +860,6 @@ void VertMix::VertMixImplicit(OceanState *State, AuxiliaryState *AuxState,
    // Compute vertical mixing coefficients
    computeVertMix(NormalVelEdge, LocTangentialVelocity,
                   EqState->BruntVaisalaFreqSq);
-
-   KPPMix *KPPInstance = KPPMix::getInstance();
-   if (KPPInstance && KPPInstance->Enabled) {
-      const I4 NCellsAll   = Mesh->NCellsAll;
-      const I4 NVertLayers = VCoord->NVertLayers;
-      I4 KPPMergeMode = 0; // 0=additive (SimpleShapes/Parabolic), 1=MatchBoth
-      if (KPPInstance->MatchTechniqueStr == "MatchBoth") {
-         KPPMergeMode = 1;
-      }
-      const Real KPPBackgroundDiff = KPPInstance->BackgroundDiff;
-      const Real KPPBackgroundVisc = KPPInstance->BackgroundVisc;
-      OMEGA_SCOPE(LocVertDiff, VertDiff);
-      OMEGA_SCOPE(LocVertVisc, VertVisc);
-      OMEGA_SCOPE(LocKPPVertDiff, KPPInstance->VertDiff);
-      OMEGA_SCOPE(LocKPPVertVisc, KPPInstance->VertVisc);
-      OMEGA_SCOPE(LocKPPIndexBoundaryLayerDepth,
-                  KPPInstance->IndexBoundaryLayerDepth);
-
-      parallelFor(
-          "KPP-MergeIntoVertMix", {NCellsAll, NVertLayers + 1},
-          KOKKOS_LAMBDA(I4 ICell, I4 K) {
-             if (KPPMergeMode == 1) {
-                // MatchBoth: follow KPP matched behavior in and at the BLD
-                // base.
-                if (K <= LocKPPIndexBoundaryLayerDepth(ICell) + 1) {
-                   LocVertDiff(ICell, K) = LocKPPVertDiff(ICell, K);
-                   LocVertVisc(ICell, K) = LocKPPVertVisc(ICell, K);
-                }
-             } else {
-                // SimpleShapes/ParabolicNonLocal: additive composition with
-                // single-count background via KPP anomaly.
-                LocVertDiff(ICell, K) +=
-                    LocKPPVertDiff(ICell, K) - KPPBackgroundDiff;
-                LocVertVisc(ICell, K) +=
-                    LocKPPVertVisc(ICell, K) - KPPBackgroundVisc;
-             }
-          });
-
-      EnforceKPPNoFluxBC EnforceBC(VCoord);
-      parallelFor(
-          "VertMix-EnforceKPPNoFluxBC", {Mesh->NCellsAll},
-          KOKKOS_LAMBDA(I4 ICell) {
-             EnforceBC(LocVertDiff, LocVertVisc, ICell);
-          });
-   }
 
    // Apply implicit mixing to velocities
    applyVelVertMixImplicit(State, AuxState, TimeLevel, TimeLevel);

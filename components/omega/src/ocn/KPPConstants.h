@@ -170,6 +170,22 @@ Real KPPProfileM1(Real sigma) {
    return sigma_mu * (1.0 - sigma_mu) * (1.0 - sigma_mu);
 }
 
+/// @brief Matched KPP gradient profile shape.
+///
+/// Uses the SimpleShapes gradient profile plus a smooth correction that is
+/// zero at the surface and equals ShapeAtBase at the OBL base. This lets
+/// MatchBoth profiles meet pre-existing interior mixing at the BLD base while
+/// preserving SimpleShapes behavior when ShapeAtBase is zero.
+KOKKOS_INLINE_FUNCTION
+Real KPPProfileMatched(Real sigma, Real ShapeAtBase) {
+   sigma = Kokkos::fmax(-1.0, Kokkos::fmin(0.0, sigma));
+
+   const Real sigma_mu = -sigma;
+   const Real simple   = sigma_mu * (1.0 - sigma_mu) * (1.0 - sigma_mu);
+   const Real smooth   = sigma_mu * sigma_mu * (3.0 - 2.0 * sigma_mu);
+   return simple + ShapeAtBase * smooth;
+}
+
 /// @brief phi_m^{-1}(zeta) - Inverse momentum Monin-Obukhov stability function
 /// Multiplied by von Karman constant and friction velocity to give turbulent
 /// momentum velocity scale: w_m = kappa * u* * phi_m^{-1}(zeta)

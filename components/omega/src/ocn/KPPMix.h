@@ -194,10 +194,13 @@ class KPPMix {
                         const Array1DReal &IceFraction,
                         const Array1DReal &WindSpeed10m);
 
-   /// @brief Stage 2: Compute mixing coefficients
-   void computeMixingCoefficients(const Array2DReal &PotentialDensity,
-                                  const Array1DReal &SurfaceFrictionVelocity,
-                                  const Array1DReal &SurfaceBuoyancyFlux);
+   /// @brief Stage 2: Compute KPP mixing contribution or matched coefficients
+   void computeMixingCoefficients(
+       const Array2DReal &PotentialDensity,
+       const Array1DReal &SurfaceFrictionVelocity,
+       const Array1DReal &SurfaceBuoyancyFlux,
+       const Array2DReal &InteriorVertDiff = Array2DReal(),
+       const Array2DReal &InteriorVertVisc = Array2DReal());
 
  private:
    /// @brief Print targeted diagnostics for KPP troubleshooting
