@@ -148,6 +148,37 @@ void Forcing::computeAll() const {
    computeSfcStressForcingOnEdge();
 }
 
+// Reset forcing arrays so omitted optional fields remain zero after read.
+void Forcing::resetArrays() {
+   deepCopy(SfcStressForcing.NormalStressEdge, 0.0_Real);
+   deepCopy(SfcStressForcing.ZonalStressCell, 0.0_Real);
+   deepCopy(SfcStressForcing.MeridStressCell, 0.0_Real);
+   deepCopy(SfcStressForcing.LatentHeatFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.SensibleHeatFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.ShortWaveHeatFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.EvaporationFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.RainFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.RiverRunoffFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.IceRunoffFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.SubglacialRunoffFlux, 0.0_Real);
+   deepCopy(SfcStressForcing.IcebergFreshWaterFlux, 0.0_Real);
+
+   deepCopy(TracerForcing.SnowFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.RainFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.EvaporationFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.SeaIceFreshWaterFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.IceRunoffFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.RiverRunoffFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.LatentHeatFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.SensibleHeatFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.LongWaveHeatFluxUpCell, 0.0_Real);
+   deepCopy(TracerForcing.LongWaveHeatFluxDownCell, 0.0_Real);
+   deepCopy(TracerForcing.SeaIceHeatFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.ShortWaveHeatFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.SeaIceSaltFluxCell, 0.0_Real);
+   deepCopy(TracerForcing.SurfInsituTemperature, 0.0_Real);
+}
+
 // Compute edge-normal stress from cell-center zonal and meridional components.
 void Forcing::computeSfcStressForcingOnEdge() const {
    OMEGA_SCOPE(LocSfcStressForcing, SfcStressForcing);
@@ -221,13 +252,14 @@ void Forcing::readStreamIntoArrays() {
 
    std::string StreamName = "Forcing";
 
+   resetArrays();
+
    // Attempt to read stream; if unavailable, log and fall back to zero forcing.
    Err = IOStream::read(StreamName);
    if (Err.isFail()) {
       LOG_INFO("Forcing: Error while reading {} stream, using zero forcing",
                StreamName);
-      deepCopy(SfcStressForcing.ZonalStressCell, 0._Real);
-      deepCopy(SfcStressForcing.MeridStressCell, 0._Real);
+      resetArrays();
    }
 
    I4 HaloErr = exchangeHalo();
