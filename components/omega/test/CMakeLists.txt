@@ -4,10 +4,41 @@
 # Omega Test Function
 #####################
 
+function(add_omega_ctest test_name exe_name mpi_args)
+  set(test_args ${ARGN})
+
+  if (mpi_args)
+    if("${OMEGA_ARCH}" STREQUAL "SYCL")
+      add_test(
+        NAME ${test_name}
+        COMMAND ${OMEGA_MPI_EXEC} ${mpi_args} ${OMEGA_MPI_ARGS} ./${exe_name} ${test_args}
+      )
+    else()
+      add_test(
+        NAME ${test_name}
+        COMMAND ${OMEGA_MPI_EXEC} ${OMEGA_MPI_ARGS} ${mpi_args} -- ./${exe_name} ${test_args}
+      )
+    endif()
+  else()
+    add_test(
+      NAME ${test_name}
+      COMMAND ../omega_env.sh ./${exe_name} ${test_args}
+    )
+  endif()
+
+  set_tests_properties(${test_name} PROPERTIES LABELS "${OMEGA_ARCH};Omega-0")
+endfunction()
+
 function(add_omega_test test_name exe_name source_files mpi_args)
   # Copy extra arguments to a local variable so they can be treated
   # as a list
   set(extra_args ${ARGN})
+  set(test_args)
+  foreach(extra_arg IN LISTS extra_args)
+    if(extra_arg MATCHES "^test_arg=(.*)$")
+      list(APPEND test_args "${CMAKE_MATCH_1}")
+    endif()
+  endforeach()
 
   # Create the executable
   add_executable(${exe_name} ${source_files})
@@ -47,29 +78,7 @@ function(add_omega_test test_name exe_name source_files mpi_args)
 
   set_target_properties(${exe_name} PROPERTIES LINKER_LANGUAGE CXX)
 
-  # Add the test command
-  if (mpi_args)
-
-    if("${OMEGA_ARCH}" STREQUAL "SYCL")
-      add_test(
-        NAME ${test_name}
-        COMMAND ${OMEGA_MPI_EXEC} ${mpi_args} ${OMEGA_MPI_ARGS} ./${exe_name}
-      )
-    else()
-      add_test(
-        NAME ${test_name}
-        COMMAND ${OMEGA_MPI_EXEC} ${OMEGA_MPI_ARGS} ${mpi_args} -- ./${exe_name}
-      )
-    endif()
-
-  else()
-    add_test(
-      NAME ${test_name}
-      COMMAND ../omega_env.sh ./${exe_name}
-    )
-  endif()
-
-  set_tests_properties(${test_name} PROPERTIES LABELS "${OMEGA_ARCH};Omega-0")
+  add_omega_ctest(${test_name} ${exe_name} "${mpi_args}" ${test_args})
 
 endfunction()
 
@@ -544,6 +553,23 @@ add_omega_test(
     ocn/VertMixTest.cpp
     "-n;4"
 )
+
+##########################
+# KPP tests
+##########################
+
+add_omega_test(
+  KPP_PROFILES_TEST
+  testKPPMix.exe
+  ocn/KPPMixTest.cpp
+  "-n;1"
+  test_arg=profiles
+)
+add_omega_ctest(KPP_BLD_TEST testKPPMix.exe "-n;1" bld)
+add_omega_ctest(KPP_VMIX_COEFF_TEST testKPPMix.exe "-n;1" vmix)
+add_omega_ctest(KPP_INTEGRATION_TEST testKPPMix.exe "-n;1" integration)
+add_omega_ctest(KPP_CONFIG_GRADIENT_TEST testKPPMix.exe "-n;1" config-gradient)
+add_omega_ctest(KPP_CONFIG_UNSUPPORTED_TEST testKPPMix.exe "-n;1" config-unsupported)
 
 ##################
 # VAdv test
