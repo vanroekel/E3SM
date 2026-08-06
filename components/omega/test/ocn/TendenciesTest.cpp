@@ -336,7 +336,6 @@ int testTendencies() {
 
          deepCopy(ZonalStressCell, 0.0_Real);
          deepCopy(MeridStressCell, 0.0_Real);
-         deepCopy(DefForcing->SfcStressForcing.LatentHeatFlux, 0.0_Real);
          deepCopy(DefForcing->TracerForcing.LatentHeatFluxCell, TestHeatFlux);
          deepCopy(DefForcing->TracerForcing.SensibleHeatFluxCell, 0.0_Real);
          deepCopy(DefForcing->TracerForcing.LongWaveHeatFluxUpCell, 0.0_Real);

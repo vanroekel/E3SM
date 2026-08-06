@@ -11,28 +11,10 @@ SfcStressForcingVars::SfcStressForcingVars(const std::string &Suffix,
     : NormalStressEdge("NormalStressEdge" + Suffix, Mesh->NEdgesSize),
       ZonalStressCell("SfcStressZonal" + Suffix, Mesh->NCellsSize),
       MeridStressCell("SfcStressMeridional" + Suffix, Mesh->NCellsSize),
-      LatentHeatFlux("LatentHeatFlux" + Suffix, Mesh->NCellsSize),
-      SensibleHeatFlux("SensibleHeatFlux" + Suffix, Mesh->NCellsSize),
-      ShortWaveHeatFlux("ShortWaveHeatFlux" + Suffix, Mesh->NCellsSize),
-      EvaporationFlux("EvaporationFlux" + Suffix, Mesh->NCellsSize),
-      RainFlux("RainFlux" + Suffix, Mesh->NCellsSize),
-      RiverRunoffFlux("RiverRunoffFlux" + Suffix, Mesh->NCellsSize),
-      IceRunoffFlux("IceRunoffFlux" + Suffix, Mesh->NCellsSize),
-      SubglacialRunoffFlux("SubglacialRunoffFlux" + Suffix, Mesh->NCellsSize),
-      IcebergFreshWaterFlux("IcebergFreshWaterFlux" + Suffix, Mesh->NCellsSize),
       CellsOnEdge(Mesh->CellsOnEdge), AngleEdge(Mesh->AngleEdge), Interp(Mesh) {
    deepCopy(NormalStressEdge, 0.0_Real);
    deepCopy(ZonalStressCell, 0.0_Real);
    deepCopy(MeridStressCell, 0.0_Real);
-   deepCopy(LatentHeatFlux, 0.0_Real);
-   deepCopy(SensibleHeatFlux, 0.0_Real);
-   deepCopy(ShortWaveHeatFlux, 0.0_Real);
-   deepCopy(EvaporationFlux, 0.0_Real);
-   deepCopy(RainFlux, 0.0_Real);
-   deepCopy(RiverRunoffFlux, 0.0_Real);
-   deepCopy(IceRunoffFlux, 0.0_Real);
-   deepCopy(SubglacialRunoffFlux, 0.0_Real);
-   deepCopy(IcebergFreshWaterFlux, 0.0_Real);
 }
 
 void SfcStressForcingVars::registerFields(
@@ -109,20 +91,6 @@ void SfcStressForcingVars::registerFields(
    ZonalStressCellField->attachData<Array1DReal>(ZonalStressCell, false);
    MeridStressCellField->attachData<Array1DReal>(MeridStressCell, false);
 
-   createCellField(LatentHeatFlux, "latent heat flux", "W m^{-2}");
-   createCellField(SensibleHeatFlux, "sensible heat flux", "W m^{-2}");
-   createCellField(ShortWaveHeatFlux, "shortwave heat flux", "W m^{-2}");
-   createCellField(EvaporationFlux, "evaporation freshwater flux",
-                   "kg m^{-2} s^{-1}");
-   createCellField(RainFlux, "rain freshwater flux", "kg m^{-2} s^{-1}");
-   createCellField(RiverRunoffFlux, "river runoff freshwater flux",
-                   "kg m^{-2} s^{-1}");
-   createCellField(IceRunoffFlux, "ice runoff freshwater flux",
-                   "kg m^{-2} s^{-1}");
-   createCellField(SubglacialRunoffFlux, "subglacial runoff freshwater flux",
-                   "kg m^{-2} s^{-1}");
-   createCellField(IcebergFreshWaterFlux, "iceberg freshwater flux",
-                   "kg m^{-2} s^{-1}");
 }
 
 void SfcStressForcingVars::unregisterFields() const {
@@ -135,15 +103,6 @@ void SfcStressForcingVars::unregisterFields() const {
    destroyIfExists(NormalStressEdge.label());
    destroyIfExists(ZonalStressCell.label());
    destroyIfExists(MeridStressCell.label());
-   destroyIfExists(LatentHeatFlux.label());
-   destroyIfExists(SensibleHeatFlux.label());
-   destroyIfExists(ShortWaveHeatFlux.label());
-   destroyIfExists(EvaporationFlux.label());
-   destroyIfExists(RainFlux.label());
-   destroyIfExists(RiverRunoffFlux.label());
-   destroyIfExists(IceRunoffFlux.label());
-   destroyIfExists(SubglacialRunoffFlux.label());
-   destroyIfExists(IcebergFreshWaterFlux.label());
 }
 
 } // namespace OMEGA

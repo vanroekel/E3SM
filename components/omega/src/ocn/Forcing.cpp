@@ -153,15 +153,6 @@ void Forcing::resetArrays() {
    deepCopy(SfcStressForcing.NormalStressEdge, 0.0_Real);
    deepCopy(SfcStressForcing.ZonalStressCell, 0.0_Real);
    deepCopy(SfcStressForcing.MeridStressCell, 0.0_Real);
-   deepCopy(SfcStressForcing.LatentHeatFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.SensibleHeatFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.ShortWaveHeatFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.EvaporationFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.RainFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.RiverRunoffFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.IceRunoffFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.SubglacialRunoffFlux, 0.0_Real);
-   deepCopy(SfcStressForcing.IcebergFreshWaterFlux, 0.0_Real);
 
    deepCopy(TracerForcing.SnowFluxCell, 0.0_Real);
    deepCopy(TracerForcing.RainFluxCell, 0.0_Real);
@@ -200,23 +191,6 @@ I4 Forcing::exchangeHalo() const {
                                           OnCell);
    Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.MeridStressCell,
                                           OnCell);
-   Err +=
-       MeshHalo->exchangeFullArrayHalo(SfcStressForcing.LatentHeatFlux, OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.SensibleHeatFlux,
-                                          OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.ShortWaveHeatFlux,
-                                          OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.EvaporationFlux,
-                                          OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.RainFlux, OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.RiverRunoffFlux,
-                                          OnCell);
-   Err +=
-       MeshHalo->exchangeFullArrayHalo(SfcStressForcing.IceRunoffFlux, OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(SfcStressForcing.SubglacialRunoffFlux,
-                                          OnCell);
-   Err += MeshHalo->exchangeFullArrayHalo(
-       SfcStressForcing.IcebergFreshWaterFlux, OnCell);
    Err += MeshHalo->exchangeFullArrayHalo(TracerForcing.SnowFluxCell, OnCell);
    Err += MeshHalo->exchangeFullArrayHalo(TracerForcing.RainFluxCell, OnCell);
    Err += MeshHalo->exchangeFullArrayHalo(TracerForcing.EvaporationFluxCell,
