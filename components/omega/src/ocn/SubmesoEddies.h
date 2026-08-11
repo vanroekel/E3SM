@@ -84,8 +84,14 @@ class SubmesoEddies {
    // Buoyancy gradient
    Array2DReal GradBuoyEdgeInterface;
 
+  // Eddy overturning streamfunction
+  Array2DReal EddyStreamFunction;
+
    // Eddy Velocity
    Array2DReal EddyVelocity;
+
+  // Edge-normal eddy kinetic energy proxy
+  Array2DReal EddyKineticEnergyEdge;
 
    // Time scale array
    Array1DReal TimeScale;

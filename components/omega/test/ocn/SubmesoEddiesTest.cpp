@@ -539,6 +539,7 @@ Error testEddyVelocity(const Array2DReal &GeomZInterfaceEdge,
    const auto &MaxLayerEdgeTop = VCoord->MaxLayerEdgeTop;
    auto &GeomZMid              = VCoord->GeomZMid;
    auto &GeomZInterface        = VCoord->GeomZInterface;
+   const auto NVertLayersP1    = VCoord->NVertLayersP1;
 
    auto *SubEddies = SubmesoEddies::getInstance();
 
@@ -602,7 +603,9 @@ Error testEddyVelocity(const Array2DReal &GeomZInterfaceEdge,
    // Compute numerical eddy velocity
    SubEddies->computeEddyVelocity(BVFreqSq, MeanPseudoThickEdge);
 
-   const auto &EddyVelocity = SubEddies->EddyVelocity;
+   const auto &EddyStreamFunction    = SubEddies->EddyStreamFunction;
+   const auto &EddyVelocity          = SubEddies->EddyVelocity;
+   const auto &EddyKineticEnergyEdge = SubEddies->EddyKineticEnergyEdge;
 
    // Compute exact mixed layer average of buoyancy gradient
    Array1DReal MeanBuoyGrad =
@@ -611,10 +614,18 @@ Error testEddyVelocity(const Array2DReal &GeomZInterfaceEdge,
    // Compute exact mixed layer average of Brunt-Vaisala frequency
    Array1DReal MeanBV = computeExactBVML(GeomZInterfaceEdge, DenMixLayerDepth);
 
-   // Compute exact eddy velocity
+      // Compute exact eddy velocity and diagnostic consistency checks
    Array2DReal ExactEddyVelocity("ExactEddyVelocity", Mesh->NEdgesSize,
                                  VCoord->NVertLayers);
+      Array2DReal EddyVelocityFromStreamFunction(
+         "EddyVelocityFromStreamFunction", Mesh->NEdgesSize,
+         VCoord->NVertLayers);
+   Array2DReal ExactEddyKineticEnergyEdge("ExactEddyKineticEnergyEdge",
+                                          Mesh->NEdgesSize,
+                                          VCoord->NVertLayers);
    deepCopy(ExactEddyVelocity, FillValueReal);
+      deepCopy(EddyVelocityFromStreamFunction, FillValueReal);
+   deepCopy(ExactEddyKineticEnergyEdge, FillValueReal);
 
    parallelForOuter(
        {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
@@ -655,11 +666,36 @@ Error testEddyVelocity(const Array2DReal &GeomZInterfaceEdge,
                          GeomZMid(JCell1, K) -
                          GeomZInterface(JCell1, MinLayerCell(JCell1)));
 
-                    ExactEddyVelocity(IEdge, K) =
+                     ExactEddyVelocity(IEdge, K) =
                         -Factor * shapeFunctionDeriv(ZEdge, MLDepthEdge);
+               const Real DZ =
+                  0.5_Real * (GeomZInterface(JCell0, K) -
+                           GeomZInterface(JCell0, K + 1) +
+                           GeomZInterface(JCell1, K) -
+                           GeomZInterface(JCell1, K + 1));
+               EddyVelocityFromStreamFunction(IEdge, K) =
+                  -(EddyStreamFunction(IEdge, K) -
+                    EddyStreamFunction(IEdge, K + 1)) /
+                  DZ;
+                     ExactEddyKineticEnergyEdge(IEdge, K) =
+                        0.5_Real * EddyVelocity(IEdge, K) *
+                        EddyVelocity(IEdge, K);
                  });
           }
        });
+
+      ErrorMeasures EddyStreamFunctionVelocityErrors;
+      computeErrors(EddyStreamFunctionVelocityErrors, EddyVelocity,
+                EddyVelocityFromStreamFunction, Mesh, OnEdge);
+
+      if (EddyStreamFunctionVelocityErrors.L2 > 1e-15 ||
+         EddyStreamFunctionVelocityErrors.LInf > 1e-15) {
+        Err += Error(ErrorCode::Fail,
+                  "eddyStreamFunction velocity relation FAIL, L2={:e}, "
+                  "LInf={:e}",
+                  EddyStreamFunctionVelocityErrors.L2,
+                  EddyStreamFunctionVelocityErrors.LInf);
+   }
 
    // Compute errors and check that they are reasonable
    ErrorMeasures EddyVelocityErrors;
@@ -676,6 +712,18 @@ Error testEddyVelocity(const Array2DReal &GeomZInterfaceEdge,
    if (EddyVelocityErrors.LInf > MaxLInfError) {
       Err += Error(ErrorCode::Fail, "eddyVelocity LInf FAIL, {:e} > {:e}",
                    EddyVelocityErrors.LInf, MaxLInfError);
+   }
+
+   ErrorMeasures EddyKineticEnergyEdgeErrors;
+   computeErrors(EddyKineticEnergyEdgeErrors, EddyKineticEnergyEdge,
+                 ExactEddyKineticEnergyEdge, Mesh, OnEdge);
+
+   if (EddyKineticEnergyEdgeErrors.L2 > 1e-15 ||
+       EddyKineticEnergyEdgeErrors.LInf > 1e-15) {
+      Err += Error(ErrorCode::Fail,
+                   "eddyKineticEnergyEdge FAIL, L2={:e}, LInf={:e}",
+                   EddyKineticEnergyEdgeErrors.L2,
+                   EddyKineticEnergyEdgeErrors.LInf);
    }
 
    return Err;

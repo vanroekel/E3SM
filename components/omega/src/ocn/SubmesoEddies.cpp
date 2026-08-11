@@ -70,12 +70,16 @@ void SubmesoEddies::init() {
 } // end init
 
 SubmesoEddies::SubmesoEddies(const HorzMesh *Mesh, const VertCoord *VCoord)
-    : Mesh(Mesh), VCoord(VCoord), TimeScale("TimeScale", Mesh->NEdgesSize),
-      DenMixLayerDepth("DenMixLayerDepth", Mesh->NCellsSize),
-      DenMixLayerIndex("DenMixLayerIndex", Mesh->NCellsSize),
-      GradBuoyEdgeInterface("GradBuoyEdgeInterface", Mesh->NEdgesSize,
-                            VCoord->NVertLayersP1),
-      EddyVelocity("EddyVelocity", Mesh->NEdgesSize, VCoord->NVertLayers) {
+        : Mesh(Mesh), VCoord(VCoord), TimeScale("TimeScale", Mesh->NEdgesSize),
+            DenMixLayerDepth("DenMixLayerDepth", Mesh->NCellsSize),
+            DenMixLayerIndex("DenMixLayerIndex", Mesh->NCellsSize),
+            GradBuoyEdgeInterface("GradBuoyEdgeInterface", Mesh->NEdgesSize,
+                                                        VCoord->NVertLayersP1),
+            EddyStreamFunction("EddyStreamFunction", Mesh->NEdgesSize,
+                                                 VCoord->NVertLayersP1),
+            EddyVelocity("EddyVelocity", Mesh->NEdgesSize, VCoord->NVertLayers),
+            EddyKineticEnergyEdge("EddyKineticEnergyEdge", Mesh->NEdgesSize,
+                                                        VCoord->NVertLayers) {
 
    // define fields for IO
    defineFields();
@@ -132,6 +136,29 @@ void SubmesoEddies::defineFields() {
       SubmesoGroup->addField(GradBuoyEdgeInterface.label());
    }
 
+   // Create and add eddy streamfunction field
+   {
+      int NDims = 2;
+      std::vector<std::string> DimNames(NDims);
+      DimNames[0] = "NEdges";
+      DimNames[1] = "NVertLayersP1";
+
+      auto EddyStreamFunctionField = Field::create(
+          EddyStreamFunction.label(),           // Field name
+          "Eddy Streamfunction",               // Long Name
+          "m^2/s",                             // Units
+          "",                                  // CF-ish Name
+          std::numeric_limits<Real>::lowest(), // Min valid value
+          std::numeric_limits<Real>::max(),    // Max valid value
+          NDims,                               // Number of dimensions
+          DimNames                             // Dimension names
+      );
+
+      EddyStreamFunctionField->attachData<Array2DReal>(EddyStreamFunction);
+
+      SubmesoGroup->addField(EddyStreamFunction.label());
+   }
+
    // Create and add eddy velocity field
    {
       int NDims = 2;
@@ -153,6 +180,30 @@ void SubmesoEddies::defineFields() {
       EddyVelocityField->attachData<Array2DReal>(EddyVelocity);
 
       SubmesoGroup->addField(EddyVelocity.label());
+   }
+
+   // Create and add edge-normal eddy kinetic energy field
+   {
+      int NDims = 2;
+      std::vector<std::string> DimNames(NDims);
+      DimNames[0] = "NEdges";
+      DimNames[1] = "NVertLayers";
+
+      auto EddyKineticEnergyEdgeField = Field::create(
+          EddyKineticEnergyEdge.label(),      // Field name
+          "Edge-normal Eddy Kinetic Energy", // Long Name
+          "m^2 s^-2",                        // Units
+          "",                                // CF-ish Name
+          0.0,                                // Min valid value
+          std::numeric_limits<Real>::max(),   // Max valid value
+          NDims,                              // Number of dimensions
+          DimNames                            // Dimension names
+      );
+
+      EddyKineticEnergyEdgeField->attachData<Array2DReal>(
+          EddyKineticEnergyEdge);
+
+      SubmesoGroup->addField(EddyKineticEnergyEdge.label());
    }
 }
 
@@ -384,12 +435,14 @@ void SubmesoEddies::computeEddyVelocity(
 
    OMEGA_SCOPE(GradBuoyEdgeInterface, this->GradBuoyEdgeInterface);
    OMEGA_SCOPE(DenMixLayerIndex, this->DenMixLayerIndex);
-   OMEGA_SCOPE(DenMixLayerDepth, this->DenMixLayerDepth);
-   OMEGA_SCOPE(TimeScale, this->TimeScale);
-   OMEGA_SCOPE(LfMin, this->LfMin);
-   OMEGA_SCOPE(DsMax, this->DsMax);
-   OMEGA_SCOPE(Ce, this->Ce);
-   OMEGA_SCOPE(EddyVelocity, this->EddyVelocity);
+    OMEGA_SCOPE(DenMixLayerDepth, this->DenMixLayerDepth);
+    OMEGA_SCOPE(TimeScale, this->TimeScale);
+    OMEGA_SCOPE(LfMin, this->LfMin);
+    OMEGA_SCOPE(DsMax, this->DsMax);
+    OMEGA_SCOPE(Ce, this->Ce);
+    OMEGA_SCOPE(EddyStreamFunction, this->EddyStreamFunction);
+    OMEGA_SCOPE(EddyVelocity, this->EddyVelocity);
+    OMEGA_SCOPE(EddyKineticEnergyEdge, this->EddyKineticEnergyEdge);
 
    const auto &DcEdge      = Mesh->DcEdge;
    const auto &CellsOnEdge = Mesh->CellsOnEdge;
@@ -405,12 +458,23 @@ void SubmesoEddies::computeEddyVelocity(
    const Real Tiny = 1e-12_Real;
 
    parallelForOuter(
-       LaunchConfig({Mesh->NEdgesAll}, TeamScratch<Real>(NVertLayersP1)),
+       {Mesh->NEdgesAll},
        KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
           const int MinLyrEdgeBot = MinLayerEdgeBot(IEdge);
           const int MaxLyrEdgeTop = MaxLayerEdgeTop(IEdge);
 
           if (MaxLyrEdgeTop >= MinLyrEdgeBot) {
+
+             parallelForInner(
+                 Team, NVertLayersP1,
+                 INNER_LAMBDA(int K) { EddyStreamFunction(IEdge, K) = 0; });
+
+             parallelForInner(
+                 Team, Range{MinLyrEdgeBot, MaxLyrEdgeTop},
+                 INNER_LAMBDA(int K) {
+                    EddyVelocity(IEdge, K)          = 0;
+                    EddyKineticEnergyEdge(IEdge, K) = 0;
+                 });
 
              const int JCell0 = CellsOnEdge(IEdge, 0);
              const int JCell1 = CellsOnEdge(IEdge, 1);
@@ -453,57 +517,67 @@ void SubmesoEddies::computeEddyVelocity(
                  },
                  PseudoThickML, GradBuoyML, BVFreqML);
 
-             GradBuoyML /= PseudoThickML;
-             BVFreqML /= PseudoThickML;
-
-             // compute stream function
-             ScratchArray1DReal StreamFunction(teamScratch(Team),
-                                               NVertLayersP1);
-             parallelForInner(
-                 Team, NVertLayersP1,
-                 INNER_LAMBDA(int K) { StreamFunction(K) = 0; });
-
              const Real MLDepthEdge = Kokkos::min(DenMixLayerDepth(JCell0),
                                                   DenMixLayerDepth(JCell1));
 
-             const Real TScale = TimeScale(IEdge);
-             const Real Ds     = Kokkos::min(DcEdge(IEdge), DsMax);
+             if (PseudoThickML > Tiny && MLDepthEdge > Tiny) {
 
-             const Real Lf1 =
-                 Kokkos::abs(GradBuoyML) * MLDepthEdge / (TScale * TScale);
-             const Real Lf2 = BVFreqML * MLDepthEdge / TScale;
-             const Real Lf  = Kokkos::max(LfMin, Kokkos::max(Lf1, Lf2));
+                GradBuoyML /= PseudoThickML;
+                BVFreqML /= PseudoThickML;
 
-             const Real Factor =
-                 Ce * Ds / Lf * MLDepthEdge * MLDepthEdge * GradBuoyML / TScale;
+                const bool ValidMLAvg = !Kokkos::isnan(GradBuoyML) &&
+                                        !Kokkos::isnan(BVFreqML);
 
-             parallelForInner(
-                 Team, Range{MinLyrEdgeBot, MaxLyrEdgeTop + 1},
-                 INNER_LAMBDA(int K) {
-                    const Real ZEdge =
-                        0.5_Real * (GeomZInterface(JCell0, K) -
-                                    GeomZInterface(JCell0, MinLayerCell0) +
-                                    GeomZInterface(JCell1, K) -
-                                    GeomZInterface(JCell1, MinLayerCell1));
+                if (ValidMLAvg) {
+                   const Real TScale = TimeScale(IEdge);
+                   const Real Ds     = Kokkos::min(DcEdge(IEdge), DsMax);
 
-                    const Real Mu = shapeFunction(ZEdge, MLDepthEdge);
+                   const Real Lf1 = Kokkos::abs(GradBuoyML) * MLDepthEdge /
+                                    (TScale * TScale);
+                   const Real Lf2 = BVFreqML * MLDepthEdge / TScale;
+                   const Real Lf  = Kokkos::max(LfMin, Kokkos::max(Lf1, Lf2));
 
-                    StreamFunction(K) = Factor * Mu;
-                 });
+                   const Real Factor = Ce * Ds / Lf * MLDepthEdge *
+                                       MLDepthEdge * GradBuoyML / TScale;
 
-             teamBarrier(Team);
+                   parallelForInner(
+                       Team, Range{MinLyrEdgeBot, MaxLyrEdgeTop + 1},
+                       INNER_LAMBDA(int K) {
+                          const Real ZEdge =
+                              0.5_Real *
+                              (GeomZInterface(JCell0, K) -
+                               GeomZInterface(JCell0, MinLayerCell0) +
+                               GeomZInterface(JCell1, K) -
+                               GeomZInterface(JCell1, MinLayerCell1));
 
-             // compute eddy velocity
-             parallelForInner(
-                 Team, Range{MinLyrEdgeBot, MaxLyrEdgeTop},
-                 INNER_LAMBDA(int K) {
-                    const Real DZ = 0.5_Real * (GeomZInterface(JCell0, K) -
-                                                GeomZInterface(JCell0, K + 1) +
-                                                GeomZInterface(JCell1, K) -
-                                                GeomZInterface(JCell1, K + 1));
-                    EddyVelocity(IEdge, K) =
-                        -(StreamFunction(K) - StreamFunction(K + 1)) / DZ;
-                 });
+                          const Real Mu = shapeFunction(ZEdge, MLDepthEdge);
+
+                          EddyStreamFunction(IEdge, K) = Factor * Mu;
+                       });
+
+                   teamBarrier(Team);
+
+                   // compute eddy velocity
+                   parallelForInner(
+                       Team, Range{MinLyrEdgeBot, MaxLyrEdgeTop},
+                       INNER_LAMBDA(int K) {
+                          const Real DZ =
+                              0.5_Real * (GeomZInterface(JCell0, K) -
+                                          GeomZInterface(JCell0, K + 1) +
+                                          GeomZInterface(JCell1, K) -
+                                          GeomZInterface(JCell1, K + 1));
+                          if (DZ > Tiny) {
+                             EddyVelocity(IEdge, K) =
+                                 -(EddyStreamFunction(IEdge, K) -
+                                   EddyStreamFunction(IEdge, K + 1)) /
+                                 DZ;
+                             EddyKineticEnergyEdge(IEdge, K) =
+                                 0.5_Real * EddyVelocity(IEdge, K) *
+                                 EddyVelocity(IEdge, K);
+                          }
+                       });
+                }
+             }
           }
        });
 }
