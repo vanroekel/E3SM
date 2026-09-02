@@ -105,9 +105,12 @@ class OcnToCplFields {
    /// instantaneous field, so no device mirror is needed
    HostArray1DReal InstSshCellH;
 
+   HostArray1DReal AvgExtraEnergyH;
+
    // Accumulate one ocean timestep's contribution to the running averages
    void updateFields(const OceanState *State, const Array3DReal &TracerArray,
-                     I4 NAccumSteps, I4 NCellsOwned, I4 NEdgesAll);
+                     const Array1DReal &ExtraEnergy, I4 NAccumSteps,
+                     I4 NCellsOwned, I4 NEdgesAll);
 
    // Copy device arrays into their host mirrors and do unit conversion.
    void copyToHost();
@@ -124,6 +127,7 @@ class OcnToCplFields {
    // the rest of the code.
    Array1DReal AvgSfcTemperature; // [C], conservative temperature
    Array1DReal AvgSfcSalinity;    // [g kg^-1], absolute salinity
+   Array1DReal AvgExtraEnergy;
 
    Array1DReal AvgSfcNormalVelocity; // [m s^-1], velocity normal to edge
    Array1DReal AvgSfcSshGrad;        // [m m^-1], ssh gradient normal to edge
