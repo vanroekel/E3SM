@@ -697,9 +697,6 @@ class KPPSurfaceForcingOnCell {
  public:
    bool Enabled = false;
 
-   /// Store surface tracer fluxes for the KPP non-local tracer tendency
-   bool UpdateSurfaceTracerFlux = false;
-
    /// When false no coupled tracer forcing is active, so only the friction
    /// velocity is set and the buoyancy and tracer fluxes stay zero
    bool UseTracerForcing = false;
@@ -725,6 +722,11 @@ class KPPSurfaceForcingOnCell {
        const Array1DReal &IceRunoffFlux, const Array1DReal &RiverRunoffFlux,
        const Array1DReal &SeaIceSaltFlux) const {
 
+      const I4 KTop = MinLayerCell(ICell);
+      if (KTop < 0 || KTop >= NVertLayers) {
+         return;
+      }
+
       const Real TauX   = ZonalStress(ICell);
       const Real TauY   = MeridStress(ICell);
       const Real TauMag = Kokkos::sqrt(TauX * TauX + TauY * TauY);
@@ -732,10 +734,6 @@ class KPPSurfaceForcingOnCell {
       FrictionVelocity(ICell) =
           Kokkos::sqrt(Kokkos::max(0.0_Real, TauMag / RhoSw));
       BuoyancyFlux(ICell) = 0.0_Real;
-      if (UpdateSurfaceTracerFlux) {
-         SurfaceTracerFlux(TempIndex, ICell) = 0.0_Real;
-         SurfaceTracerFlux(SaltIndex, ICell) = 0.0_Real;
-      }
       // Sea ice coupling is not wired in yet, so KPP sees an ice-free ocean
       IceFraction(ICell) = 0.0_Real;
 
@@ -743,7 +741,6 @@ class KPPSurfaceForcingOnCell {
          return;
       }
 
-      const I4 KTop     = MinLayerCell(ICell);
       const Real SaTop  = AbsSalinity(ICell, KTop);
       const Real CtTop  = ConservTemp(ICell, KTop);
       const Real PTopDb = PressureMid(ICell, KTop) * Pa2Db;
@@ -777,10 +774,8 @@ class KPPSurfaceForcingOnCell {
       }
 
       BuoyancyFlux(ICell) = Gravity * (Alpha * TempFlux - Beta * SaltFlux);
-      if (UpdateSurfaceTracerFlux) {
-         SurfaceTracerFlux(TempIndex, ICell) = TempFlux;
-         SurfaceTracerFlux(SaltIndex, ICell) = SaltFlux;
-      }
+      SurfaceTracerFlux(TempIndex, ICell) = TempFlux;
+      SurfaceTracerFlux(SaltIndex, ICell) = SaltFlux;
    }
 
  private:
@@ -788,6 +783,7 @@ class KPPSurfaceForcingOnCell {
    I4 SaltIndex;
    Real LinearDRhodT;
    Real LinearDRhodS;
+   I4 NVertLayers;
    Array1DI4 MinLayerCell;
    EosType EosChoice;
    Teos10BruntVaisalaFreqSq Teos10Coeff;
