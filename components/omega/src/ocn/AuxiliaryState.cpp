@@ -29,6 +29,7 @@ AuxiliaryState::AuxiliaryState(const std::string &Name, const HorzMesh *Mesh,
       VorticityAux(stripDefault(Name), Mesh, VCoord),
       VelocityDel2Aux(stripDefault(Name), Mesh, VCoord),
       SurfTracerRestAux(stripDefault(Name), Mesh, NTracers),
+      ShortwavePenAux(stripDefault(Name), Mesh),
       TracerAux(stripDefault(Name), Mesh, VCoord, NTracers),
       TimeStep(TimeStep) {
 
@@ -45,6 +46,7 @@ AuxiliaryState::AuxiliaryState(const std::string &Name, const HorzMesh *Mesh,
    VorticityAux.registerFields(GroupName, AuxMeshName);
    VelocityDel2Aux.registerFields(GroupName, AuxMeshName);
    SurfTracerRestAux.registerFields(GroupName, AuxMeshName);
+   ShortwavePenAux.registerFields("ShortwaveExtinction", AuxMeshName);
    TracerAux.registerFields(GroupName, AuxMeshName);
 }
 
@@ -56,9 +58,11 @@ AuxiliaryState::~AuxiliaryState() {
    VorticityAux.unregisterFields();
    VelocityDel2Aux.unregisterFields();
    SurfTracerRestAux.unregisterFields();
+   ShortwavePenAux.unregisterFields();
    TracerAux.unregisterFields();
 
    FieldGroup::destroy(GroupName);
+   FieldGroup::destroy("ShortwaveExtinction");
 }
 
 // Compute auxiliary variables for vertical dynamics
@@ -327,6 +331,7 @@ void AuxiliaryState::init() {
    int NTracers          = Tracers::getNumTracers();
    TimeInterval TimeStep = DefTimeStepper->getTimeStep();
 
+   FieldGroup::create("ShortwaveExtinction");
    AuxiliaryState::DefaultAuxState = AuxiliaryState::create(
        "Default", DefMesh, DefHalo, DefVCoord, DefVAdv, NTracers, TimeStep);
 

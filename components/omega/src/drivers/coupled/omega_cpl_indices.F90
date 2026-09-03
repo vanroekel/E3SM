@@ -5,7 +5,7 @@ module omega_cpl_indices
    implicit none
    private
 
-   integer, parameter, public :: num_omega_imports = 2
+   integer, parameter, public :: num_omega_imports = 3
    integer, parameter, public :: num_omega_exports = 5
    integer, public :: num_coupler_imports, num_coupler_exports
 
@@ -43,6 +43,7 @@ contains
       ! Import (x2o) Coupler field names
       import_field_names(1) = "Foxx_taux"
       import_field_names(2) = "Foxx_tauy"
+      import_field_names(3) = "Foxx_swnet"
 
       ! get mct_avect_index value for each import field name
       call get_indices_from_names( &

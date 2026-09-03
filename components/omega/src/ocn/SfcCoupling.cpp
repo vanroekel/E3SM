@@ -200,13 +200,15 @@ void SfcCoupling::importFromCoupler() {
    }
 
    // Get import field indices for surface stress components
-   int TauxIdx = ImportIdxMap.at("Foxx_taux");
-   int TauyIdx = ImportIdxMap.at("Foxx_tauy");
+   int TauxIdx  = ImportIdxMap.at("Foxx_taux");
+   int TauyIdx  = ImportIdxMap.at("Foxx_tauy");
+   int SwnetIdx = ImportIdxMap.at("Foxx_swnet");
 
    // Copy Kokkos view handles
-   auto CplToOcnView_   = CplToOcnView;
-   auto SfcStressZonal_ = CplToOcn.SfcStressZonal;
-   auto SfcStressMerid_ = CplToOcn.SfcStressMerid;
+   auto CplToOcnView_      = CplToOcnView;
+   auto SfcStressZonal_    = CplToOcn.SfcStressZonal;
+   auto SfcStressMerid_    = CplToOcn.SfcStressMerid;
+   auto ShortWaveHeatFlux_ = CplToOcn.ShortWaveHeatFlux;
 
    /// TODO: Shouldn't be making direct calls to Kokkos here.
    ///       How often is threading used? Becuase this will be a serial loop
@@ -214,8 +216,9 @@ void SfcCoupling::importFromCoupler() {
    auto Policy = Kokkos::RangePolicy<HostExecSpace, Kokkos::IndexType<int>>(
        0, NCellsOwned);
    Kokkos::parallel_for("importFromCoupler", Policy, [=](int Idx) {
-      SfcStressZonal_(Idx) = CplToOcnView_(TauxIdx, Idx);
-      SfcStressMerid_(Idx) = CplToOcnView_(TauyIdx, Idx);
+      SfcStressZonal_(Idx)    = CplToOcnView_(TauxIdx, Idx);
+      SfcStressMerid_(Idx)    = CplToOcnView_(TauyIdx, Idx);
+      ShortWaveHeatFlux_(Idx) = CplToOcnView_(SwnetIdx, Idx);
    });
 }
 
@@ -270,6 +273,8 @@ void SfcCoupling::applyImportFields(Forcing *Forcing) {
             CplToOcn.SfcStressZonal);
    deepCopy(ownedSubView(Forcing->SfcStressForcing.MeridStressCell),
             CplToOcn.SfcStressMerid);
+   deepCopy(ownedSubView(Forcing->TracerForcing.ShortWaveHeatFluxCell),
+            CplToOcn.ShortWaveHeatFlux);
 };
 
 void SfcCoupling::updateExportFields(const OceanState *State,
@@ -282,7 +287,8 @@ void SfcCoupling::updateExportFields(const OceanState *State,
 
 CplToOcnFields::CplToOcnFields(const std::string &Suffix, const HorzMesh *Mesh)
     : SfcStressZonal("SfcStressZonal" + Suffix, Mesh->NCellsOwned),
-      SfcStressMerid("SfcStressMeridional" + Suffix, Mesh->NCellsOwned) {}
+      SfcStressMerid("SfcStressMeridional" + Suffix, Mesh->NCellsOwned),
+      ShortWaveHeatFlux("ShortWaveHeatFlux" + Suffix, Mesh->NCellsOwned) {}
 
 OcnToCplFields::OcnToCplFields(const std::string &Suffix, const HorzMesh *Mesh)
     : AvgSfcTemperature("AvgSfcTemperature" + Suffix, Mesh->NCellsOwned),

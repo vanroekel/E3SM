@@ -76,6 +76,7 @@ class Tendencies {
    BottomDragOnEdge ExplicitBottomDrag;
    SfcThicknessForcingOnCell SfcThicknessForcing;
    SfcTracerForcingOnCell SfcTracerForcing;
+   PenetratingShortwaveOnCell PenetratingShortwave;
    TracerHorzAdvOnCell TracerHorzAdv;
    TracerDiffOnCell TracerDiffusion;
    TracerHyperDiffOnCell TracerHyperDiff;
