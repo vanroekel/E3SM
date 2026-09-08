@@ -940,10 +940,13 @@ class KPPMix {
 
    /// @brief Prepare the current KPP state, surface forcing, and coefficients
    /// from canonical ocean state, EOS, and forcing fields.
+   /// InteriorVertDiff/InteriorVertVisc supply a non-KPP interior mixing
+   /// estimate for MatchBoth; ignored otherwise.
    void update(const Array3DReal &TracerArray, I4 TempTracerIndex,
                I4 SaltTracerIndex, const Array2DReal &NormalVelocity,
-               Eos *EqState, const Forcing *ForcingState,
-               bool UseTracerForcing);
+               Eos *EqState, const Forcing *ForcingState, bool UseTracerForcing,
+               const Array2DReal &InteriorVertDiff = Array2DReal(),
+               const Array2DReal &InteriorVertVisc = Array2DReal());
 
    /// @brief Main computation routine
    /// Calls Stage 1 and Stage 2 computation in sequence
@@ -962,7 +965,11 @@ class KPPMix {
        const Array2DReal &BruntVaisalaFreqSq,      ///< N² (s⁻²)
        const Array1DReal &IceFraction,             ///< Sea ice cover (0-1)
        const Array1DReal &WindSpeed10m =
-           Array1DReal() ///< Wind for Langmuir (m/s)
+           Array1DReal(), ///< Wind for Langmuir (m/s)
+       const Array2DReal &InteriorVertDiff =
+           Array2DReal(), ///< Interior diffusivity for MatchBoth
+       const Array2DReal &InteriorVertVisc =
+           Array2DReal() ///< Interior viscosity for MatchBoth
    );
 
    // =======================================================================

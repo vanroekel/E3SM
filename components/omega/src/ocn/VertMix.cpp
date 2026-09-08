@@ -71,6 +71,10 @@ VertMix::VertMix(const std::string &Name, ///< [in] Name for VertMix object
        Array2DReal("GradRichNum", Mesh->NCellsSize, VCoord->NVertLayersP1);
    GradRichNumSmoothed = Array2DReal("GradRichNumSmoothed", Mesh->NCellsSize,
                                      VCoord->NVertLayersP1);
+   InteriorVertDiff =
+       Array2DReal("InteriorVertDiff", Mesh->NCellsSize, VCoord->NVertLayersP1);
+   InteriorVertVisc =
+       Array2DReal("InteriorVertVisc", Mesh->NCellsSize, VCoord->NVertLayersP1);
 
    // TODO: Temporary handling of TangentialVelocity
    TangentialVelocity =
@@ -330,7 +334,17 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
           });
    }
 
-   /// Third, apply KPP mixing if enabled
+   /// Third, snapshot background+shear coefficients for KPP's MatchBoth,
+   /// which needs a non-KPP interior estimate to join its profile to.
+   /// Convection is excluded since it can switch on/off right at the OSBL
+   /// base and would corrupt the match point.
+   if (LocKPPEnabled &&
+       KPPInstance->MatchTechnique == KPPMatchType::MatchBoth) {
+      deepCopy(InteriorVertDiff, LocVertDiff);
+      deepCopy(InteriorVertVisc, LocVertVisc);
+   }
+
+   /// Fourth, apply KPP mixing if enabled
    if (LocKPPEnabled) {
       const I4 NVertLayers = VCoord->NVertLayers;
       I4 KPPMergeMode      = 0; // 0=additive profile, 1=matched coefficients
@@ -356,7 +370,7 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
           });
    }
 
-   /// Fourth, compute convective mixing if enabled
+   /// Fifth, compute convective mixing if enabled
    if (LocComputeVertMixConv.Enabled) {
       parallelForOuter(
           "VertMix-Conv", {Mesh->NCellsAll},

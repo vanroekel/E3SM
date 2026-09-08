@@ -1335,10 +1335,23 @@ void Tendencies::computeKPPFields(const OceanState *State,
       return;
    }
 
+   // MatchBoth needs a non-KPP interior estimate to join its profile to;
+   // this is the previous step's snapshot from VertMix (one-step lag).
+   Array2DReal InteriorVertDiff;
+   Array2DReal InteriorVertVisc;
+   if (KPPInstance->MatchTechnique == KPPMatchType::MatchBoth) {
+      VertMix *VMixInstance = VertMix::getInstance();
+      if (VMixInstance) {
+         InteriorVertDiff = VMixInstance->InteriorVertDiff;
+         InteriorVertVisc = VMixInstance->InteriorVertVisc;
+      }
+   }
+
    Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
    KPPInstance->update(TracerArray, TempIdx, SaltIdx, NormalVelEdge, EqState,
                        ForcingState,
-                       SfcTracerForcing.Enabled || TracerNonLocalFluxEnabled);
+                       SfcTracerForcing.Enabled || TracerNonLocalFluxEnabled,
+                       InteriorVertDiff, InteriorVertVisc);
 
    Pacer::stop("Tend:computeKPPFields", 1);
 }

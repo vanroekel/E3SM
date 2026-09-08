@@ -236,7 +236,8 @@ void KPPMix::init() {
 void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
                     I4 SaltTracerIndex, const Array2DReal &NormalVelocity,
                     Eos *EqState, const Forcing *ForcingState,
-                    bool UseTracerForcing) {
+                    bool UseTracerForcing, const Array2DReal &InteriorVertDiff,
+                    const Array2DReal &InteriorVertVisc) {
 
    OMEGA_REQUIRE(EqState, "KPPMix::update: null Eos pointer");
    OMEGA_REQUIRE(ForcingState, "KPPMix::update: null Forcing pointer");
@@ -333,7 +334,8 @@ void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
    Array1DReal WindSpeed10m;
    computeKPPMix(PotentialDensity, NormalVelocity, TangentialVelocity,
                  SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
-                 EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m);
+                 EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m,
+                 InteriorVertDiff, InteriorVertVisc);
 }
 
 /// Main computation routine
@@ -344,7 +346,9 @@ void KPPMix::computeKPPMix(const Array2DReal &PotentialDensity,
                            const Array1DReal &SurfaceBuoyancyFlux,
                            const Array2DReal &BruntVaisalaFreqSq,
                            const Array1DReal &IceFraction,
-                           const Array1DReal &WindSpeed10m) {
+                           const Array1DReal &WindSpeed10m,
+                           const Array2DReal &InteriorVertDiff,
+                           const Array2DReal &InteriorVertVisc) {
 
    if (!Enabled) {
       return; // Skip if disabled
@@ -363,7 +367,8 @@ void KPPMix::computeKPPMix(const Array2DReal &PotentialDensity,
    // =======================================================================
    // Stage 2: Compute Mixing Coefficients
    // =======================================================================
-   computeMixingCoefficients(SurfaceFrictionVelocity, SurfaceBuoyancyFlux);
+   computeMixingCoefficients(SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
+                             InteriorVertDiff, InteriorVertVisc);
 
    if (DebugDiagnostics) {
       logDiagnostics(PotentialDensity, SurfaceFrictionVelocity,
