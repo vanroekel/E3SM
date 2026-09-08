@@ -11,8 +11,10 @@
 
 #include "KPPMix.h"
 #include "DataTypes.h"
+#include "Eos.h"
 #include "Error.h"
 #include "FillValues.h"
+#include "Forcing.h"
 #include "GlobalConstants.h"
 #include "KPPConstants.h"
 #include "Logging.h"
@@ -50,6 +52,14 @@ const char *matchTypeName(KPPMatchType Type) {
 
 } // namespace
 
+KPPSurfaceForcingOnCell::KPPSurfaceForcingOnCell(const HorzMesh *Mesh,
+                                                 const VertCoord *VCoord,
+                                                 const Eos *EosInst)
+    : LinearDRhodT(EosInst->getLinearDRhodT()),
+      LinearDRhodS(EosInst->getLinearDRhodS()),
+      NVertLayers(VCoord->NVertLayers), MinLayerCell(VCoord->MinLayerCell),
+      EosChoice(EosInst->EosChoice), Teos10Coeff(VCoord) {}
+
 /// Constructor for KPPMix
 KPPMix::KPPMix(const std::string &InName, const HorzMesh *InMesh,
                const VertCoord *InVCoord)
@@ -77,6 +87,13 @@ KPPMix::KPPMix(const std::string &InName, const HorzMesh *InMesh,
    SurfaceFrictionVelocity =
        Array1DReal("SurfaceFrictionVelocity", Mesh->NCellsSize);
    SurfaceBuoyancyFlux = Array1DReal("SurfaceBuoyancyFlux", Mesh->NCellsSize);
+   RefPressure =
+       Array2DReal("KPP-RefPressure", Mesh->NCellsSize, VCoord->NVertLayers);
+   TangentialVelocity = Array2DReal("KPP-TangentialVelocity", Mesh->NEdgesSize,
+                                    VCoord->NVertLayers);
+   IceFraction        = Array1DReal("KPP-IceFraction", Mesh->NCellsSize);
+   LangmuirFactor     = Array1DReal("KPP-LangmuirFactor", Mesh->NCellsSize);
+   OSBLDepthSmooth    = Array1DReal("KPP-OSBLDepthSmooth", Mesh->NCellsSize);
 
    // Set field names
    VertDiffFldName            = "VertDiff";
@@ -156,6 +173,9 @@ void KPPMix::init() {
    Err += KPPConfig.get("CriticalBulkRichardsonNumber",
                         DefKPPMix->CriticalRichardson);
    Err += KPPConfig.get("SurfaceLayerExtent", DefKPPMix->SurfaceLayerExtent);
+   // Clamp once here so kernels can trust SurfaceLayerExtent is in [0,1]
+   DefKPPMix->SurfaceLayerExtent = Kokkos::fmax(
+       0.0_Real, Kokkos::fmin(1.0_Real, DefKPPMix->SurfaceLayerExtent));
 
    // KPP matching/profile semantics.
    std::string MatchStr = "SimpleShapes";
@@ -213,6 +233,109 @@ void KPPMix::init() {
             matchTypeName(DefKPPMix->MatchTechnique));
 }
 
+void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
+                    I4 SaltTracerIndex, const Array2DReal &NormalVelocity,
+                    Eos *EqState, const Forcing *ForcingState,
+                    bool UseTracerForcing) {
+
+   OMEGA_REQUIRE(EqState, "KPPMix::update: null Eos pointer");
+   OMEGA_REQUIRE(ForcingState, "KPPMix::update: null Forcing pointer");
+
+   const I4 NCellsAll   = Mesh->NCellsAll;
+   const I4 NVertLayers = VCoord->NVertLayers;
+
+   Array2DReal ConservTemp =
+       Kokkos::subview(TracerArray, TempTracerIndex, Kokkos::ALL, Kokkos::ALL);
+   Array2DReal AbsSalinity =
+       Kokkos::subview(TracerArray, SaltTracerIndex, Kokkos::ALL, Kokkos::ALL);
+
+   OMEGA_SCOPE(LocPressureMid, VCoord->PressureMid);
+   EqState->computeSpecVol(ConservTemp, AbsSalinity, LocPressureMid);
+   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity, LocPressureMid,
+                                      EqState->SpecVol);
+
+   PotentialDensityOnCell PotentialDensityCalc;
+   OMEGA_SCOPE(LocPotentialDensityCalc, PotentialDensityCalc);
+   OMEGA_SCOPE(LocRefPressure, RefPressure);
+   OMEGA_SCOPE(LocSurfacePressure, VCoord->SurfacePressure);
+   parallelFor(
+       "KPP-PotentialDensityPressure", {NCellsAll, NVertLayers},
+       KOKKOS_LAMBDA(I4 ICell, I4 K) {
+          LocPotentialDensityCalc.computeRefPressure(LocRefPressure, ICell, K,
+                                                     LocSurfacePressure);
+       });
+   EqState->computeSpecVolDisp(ConservTemp, AbsSalinity, LocRefPressure, 0);
+
+   OMEGA_SCOPE(LocSpecVolPotential, EqState->SpecVolDisplaced);
+   OMEGA_SCOPE(LocPotentialDensity, PotentialDensity);
+   parallelFor(
+       "KPP-PotentialDensity", {NCellsAll, NVertLayers},
+       KOKKOS_LAMBDA(I4 ICell, I4 K) {
+          LocPotentialDensityCalc(LocPotentialDensity, ICell, K,
+                                  LocSpecVolPotential);
+       });
+
+   {
+      TangentialReconOnEdge TanReconEdge(Mesh);
+      OMEGA_SCOPE(LocTangentialVelocity, TangentialVelocity);
+      OMEGA_SCOPE(LocMinLayerEdgeTop, VCoord->MinLayerEdgeTop);
+      OMEGA_SCOPE(LocMaxLayerEdgeBot, VCoord->MaxLayerEdgeBot);
+      parallelForOuter(
+          {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
+             const int KMin   = LocMinLayerEdgeTop(IEdge);
+             const int KMax   = LocMaxLayerEdgeBot(IEdge);
+             const int KRange = vertRangeChunked(KMin, KMax);
+             parallelForInner(
+                 Team, KRange, INNER_LAMBDA(int KChunk) {
+                    TanReconEdge(LocTangentialVelocity, IEdge, KChunk,
+                                 NormalVelocity);
+                 });
+          });
+   }
+
+   const auto &SfcStress     = ForcingState->SfcStressForcing;
+   const auto &TracerForcing = ForcingState->TracerForcing;
+   KPPSurfaceForcingOnCell SurfaceForcing(Mesh, VCoord, EqState);
+   SurfaceForcing.UseTracerForcing = UseTracerForcing;
+
+   OMEGA_SCOPE(LocSurfaceForcing, SurfaceForcing);
+   OMEGA_SCOPE(LocFrictionVelocity, SurfaceFrictionVelocity);
+   OMEGA_SCOPE(LocBuoyancyFlux, SurfaceBuoyancyFlux);
+   OMEGA_SCOPE(LocIceFraction, IceFraction);
+   OMEGA_SCOPE(LocSpecVol, EqState->SpecVol);
+   OMEGA_SCOPE(ZonalStress, SfcStress.ZonalStressCell);
+   OMEGA_SCOPE(MeridStress, SfcStress.MeridStressCell);
+   OMEGA_SCOPE(LatentHeatFluxEvap, TracerForcing.LatentHeatFluxEvapCell);
+   OMEGA_SCOPE(SensibleHeatFlux, TracerForcing.SensibleHeatFluxCell);
+   OMEGA_SCOPE(LongWaveHeatFluxUp, TracerForcing.LongWaveHeatFluxUpCell);
+   OMEGA_SCOPE(LongWaveHeatFluxDown, TracerForcing.LongWaveHeatFluxDownCell);
+   OMEGA_SCOPE(SeaIceHeatFlux, TracerForcing.SeaIceHeatFluxCell);
+   OMEGA_SCOPE(ShortWaveHeatFlux, TracerForcing.ShortWaveHeatFluxCell);
+   OMEGA_SCOPE(SnowFlux, TracerForcing.SnowFluxCell);
+   OMEGA_SCOPE(RainFlux, TracerForcing.RainFluxCell);
+   OMEGA_SCOPE(EvaporationFlux, TracerForcing.EvaporationFluxCell);
+   OMEGA_SCOPE(SeaIceFreshWaterFlux, TracerForcing.SeaIceFreshWaterFluxCell);
+   OMEGA_SCOPE(IceRunoffFlux, TracerForcing.IceRunoffFluxCell);
+   OMEGA_SCOPE(RiverRunoffFlux, TracerForcing.RiverRunoffFluxCell);
+   OMEGA_SCOPE(SeaIceSaltFlux, TracerForcing.SeaIceSaltFluxCell);
+   parallelFor(
+       "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+          LocSurfaceForcing(LocFrictionVelocity, LocBuoyancyFlux,
+                            LocIceFraction, ICell, ConservTemp, AbsSalinity,
+                            LocPressureMid, LocSpecVol, ZonalStress,
+                            MeridStress, LatentHeatFluxEvap, SensibleHeatFlux,
+                            LongWaveHeatFluxUp, LongWaveHeatFluxDown,
+                            SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux,
+                            RainFlux, EvaporationFlux, SeaIceFreshWaterFlux,
+                            IceRunoffFlux, RiverRunoffFlux, SeaIceSaltFlux);
+       });
+
+   Array1DReal WindSpeed10m;
+   computeKPPMix(PotentialDensity, NormalVelocity, TangentialVelocity,
+                 SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
+                 EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m);
+}
+
 /// Main computation routine
 void KPPMix::computeKPPMix(const Array2DReal &PotentialDensity,
                            const Array2DReal &NormalVelocity,
@@ -240,19 +363,15 @@ void KPPMix::computeKPPMix(const Array2DReal &PotentialDensity,
    // =======================================================================
    // Stage 2: Compute Mixing Coefficients
    // =======================================================================
-   computeMixingCoefficients(PotentialDensity, SurfaceFrictionVelocity,
-                             SurfaceBuoyancyFlux);
+   computeMixingCoefficients(SurfaceFrictionVelocity, SurfaceBuoyancyFlux);
 
    if (DebugDiagnostics) {
-      logDiagnostics(PotentialDensity, NormalVelocity, TangentialVelocity,
-                     SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
-                     WindSpeed10m);
+      logDiagnostics(PotentialDensity, SurfaceFrictionVelocity,
+                     SurfaceBuoyancyFlux, WindSpeed10m);
    }
 }
 
 void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
-                            const Array2DReal &NormalVelocity,
-                            const Array2DReal &TangentialVelocity,
                             const Array1DReal &SurfaceFrictionVelocity,
                             const Array1DReal &SurfaceBuoyancyFlux,
                             const Array1DReal &WindSpeed10m) {
@@ -270,10 +389,6 @@ void KPPMix::logDiagnostics(const Array2DReal &PotentialDensity,
    const auto OSBLIndexH    = createHostMirrorCopy(OSBLDepthIndex);
    const auto VertDiffH     = createHostMirrorCopy(VertDiff);
    const auto VertViscH     = createHostMirrorCopy(VertVisc);
-
-   // NormalVelocity and TangentialVelocity are edge-based; not accessed here
-   (void)NormalVelocity;
-   (void)TangentialVelocity;
 
    const int NCellsAll = Mesh->NCellsAll;
    if (NCellsAll <= 0) {
@@ -405,8 +520,6 @@ void KPPMix::computeOSBLDepth(const Array2DReal &PotentialDensity,
    // =======================================================================
    // Compute Langmuir enhancement factors if wind speed is available
    // =======================================================================
-   Array1DReal LangmuirFactor("LangmuirFactor", Mesh->NCellsSize);
-
    KPPLangmuirFactor LangmuirCalc;
    LangmuirCalc.UseLangmuirTurbulence       = UseLangmuirTurbulence;
    LangmuirCalc.IceFracThresholdForLangmuir = IceFractionThresholdForLangmuir;
@@ -473,7 +586,6 @@ void KPPMix::computeOSBLDepth(const Array2DReal &PotentialDensity,
        });
 
    if (UseOSBLSmoothing) {
-      Array1DReal OSBLDepthSmooth("OSBLDepthSmooth", Mesh->NCellsSize);
       OMEGA_SCOPE(LocOSBLDepthSmooth, OSBLDepthSmooth);
 
       KPPOSBLSmooth BLDSmoothCalc(Mesh, VCoord);
@@ -495,12 +607,9 @@ void KPPMix::computeOSBLDepth(const Array2DReal &PotentialDensity,
 
 /// Stage 2: Compute KPP mixing contribution or matched coefficients
 void KPPMix::computeMixingCoefficients(
-    const Array2DReal &PotentialDensity,
     const Array1DReal &SurfaceFrictionVelocity,
     const Array1DReal &SurfaceBuoyancyFlux, const Array2DReal &InteriorVertDiff,
     const Array2DReal &InteriorVertVisc) {
-
-   (void)PotentialDensity;
 
    I4 NVertLayers = VCoord->NVertLayers;
 

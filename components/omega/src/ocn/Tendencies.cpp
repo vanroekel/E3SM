@@ -552,9 +552,6 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
                        EqState),
       TracerDiffusion(Mesh, VCoord), TracerHyperDiff(Mesh, VCoord),
       TracerHorzAdv(Mesh, VCoord), SurfaceTracerRestoring(Mesh),
-      PotentialDensityCalc(Mesh, VCoord),
-      KPPSurfaceForcing(Mesh, VCoord, Tracers::IndxTemp, Tracers::IndxSalt,
-                        EqState),
       CustomThicknessTend(InCustomThicknessTend),
       CustomVelocityTend(InCustomVelocityTend), EqState(EqState), PGrad(PGrad),
       VMix(VMix) {
@@ -572,21 +569,6 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
        Array1DReal("TempNonLocalColumnSumDiag", Mesh->NCellsSize);
    deepCopy(TempNonLocalTendDiag, 0.0_Real);
    deepCopy(TempNonLocalColumnSumDiag, 0.0_Real);
-
-   // KPP scratch. Extents must match the KPPMix members these are copied to
-   // and from, so all cell-indexed arrays use NCellsSize.
-   KPPConservTemp =
-       Array2DReal("KPP-ConservTemp", Mesh->NCellsSize, VCoord->NVertLayers);
-   KPPAbsSalinity =
-       Array2DReal("KPP-AbsSalinity", Mesh->NCellsSize, VCoord->NVertLayers);
-   KPPSurfacePressure   = Array1DReal("KPP-SurfacePressure", Mesh->NCellsSize);
-   KPPPotentialDensity  = Array2DReal("KPP-PotentialDensity", Mesh->NCellsSize,
-                                      VCoord->NVertLayers);
-   KPPRefPressure       = Array2DReal("KPP-PotentialDensityPressure",
-                                      Mesh->NCellsSize, VCoord->NVertLayers);
-   KPPTangentialVelEdge = Array2DReal("KPP-TangentialVelEdge", Mesh->NEdgesSize,
-                                      VCoord->NVertLayers);
-   KPPIceFraction       = Array1DReal("KPP-IceFraction", Mesh->NCellsSize);
 
    Name = Name_;
 
@@ -1125,6 +1107,48 @@ void Tendencies::computeTracerTendenciesOnly(
       Pacer::stop("Tend:surfaceTracerRestoring", 2);
    }
 
+   // compute tracer forcing tendency; this also fills SurfaceTracerFlux,
+   // which the KPP non-local flux term below depends on
+   if (LocSfcTracerForcing.Enabled) {
+      Pacer::start("Tend:sfcTracerForcing", 2);
+      const auto *ForcingState = Forcing::getDefault();
+      const auto &LatentHeatFluxEvap =
+          ForcingState->TracerForcing.LatentHeatFluxEvapCell;
+      const auto &SensibleHeatFlux =
+          ForcingState->TracerForcing.SensibleHeatFluxCell;
+      const auto &LongWaveHeatFluxUp =
+          ForcingState->TracerForcing.LongWaveHeatFluxUpCell;
+      const auto &LongWaveHeatFluxDown =
+          ForcingState->TracerForcing.LongWaveHeatFluxDownCell;
+      const auto &SeaIceHeatFlux =
+          ForcingState->TracerForcing.SeaIceHeatFluxCell;
+      const auto &ShortWaveHeatFlux =
+          ForcingState->TracerForcing.ShortWaveHeatFluxCell;
+      const auto &SnowFlux = ForcingState->TracerForcing.SnowFluxCell;
+      const auto &RainFlux = ForcingState->TracerForcing.RainFluxCell;
+      const auto &EvaporationFlux =
+          ForcingState->TracerForcing.EvaporationFluxCell;
+      const auto &IceRunoffFlux = ForcingState->TracerForcing.IceRunoffFluxCell;
+      const auto &RiverRunoffFlux =
+          ForcingState->TracerForcing.RiverRunoffFluxCell;
+      const auto &SeaIceSaltFlux =
+          ForcingState->TracerForcing.SeaIceSaltFluxCell;
+      const auto &PressureMid = VCoord->PressureMid;
+      const auto &SurfaceTracerFlux =
+          ForcingState->TracerForcing.SurfaceTracerFluxCell;
+
+      parallelFor(
+          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
+             LocSfcTracerForcing(
+                 LocTracerTend, SurfaceTracerFlux, ICell, TracerArray,
+                 LatentHeatFluxEvap, SensibleHeatFlux, LongWaveHeatFluxUp,
+                 LongWaveHeatFluxDown, SeaIceHeatFlux, ShortWaveHeatFlux,
+                 SnowFlux, RainFlux, IceRunoffFlux, RiverRunoffFlux,
+                 EvaporationFlux, SeaIceSaltFlux);
+          });
+      Pacer::stop("Tend:sfcTracerForcing", 2);
+   }
+
    // Compute KPP non-local tracer tendency
    if (TracerNonLocalFluxEnabled) {
       KPPMix *KPPInstance = KPPMix::getInstance();
@@ -1187,45 +1211,6 @@ void Tendencies::computeTracerTendenciesOnly(
 
          Pacer::stop("Tend:tracerNonLocalFlux", 2);
       }
-   }
-
-   // compute tracer forcing tendency
-   if (LocSfcTracerForcing.Enabled) {
-      Pacer::start("Tend:sfcTracerForcing", 2);
-      const auto *ForcingState = Forcing::getDefault();
-      const auto &LatentHeatFluxEvap =
-          ForcingState->TracerForcing.LatentHeatFluxEvapCell;
-      const auto &SensibleHeatFlux =
-          ForcingState->TracerForcing.SensibleHeatFluxCell;
-      const auto &LongWaveHeatFluxUp =
-          ForcingState->TracerForcing.LongWaveHeatFluxUpCell;
-      const auto &LongWaveHeatFluxDown =
-          ForcingState->TracerForcing.LongWaveHeatFluxDownCell;
-      const auto &SeaIceHeatFlux =
-          ForcingState->TracerForcing.SeaIceHeatFluxCell;
-      const auto &ShortWaveHeatFlux =
-          ForcingState->TracerForcing.ShortWaveHeatFluxCell;
-      const auto &SnowFlux = ForcingState->TracerForcing.SnowFluxCell;
-      const auto &RainFlux = ForcingState->TracerForcing.RainFluxCell;
-      const auto &EvaporationFlux =
-          ForcingState->TracerForcing.EvaporationFluxCell;
-      const auto &IceRunoffFlux = ForcingState->TracerForcing.IceRunoffFluxCell;
-      const auto &RiverRunoffFlux =
-          ForcingState->TracerForcing.RiverRunoffFluxCell;
-      const auto &SeaIceSaltFlux =
-          ForcingState->TracerForcing.SeaIceSaltFluxCell;
-      const auto &PressureMid = VCoord->PressureMid;
-
-      parallelFor(
-          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
-             LocSfcTracerForcing(LocTracerTend, ICell, TracerArray,
-                                 LatentHeatFluxEvap, SensibleHeatFlux,
-                                 LongWaveHeatFluxUp, LongWaveHeatFluxDown,
-                                 SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux,
-                                 RainFlux, IceRunoffFlux, RiverRunoffFlux,
-                                 EvaporationFlux, SeaIceSaltFlux);
-          });
-      Pacer::stop("Tend:sfcTracerForcing", 2);
    }
 
    Pacer::stop("Tend:computeTracerTendenciesOnly", 1);
@@ -1342,68 +1327,6 @@ void Tendencies::computeKPPFields(const OceanState *State,
       return;
    }
 
-   const I4 NCellsAll   = Mesh->NCellsAll;
-   const I4 NVertLayers = VCoord->NVertLayers;
-
-   OMEGA_SCOPE(ConservTemp, KPPConservTemp);
-   OMEGA_SCOPE(AbsSalinity, KPPAbsSalinity);
-   parallelFor(
-       "KPP-ExtractTS", {NCellsAll, NVertLayers},
-       KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          ConservTemp(ICell, K) = TracerArray(TempIdx, ICell, K);
-          AbsSalinity(ICell, K) = TracerArray(SaltIdx, ICell, K);
-       });
-
-   Array2DReal LayerThickCell = State->getPseudoThickness(ThickTimeLevel);
-   Array2DReal NormalVelEdge  = State->getNormalVelocity(VelTimeLevel);
-
-   deepCopy(KPPSurfacePressure, 1.0e5_Real);
-   const_cast<VertCoord *>(VCoord)->computePressure(LayerThickCell,
-                                                    KPPSurfacePressure);
-
-   OMEGA_SCOPE(PressureMid, VCoord->PressureMid);
-
-   EqState->computeSpecVol(ConservTemp, AbsSalinity, PressureMid);
-   EqState->computeBruntVaisalaFreqSq(ConservTemp, AbsSalinity, PressureMid,
-                                      EqState->SpecVol);
-
-   // Potential density referenced to each column's surface pressure
-   OMEGA_SCOPE(LocPotentialDensityCalc, PotentialDensityCalc);
-   OMEGA_SCOPE(RefPressure, KPPRefPressure);
-   parallelFor(
-       "KPP-PotentialDensityPressure", {NCellsAll, NVertLayers},
-       KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          LocPotentialDensityCalc.computeRefPressure(RefPressure, ICell, K,
-                                                     PressureMid);
-       });
-   EqState->computeSpecVolDisp(ConservTemp, AbsSalinity, RefPressure, 0);
-
-   OMEGA_SCOPE(SpecVolPotential, EqState->SpecVolDisplaced);
-   OMEGA_SCOPE(PotentialDensity, KPPPotentialDensity);
-   parallelFor(
-       "KPP-PotentialDensity", {NCellsAll, NVertLayers},
-       KOKKOS_LAMBDA(I4 ICell, I4 K) {
-          LocPotentialDensityCalc(PotentialDensity, ICell, K, SpecVolPotential);
-       });
-
-   {
-      TangentialReconOnEdge TanReconEdge(Mesh);
-      OMEGA_SCOPE(LocTangentialVelEdge, KPPTangentialVelEdge);
-      OMEGA_SCOPE(MinLayerEdgeTop, VCoord->MinLayerEdgeTop);
-      OMEGA_SCOPE(MaxLayerEdgeBot, VCoord->MaxLayerEdgeBot);
-      parallelForOuter(
-          {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
-             const int KMin   = MinLayerEdgeTop(IEdge);
-             const int KMax   = MaxLayerEdgeBot(IEdge);
-             const int KRange = vertRangeChunked(KMin, KMax);
-             parallelForInner(
-                 Team, KRange, INNER_LAMBDA(int KChunk) {
-                    TanReconEdge(LocTangentialVelEdge, IEdge, KChunk,
-                                 NormalVelEdge);
-                 });
-          });
-   }
-
    const auto *ForcingState = Forcing::getDefault();
    if (!ForcingState) {
       LOG_WARN("Tendencies::computeKPPFields: Forcing has not "
@@ -1412,75 +1335,10 @@ void Tendencies::computeKPPFields(const OceanState *State,
       return;
    }
 
-   const auto &SfcStress     = ForcingState->SfcStressForcing;
-   const auto &TracerForcing = ForcingState->TracerForcing;
-
-   // Non-local mixing consumes the same tracer/salt fluxes as the direct
-   // surface tracer forcing tendency, so KPP must fill them even when that
-   // tendency itself is disabled.
-   KPPSurfaceForcing.UseTracerForcing =
-       SfcTracerForcing.Enabled || TracerNonLocalFluxEnabled;
-
-   OMEGA_SCOPE(LocKPPSurfaceForcing, KPPSurfaceForcing);
-   OMEGA_SCOPE(LocFrictionVelocity, KPPInstance->SurfaceFrictionVelocity);
-   OMEGA_SCOPE(LocBuoyancyFlux, KPPInstance->SurfaceBuoyancyFlux);
-   OMEGA_SCOPE(LocSurfaceTracerFlux, TracerForcing.SurfaceTracerFluxCell);
-   OMEGA_SCOPE(IceFraction, KPPIceFraction);
-   OMEGA_SCOPE(LocSpecVol, EqState->SpecVol);
-   OMEGA_SCOPE(ZonalStress, SfcStress.ZonalStressCell);
-   OMEGA_SCOPE(MeridStress, SfcStress.MeridStressCell);
-   OMEGA_SCOPE(LatentHeatFluxEvap, TracerForcing.LatentHeatFluxEvapCell);
-   OMEGA_SCOPE(SensibleHeatFlux, TracerForcing.SensibleHeatFluxCell);
-   OMEGA_SCOPE(LongWaveHeatFluxUp, TracerForcing.LongWaveHeatFluxUpCell);
-   OMEGA_SCOPE(LongWaveHeatFluxDown, TracerForcing.LongWaveHeatFluxDownCell);
-   OMEGA_SCOPE(SeaIceHeatFlux, TracerForcing.SeaIceHeatFluxCell);
-   OMEGA_SCOPE(ShortWaveHeatFlux, TracerForcing.ShortWaveHeatFluxCell);
-   OMEGA_SCOPE(SnowFlux, TracerForcing.SnowFluxCell);
-   OMEGA_SCOPE(RainFlux, TracerForcing.RainFluxCell);
-   OMEGA_SCOPE(EvaporationFlux, TracerForcing.EvaporationFluxCell);
-   OMEGA_SCOPE(SeaIceFreshWaterFlux, TracerForcing.SeaIceFreshWaterFluxCell);
-   OMEGA_SCOPE(IceRunoffFlux, TracerForcing.IceRunoffFluxCell);
-   OMEGA_SCOPE(RiverRunoffFlux, TracerForcing.RiverRunoffFluxCell);
-   OMEGA_SCOPE(SeaIceSaltFlux, TracerForcing.SeaIceSaltFluxCell);
-
-   parallelFor(
-       "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
-          LocKPPSurfaceForcing(
-              LocFrictionVelocity, LocBuoyancyFlux, LocSurfaceTracerFlux,
-              IceFraction, ICell, ConservTemp, AbsSalinity, PressureMid,
-              LocSpecVol, ZonalStress, MeridStress, LatentHeatFluxEvap,
-              SensibleHeatFlux, LongWaveHeatFluxUp, LongWaveHeatFluxDown,
-              SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux, RainFlux,
-              EvaporationFlux, SeaIceFreshWaterFlux, IceRunoffFlux,
-              RiverRunoffFlux, SeaIceSaltFlux);
-       });
-
-   if (TracerNonLocalFluxEnabled) {
-      OMEGA_SCOPE(MinLayerCell, VCoord->MinLayerCell);
-      OMEGA_SCOPE(MaxLayerCell, VCoord->MaxLayerCell);
-      I4 MissingFluxCount = 0;
-      parallelReduce(
-          "KPP-ValidateSurfaceTracerFlux", {NTracers, NCellsAll},
-          KOKKOS_LAMBDA(I4 L, I4 ICell, I4 & Count) {
-             const I4 KMin = MinLayerCell(ICell);
-             const I4 KMax = MaxLayerCell(ICell);
-             if (KMin >= 0 && KMax >= KMin &&
-                 LocSurfaceTracerFlux(L, ICell) == FillValueReal) {
-                ++Count;
-             }
-          },
-          MissingFluxCount);
-      OMEGA_REQUIRE(MissingFluxCount == 0,
-                    "KPP non-local mixing requires a surface tracer flux for "
-                    "every active tracer and cell; {} entries are missing",
-                    MissingFluxCount);
-   }
-
-   Array1DReal WindSpeed10m;
-   KPPInstance->computeKPPMix(
-       PotentialDensity, NormalVelEdge, KPPTangentialVelEdge,
-       KPPInstance->SurfaceFrictionVelocity, KPPInstance->SurfaceBuoyancyFlux,
-       EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m);
+   Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
+   KPPInstance->update(TracerArray, TempIdx, SaltIdx, NormalVelEdge, EqState,
+                       ForcingState,
+                       SfcTracerForcing.Enabled || TracerNonLocalFluxEnabled);
 
    Pacer::stop("Tend:computeKPPFields", 1);
 }

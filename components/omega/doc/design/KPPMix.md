@@ -156,17 +156,26 @@ Defaults and usage examples are documented in the user guide page:
 
 #### 4.1.2 Class/data structure
 
-`KPPMix` is a singleton that owns persistent output fields, including:
+`KPPMix` is a singleton that owns persistent output fields and KPP-only
+workspaces, including:
 
 - `OSBLDepth`, `OSBLDepthIndex`
 - `VertDiff`, `VertVisc`
 - `VertNonLocalFlux`
 - diagnostics such as `BulkRichardsonNumber`, `BulkRichardsonShear`,
   `UnresolvedShear`, `BuoyancyJump`, and `TurbulentVelocityScale`
+- surface-referenced pressure, reconstructed edge tangential velocity, and
+   temporary ice fraction
 
 ### 4.2 Methods
 
-Main interface:
+The production interface is `update(...)`, which receives canonical tracer,
+velocity, EOS, and forcing state, prepares KPP-derived state, validates
+required non-local tracer fluxes, and computes the KPP coefficients. It uses
+zero-copy temperature and salinity tracer subviews; the forcing state retains
+ownership of surface tracer fluxes.
+
+The lower-level numerical stage is:
 
 ```c++
 void computeKPPMix(const Array2DReal &PotentialDensity,
@@ -181,7 +190,8 @@ void computeKPPMix(const Array2DReal &PotentialDensity,
 
 Internal stages:
 - `computeOSBLDepth(...)`
-- `computeMixingCoefficients(...)`
+- `computeMixingCoefficients(...)`, using surface forcing and optional
+   interior mixing coefficients
 
 ### 4.3 Time stepper coupling behavior
 

@@ -112,16 +112,21 @@ KPP coupling into tendencies occurs through:
 
 `computeKPPFields(...)` assembles required inputs:
 
-- potential density from EOS specific volume
-- Brunt-Vaisala frequency squared
-- edge normal and reconstructed tangential velocity
-- surface friction velocity from wind stress
-- surface buoyancy flux from heat/freshwater forcing
+- the current tracer and normal-velocity state views
+- temperature and salinity tracer indices
+- the current EOS and surface forcing instances
+- the configured non-local tracer-flux policy
 
-Then it calls:
+It then calls `KPPMix::update(...)`. KPPMix owns preparation of its derived
+state: EOS fields, surface-referenced potential density, edge tangential
+velocity, surface friction velocity, surface buoyancy flux, and temporary ice
+fraction. Temperature and salinity are zero-copy subviews of the canonical
+tracer array, while surface tracer fluxes remain owned by the forcing state.
+`KPPMix::update(...)` validates required non-local tracer fluxes and performs
+the OSBL-depth and mixing-coefficient calculation.
 
 ```c++
-KPPInstance->computeKPPMix(...)
+KPPInstance->update(...)
 ```
 
 ### Time stepper interaction

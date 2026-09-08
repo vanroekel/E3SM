@@ -21,11 +21,15 @@
 #include "KPPConstants.h"
 #include "MachEnv.h"
 #include "OmegaKokkos.h"
+#include "SurfaceFlux.h"
 #include "TimeMgr.h"
 #include "VertCoord.h"
 #include <string>
 
 namespace OMEGA {
+
+class Eos;
+class Forcing;
 
 /// @brief enum sets which matching criterion is used at the OSBL base.
 /// SimpleShapes does no matching, MatchBoth matches KPP diagnosed
@@ -63,6 +67,95 @@ class KPPLangmuirFactor {
    }
 };
 
+class PotentialDensityOnCell {
+ public:
+   KOKKOS_FUNCTION void
+   computeRefPressure(const Array2DReal &RefPressure, I4 ICell, I4 K,
+                      const Array1DReal &SurfacePressure) const {
+      RefPressure(ICell, K) = SurfacePressure(ICell);
+   }
+
+   KOKKOS_FUNCTION void operator()(const Array2DReal &PotentialDensity,
+                                   I4 ICell, I4 K,
+                                   const Array2DReal &SpecVolDisplaced) const {
+      PotentialDensity(ICell, K) =
+          1.0_Real / Kokkos::max(1.0e-12_Real, SpecVolDisplaced(ICell, K));
+   }
+};
+
+class KPPSurfaceForcingOnCell {
+ public:
+   bool UseTracerForcing = false;
+
+   KPPSurfaceForcingOnCell(const HorzMesh *Mesh, const VertCoord *VCoord,
+                           const Eos *EosInst);
+
+   KOKKOS_FUNCTION void operator()(
+       const Array1DReal &FrictionVelocity, const Array1DReal &BuoyancyFlux,
+       const Array1DReal &IceFraction, I4 ICell, const Array2DReal &ConservTemp,
+       const Array2DReal &AbsSalinity, const Array2DReal &PressureMid,
+       const Array2DReal &SpecVol, const Array1DReal &ZonalStress,
+       const Array1DReal &MeridStress, const Array1DReal &LatentHeatFluxEvap,
+       const Array1DReal &SensibleHeatFlux,
+       const Array1DReal &LongWaveHeatFluxUp,
+       const Array1DReal &LongWaveHeatFluxDown,
+       const Array1DReal &SeaIceHeatFlux, const Array1DReal &ShortWaveHeatFlux,
+       const Array1DReal &SnowFlux, const Array1DReal &RainFlux,
+       const Array1DReal &EvaporationFlux,
+       const Array1DReal &SeaIceFreshWaterFlux,
+       const Array1DReal &IceRunoffFlux, const Array1DReal &RiverRunoffFlux,
+       const Array1DReal &SeaIceSaltFlux) const {
+      const I4 KTop = MinLayerCell(ICell);
+      if (KTop < 0 || KTop >= NVertLayers)
+         return;
+
+      const Real TauMag = Kokkos::sqrt(ZonalStress(ICell) * ZonalStress(ICell) +
+                                       MeridStress(ICell) * MeridStress(ICell));
+      FrictionVelocity(ICell) =
+          Kokkos::sqrt(Kokkos::max(0.0_Real, TauMag / RhoSw));
+      BuoyancyFlux(ICell) = 0.0_Real;
+      IceFraction(ICell)  = 0.0_Real;
+      if (!UseTracerForcing)
+         return;
+
+      const Real SaTop    = AbsSalinity(ICell, KTop);
+      const Real CtTop    = ConservTemp(ICell, KTop);
+      const Real PTopDb   = PressureMid(ICell, KTop) * Pa2Db;
+      const Real HeatFlux = sfcHeatFluxWithoutMassEnthalpy(
+          ICell, SaTop, PTopDb, EosChoice, LongWaveHeatFluxUp,
+          LongWaveHeatFluxDown, ShortWaveHeatFlux, SensibleHeatFlux,
+          SeaIceHeatFlux, SeaIceFreshWaterFlux, SeaIceSaltFlux,
+          LatentHeatFluxEvap, SnowFlux, IceRunoffFlux);
+      const Real FreshWaterFlux = sfcFreshWaterFlux(
+          ICell, SnowFlux, RainFlux, EvaporationFlux, SeaIceFreshWaterFlux,
+          IceRunoffFlux, RiverRunoffFlux);
+      const Real TempFlux = HeatFlux * HFluxFac;
+      const Real SaltFlux =
+          SeaIceSaltFlux(ICell) * SFluxFac - FreshWaterFlux * SaTop / RhoSw;
+      const Real SpVol  = Kokkos::max(1.0e-12_Real, SpecVol(ICell, KTop));
+      const Real RhoTop = 1.0_Real / SpVol;
+
+      Real Alpha = 0.0_Real;
+      Real Beta  = 0.0_Real;
+      if (EosChoice == EosType::Teos10Eos) {
+         Alpha = Teos10Coeff.calcAlpha(SaTop, CtTop, PTopDb, SpVol);
+         Beta  = Teos10Coeff.calcBeta(SaTop, CtTop, PTopDb, SpVol);
+      } else if (EosChoice == EosType::LinearEos) {
+         Alpha = -LinearDRhodT / RhoTop;
+         Beta  = LinearDRhodS / RhoTop;
+      }
+      BuoyancyFlux(ICell) = Gravity * (Alpha * TempFlux - Beta * SaltFlux);
+   }
+
+ private:
+   Real LinearDRhodT;
+   Real LinearDRhodS;
+   I4 NVertLayers;
+   Array1DI4 MinLayerCell;
+   EosType EosChoice;
+   Teos10BruntVaisalaFreqSq Teos10Coeff;
+};
+
 /// @brief Stage 1 kernel: Compute OSBL depth from the bulk Richardson number
 /// criterion
 ///
@@ -82,7 +175,7 @@ class KPPOSBLDepthSearch {
    Real IceFracThresholdForMinimumOSBL = KPP::IceSuppressThresh;
    /// Min OSBL depth under sea ice (m)
    Real MinimumOSBLUnderSeaIce = KPP::MinOSBLUnderIce;
-   /// Continue the search below the crossing to fill the Ri diagnostics
+   /// Only search past the base of the OSBL if KPP diagnostics are requested
    bool FullRiProfile = false;
 
    /// Constructor for KPPOSBLDepthSearch
@@ -165,345 +258,322 @@ class KPPOSBLDepthSearch {
                SumW += EdgeWeights[J];
             }
          }
-         if (SumW < KPP::Tiny) {
-            // Degenerate kite areas: fall back to equal weighting.
-            I4 NEdgesValid = 0;
-            for (I4 J = 0; J < NEdgesEff; ++J) {
-               if (EdgeValid[J]) {
-                  ++NEdgesValid;
-               }
-            }
-            if (NEdgesValid > 0) {
-               const Real EqualW = 1.0_Real / static_cast<Real>(NEdgesValid);
-               for (I4 J = 0; J < NEdgesEff; ++J) {
-                  EdgeWeights[J] = EdgeValid[J] ? EqualW : 0.0_Real;
-               }
-            }
-         } else {
-            const Real InvSumW = 1.0_Real / SumW;
-            for (I4 J = 0; J < NEdgesEff; ++J) {
-               if (EdgeValid[J]) {
-                  EdgeWeights[J] *= InvSumW;
-               }
+         const Real InvSumW = 1.0_Real / SumW;
+         for (I4 J = 0; J < NEdgesEff; ++J) {
+            if (EdgeValid[J]) {
+               EdgeWeights[J] *= InvSumW;
             }
          }
       }
+   }
 
-      // ----------------------------------------------------------------
-      // Bulk Richardson search, Large et al. (1994) Eq. (21):
-      //   Ri_b(d) = (B_r - B(d)) d / (|V_r - V(d)|^2 + Vt^2(d))
-      // where the reference values B_r, V_r are averaged over the top
-      // epsilon*d (d is the candidate OSBL depth) of the column. Since
-      // epsilon*d grows monotonically with
-      // the trial depth, the averaging window only ever extends downward,
-      // so the running sums are carried across trial depths rather than
-      // rebuilt from the surface at each one.
-      // The OSBL base is the first d at which Ri_b reaches RiCritical, and
-      // the search stops there unless the full profile is wanted for the
-      // Ri diagnostics.
-      // ----------------------------------------------------------------
+   // ----------------------------------------------------------------
+   // Bulk Richardson search, Large et al. (1994) Eq. (21):
+   //   Ri_b(d) = (B_r - B(d)) d / (|V_r - V(d)|^2 + Vt^2(d))
+   // where the reference values B_r, V_r are averaged over the top
+   // epsilon*d (d is the candidate OSBL depth) of the column. Since
+   // epsilon*d grows monotonically with
+   // the trial depth, the averaging window only ever extends downward,
+   // so the running sums are carried across trial depths rather than
+   // rebuilt from the surface at each one.
+   // The OSBL base is the first d at which Ri_b reaches RiCritical, and
+   // the search stops there unless the full profile is wanted for the
+   // Ri diagnostics.
+   // ----------------------------------------------------------------
 
-      // Cell surface-layer density average
-      I4 KSurfaceAvg = KMin;
-      const Real ThickTop =
-          Kokkos::abs(ZInterface(ICell, KMin + 1) - ZInterface(ICell, KMin));
-      Real SumThickness = Kokkos::fmax(ThickTop, KPP::NumericalTolerance);
-      Real SumRho       = PotentialDensity(ICell, KMin) * SumThickness;
+   // Cell surface-layer density average
+   I4 KSurfaceAvg = KMin;
+   const Real ThickTop =
+       Kokkos::abs(ZInterface(ICell, KMin + 1) - ZInterface(ICell, KMin));
+   Real SumThickness = Kokkos::fmax(ThickTop, KPP::NumericalTolerance);
+   Real SumRho       = PotentialDensity(ICell, KMin) * SumThickness;
 
-      // Per-edge surface-layer velocity averages
-      // These are updated as the surface layer depth grows with increasing
-      // trial depth
-      I4 KSurfE[MaxEdgesBound]      = {};
-      Real SumThickE[MaxEdgesBound] = {};
-      Real SumUnE[MaxEdgesBound]    = {};
-      Real SumVtE[MaxEdgesBound]    = {};
+   // Per-edge surface-layer velocity averages
+   // These are updated as the surface layer depth grows with increasing
+   // trial depth
+   I4 KSurfE[MaxEdgesBound]      = {};
+   Real SumThickE[MaxEdgesBound] = {};
+   Real SumUnE[MaxEdgesBound]    = {};
+   Real SumVtE[MaxEdgesBound]    = {};
 
+   for (I4 J = 0; J < NEdgesEff; ++J) {
+      if (!EdgeValid[J]) {
+         continue;
+      }
+      const I4 IEdge  = EdgesOnCell(ICell, J);
+      const I4 JCell  = CellsOnCell(ICell, J);
+      const I4 KEMin  = MinLayerEdgeBot(IEdge);
+      KSurfE[J]       = KEMin;
+      const I4 KIntE0 = Kokkos::min(KEMin + 1, NVertLayers);
+      const Real ZEdgeTop =
+          0.5_Real * (ZInterface(ICell, KEMin) + ZInterface(JCell, KEMin));
+      const Real ZEdgeBot =
+          0.5_Real * (ZInterface(ICell, KIntE0) + ZInterface(JCell, KIntE0));
+      const Real Thick0 = Kokkos::abs(ZEdgeBot - ZEdgeTop);
+      SumThickE[J]      = Kokkos::fmax(Thick0, KPP::NumericalTolerance);
+      const I4 KE0      = Kokkos::min(KEMin, NVertLayers - 1);
+      SumUnE[J]         = NormalVelocity(IEdge, KE0) * SumThickE[J];
+      SumVtE[J]         = TangentialVelocity(IEdge, KE0) * SumThickE[J];
+   }
+
+   for (I4 K = KMin; K <= KMax; ++K) {
+      const I4 KCell     = Kokkos::min(K, NVertLayers - 1);
+      const I4 KInt      = Kokkos::min(K + 1, NVertLayers);
+      const Real ZDepth  = Ssh - ZInterface(ICell, KInt);
+      const Real ZCenter = Ssh - ZMid(ICell, KCell);
+      if (ZDepth < KPP::NumericalTolerance)
+         continue;
+
+      const Real SurfLayerDepth = SurfaceLayerExtent * ZDepth;
+
+      // Advance cell surface average for density
+      while (KSurfaceAvg < K &&
+             (Ssh - ZInterface(ICell, KSurfaceAvg + 1)) < SurfLayerDepth) {
+         ++KSurfaceAvg;
+         const I4 KSA      = Kokkos::min(KSurfaceAvg, NVertLayers - 1);
+         const Real DZ     = Kokkos::abs(ZInterface(ICell, KSurfaceAvg + 1) -
+                                         ZInterface(ICell, KSurfaceAvg));
+         const Real ThickK = Kokkos::fmax(DZ, KPP::NumericalTolerance);
+         SumThickness += ThickK;
+         SumRho += PotentialDensity(ICell, KSA) * ThickK;
+      }
+
+      // Advance per-edge surface averages for velocity
       for (I4 J = 0; J < NEdgesEff; ++J) {
          if (!EdgeValid[J]) {
             continue;
          }
-         const I4 IEdge  = EdgesOnCell(ICell, J);
-         const I4 JCell  = CellsOnCell(ICell, J);
-         const I4 KEMin  = MinLayerEdgeBot(IEdge);
-         KSurfE[J]       = KEMin;
-         const I4 KIntE0 = Kokkos::min(KEMin + 1, NVertLayers);
-         const Real ZEdgeTop =
-             0.5_Real * (ZInterface(ICell, KEMin) + ZInterface(JCell, KEMin));
-         const Real ZEdgeBot =
-             0.5_Real * (ZInterface(ICell, KIntE0) + ZInterface(JCell, KIntE0));
-         const Real Thick0 = Kokkos::abs(ZEdgeBot - ZEdgeTop);
-         SumThickE[J]      = Kokkos::fmax(Thick0, KPP::NumericalTolerance);
-         const I4 KE0      = Kokkos::min(KEMin, NVertLayers - 1);
-         SumUnE[J]         = NormalVelocity(IEdge, KE0) * SumThickE[J];
-         SumVtE[J]         = TangentialVelocity(IEdge, KE0) * SumThickE[J];
+         const I4 IEdge     = EdgesOnCell(ICell, J);
+         const I4 JCell     = CellsOnCell(ICell, J);
+         const I4 KEMax     = MaxLayerEdgeTop(IEdge);
+         const Real SshEdge = 0.5_Real * (SshCell(ICell) + SshCell(JCell));
+         while (KSurfE[J] < K &&
+                (SshEdge - 0.5_Real * (ZInterface(ICell, KSurfE[J] + 1) +
+                                       ZInterface(JCell, KSurfE[J] + 1))) <
+                    SurfLayerDepth) {
+            ++KSurfE[J];
+            const I4 KE = Kokkos::min(
+                Kokkos::max(KSurfE[J], MinLayerEdgeBot(IEdge)), KEMax);
+            const Real ZEdgeTop = 0.5_Real * (ZInterface(ICell, KSurfE[J]) +
+                                              ZInterface(JCell, KSurfE[J]));
+            const Real ZEdgeBot = 0.5_Real * (ZInterface(ICell, KSurfE[J] + 1) +
+                                              ZInterface(JCell, KSurfE[J] + 1));
+            const Real DZ       = Kokkos::abs(ZEdgeBot - ZEdgeTop);
+            const Real ThickK   = Kokkos::fmax(DZ, KPP::NumericalTolerance);
+            SumThickE[J] += ThickK;
+            SumUnE[J] += NormalVelocity(IEdge, KE) * ThickK;
+            SumVtE[J] += TangentialVelocity(IEdge, KE) * ThickK;
+         }
       }
 
-      for (I4 K = KMin; K <= KMax; ++K) {
-         const I4 KCell     = Kokkos::min(K, NVertLayers - 1);
-         const I4 KInt      = Kokkos::min(K + 1, NVertLayers);
-         const Real ZDepth  = Ssh - ZInterface(ICell, KInt);
-         const Real ZCenter = Ssh - ZMid(ICell, KCell);
-         if (ZDepth < KPP::NumericalTolerance)
-            continue;
+      // Compute the average density in the surface layer
+      const Real InvSumThickness =
+          1.0_Real / Kokkos::fmax(SumThickness, KPP::NumericalTolerance);
+      const Real RhoAvgSurf = SumRho * InvSumThickness;
 
-         const Real SurfLayerDepth = SurfaceLayerExtent * ZDepth;
+      // Buoyancy jump B_r - B(d), positive for stable stratification
+      const Real RhoK     = PotentialDensity(ICell, KCell);
+      const Real DeltaRho = RhoK - RhoAvgSurf;
+      const Real DeltaB   = Gravity * DeltaRho / RhoSw;
+      // The following field is for diagnostic purposes only
+      // and does not affect the computation
+      BuoyancyJump(ICell, KInt) = DeltaB;
 
-         // Advance cell surface average for density
-         while (KSurfaceAvg < K &&
-                (Ssh - ZInterface(ICell, KSurfaceAvg + 1)) < SurfLayerDepth) {
-            ++KSurfaceAvg;
-            const I4 KSA      = Kokkos::min(KSurfaceAvg, NVertLayers - 1);
-            const Real DZ     = Kokkos::abs(ZInterface(ICell, KSurfaceAvg + 1) -
-                                            ZInterface(ICell, KSurfaceAvg));
-            const Real ThickK = Kokkos::fmax(DZ, KPP::NumericalTolerance);
-            SumThickness += ThickK;
-            SumRho += PotentialDensity(ICell, KSA) * ThickK;
-         }
-
-         // Advance per-edge surface averages for velocity
+      // Resolved shear |V_r - V(d)|^2, averaged over the cell edges
+      Real DeltaVSq = 0.0_Real;
+      if (NEdges > 0) {
          for (I4 J = 0; J < NEdgesEff; ++J) {
             if (!EdgeValid[J]) {
                continue;
             }
-            const I4 IEdge     = EdgesOnCell(ICell, J);
-            const I4 JCell     = CellsOnCell(ICell, J);
-            const I4 KEMax     = MaxLayerEdgeTop(IEdge);
-            const Real SshEdge = 0.5_Real * (SshCell(ICell) + SshCell(JCell));
-            while (KSurfE[J] < K &&
-                   (SshEdge - 0.5_Real * (ZInterface(ICell, KSurfE[J] + 1) +
-                                          ZInterface(JCell, KSurfE[J] + 1))) <
-                       SurfLayerDepth) {
-               ++KSurfE[J];
-               const I4 KE = Kokkos::min(
-                   Kokkos::max(KSurfE[J], MinLayerEdgeBot(IEdge)), KEMax);
-               const Real ZEdgeTop = 0.5_Real * (ZInterface(ICell, KSurfE[J]) +
-                                                 ZInterface(JCell, KSurfE[J]));
-               const Real ZEdgeBot =
-                   0.5_Real * (ZInterface(ICell, KSurfE[J] + 1) +
-                               ZInterface(JCell, KSurfE[J] + 1));
-               const Real DZ     = Kokkos::abs(ZEdgeBot - ZEdgeTop);
-               const Real ThickK = Kokkos::fmax(DZ, KPP::NumericalTolerance);
-               SumThickE[J] += ThickK;
-               SumUnE[J] += NormalVelocity(IEdge, KE) * ThickK;
-               SumVtE[J] += TangentialVelocity(IEdge, KE) * ThickK;
-            }
-         }
-
-         // Compute the average density in the surface layer
-         const Real InvSumThickness =
-             1.0_Real / Kokkos::fmax(SumThickness, KPP::NumericalTolerance);
-         const Real RhoAvgSurf = SumRho * InvSumThickness;
-
-         // Buoyancy jump B_r - B(d), positive for stable stratification
-         const Real RhoK     = PotentialDensity(ICell, KCell);
-         const Real DeltaRho = RhoK - RhoAvgSurf;
-         const Real DeltaB   = Gravity * DeltaRho / RhoSw;
-         // The following field is for diagnostic purposes only
-         // and does not affect the computation
-         BuoyancyJump(ICell, KInt) = DeltaB;
-
-         // Resolved shear |V_r - V(d)|^2, averaged over the cell edges
-         Real DeltaVSq = 0.0_Real;
-         if (NEdges > 0) {
-            for (I4 J = 0; J < NEdgesEff; ++J) {
-               if (!EdgeValid[J]) {
-                  continue;
-               }
-               const I4 IEdge = EdgesOnCell(ICell, J);
-               const I4 KEMin = MinLayerEdgeBot(IEdge);
-               const I4 KEMax = MaxLayerEdgeTop(IEdge);
-               const I4 KE    = Kokkos::min(Kokkos::max(K, KEMin), KEMax);
-               const Real InvThickE =
-                   1.0_Real /
-                   Kokkos::fmax(SumThickE[J], KPP::NumericalTolerance);
-               const Real UnAvg = SumUnE[J] * InvThickE;
-               const Real VtAvg = SumVtE[J] * InvThickE;
-               const Real UnK   = NormalVelocity(IEdge, KE);
-               const Real VtK   = TangentialVelocity(IEdge, KE);
-               const Real DUn   = UnK - UnAvg;
-               const Real DVt   = VtK - VtAvg;
-               DeltaVSq += EdgeWeights[J] * (DUn * DUn + DVt * DVt);
-            }
-         }
-         BulkRichardsonShear(ICell, KInt) = DeltaVSq;
-
-         const Real SigmaLoc =
-             Kokkos::fmin(1.0_Real, Kokkos::fmax(0.0_Real, SurfaceLayerExtent));
-
-         // Turbulent scalar velocity scale w_s at the surface-layer depth
-         Real WTurb = 0.0_Real;
-         if (UStar > KPP::NumericalTolerance) {
-            const Real U3   = UStar * UStar * UStar;
-            const Real Zeta = SigmaLoc * ZDepth * VonKar * BuoyFluxEff /
-                              Kokkos::fmax(U3, KPP::Tiny);
-            const Real PhiInvS = KPP::kppPhiInvScalar(Zeta);
-            WTurb = VonKar * UStar * Kokkos::max(PhiInvS, 0.0_Real);
-         } else if (BuoyFluxEff < 0.0_Real) {
-            // Free convection limit: u* drops out and w_s ~ (c_s d B_0)^1/3
-            const Real CS  = KPP::CMoS;
-            const Real WS3 = -CS * SigmaLoc * ZDepth * VonKar * BuoyFluxEff;
-            WTurb          = VonKar * Kokkos::pow(Kokkos::max(WS3, 0.0_Real),
-                                                  1.0_Real / 3.0_Real);
-         }
-
-         // Unresolved turbulent shear Vt^2 (m^2/s^2), Large et al. Eq.
-         // (23). Cv ramps from 2.1 to 1.7 as stratification strengthens.
-         const Real NCntr = Kokkos::sqrt(
-             Kokkos::max(0.0_Real, BruntVaisalaFreqSq(ICell, KInt)));
-         const Real Cv =
-             (NCntr < 0.002_Real) ? (2.1_Real - 200.0_Real * NCntr) : 1.7_Real;
-         const Real Vt2 = Kokkos::fmax(
-             KPP::MinUnresolvedShearSq,
-             Cv * VtCoef * ZCenter * NCntr * WTurb /
-                 Kokkos::fmax(RiCritical, KPP::NumericalTolerance));
-         UnresolvedShear(ICell, KInt) = Vt2;
-
-         const Real VelScaleSq = DeltaVSq + Vt2;
-
-         const Real RiBulk = RiScaling * DeltaB * ZCenter /
-                             Kokkos::fmax(VelScaleSq, KPP::NumericalTolerance);
-         BulkRichardsonNumber(ICell, KInt) = RiBulk;
-
-         if (KCross < 0 && RiBulk > RiCritical) {
-            KCross = K;
-            // Levels below the crossing only feed the Ri diagnostics
-            if (!FullRiProfile)
-               break;
+            const I4 IEdge = EdgesOnCell(ICell, J);
+            const I4 KEMin = MinLayerEdgeBot(IEdge);
+            const I4 KEMax = MaxLayerEdgeTop(IEdge);
+            const I4 KE    = Kokkos::min(Kokkos::max(K, KEMin), KEMax);
+            const Real InvThickE =
+                1.0_Real / Kokkos::fmax(SumThickE[J], KPP::NumericalTolerance);
+            const Real UnAvg = SumUnE[J] * InvThickE;
+            const Real VtAvg = SumVtE[J] * InvThickE;
+            const Real UnK   = NormalVelocity(IEdge, KE);
+            const Real VtK   = TangentialVelocity(IEdge, KE);
+            const Real DUn   = UnK - UnAvg;
+            const Real DVt   = VtK - VtAvg;
+            DeltaVSq += EdgeWeights[J] * (DUn * DUn + DVt * DVt);
          }
       }
+      BulkRichardsonShear(ICell, KInt) = DeltaVSq;
 
-      if (KCross >= KMin) {
-         if (KCross > KMin) {
-            // Ri values are defined at cell centers, so interpolate on
-            // center depths to keep the abscissa consistent.
-            // Define quantities to conduct the interpolation of Ri
-            // between the two model levels to determine the final
-            // boundary layer depth.
-            const I4 KAbove    = Kokkos::max(KMin, KCross - 1);
-            const I4 KBelow    = Kokkos::min(KCross, NVertLayers - 1);
-            const I4 KAboveRi  = Kokkos::min(KAbove + 1, NVertLayers);
-            const I4 KBelowRi  = Kokkos::min(KBelow + 1, NVertLayers);
-            const Real ZAbove  = Ssh - ZMid(ICell, KAbove);
-            const Real ZBelow  = Ssh - ZMid(ICell, KBelow);
-            const Real RiAbove = BulkRichardsonNumber(ICell, KAboveRi);
-            const Real RiBelow = BulkRichardsonNumber(ICell, KBelowRi);
-
-            const Real H = ZBelow - ZAbove;
-            if (H > KPP::NumericalTolerance) {
-               // CVMix-style QUAD interpolation for OSBL crossing:
-               // - first interior crossing uses zero slope at top point
-               // - deeper crossings use upstream slope.
-               // Quadratic interpolation is recommended by Danabosglu et al
-               // (2006)
-               // https://journals.ametsoc.org/view/journals/clim/19/11/jcli3739.1.pdf
-               Real SlopeAbove = 0.0_Real;
-               if (KCross > KMin + 1) {
-                  const I4 KPrev    = Kokkos::max(KMin, KAbove - 1);
-                  const I4 KPrevRi  = Kokkos::min(KPrev + 1, NVertLayers);
-                  const Real ZPrev  = Ssh - ZMid(ICell, KPrev);
-                  const Real RiPrev = BulkRichardsonNumber(ICell, KPrevRi);
-                  const Real DZPrev = ZAbove - ZPrev;
-                  if (Kokkos::abs(DZPrev) > KPP::NumericalTolerance) {
-                     SlopeAbove = (RiAbove - RiPrev) / DZPrev;
-                  }
-               }
-
-               // In local coordinate T = z - ZAbove:
-               // Ri(T) = QuadA T^2 + SlopeAbove T + RiAbove, with QuadA
-               // fixed by requiring Ri(H) = RiBelow. The OSBL base is the
-               // root of Ri(T) = RiCritical.
-               const Real QuadA =
-                   (RiBelow - RiAbove - SlopeAbove * H) / (H * H);
-               const Real QuadC = RiAbove - RiCritical;
-
-               Real TCross = H;
-               if (Kokkos::abs(QuadA) < 1.0e-14_Real) {
-                  // Degenerate quadratic -> linear fallback.
-                  const Real DRi = RiBelow - RiAbove;
-                  if (Kokkos::abs(DRi) > KPP::NumericalTolerance) {
-                     const Real Frac = Kokkos::fmax(
-                         0.0_Real,
-                         Kokkos::fmin(1.0_Real, (RiCritical - RiAbove) / DRi));
-                     TCross = Frac * H;
-                  }
-               } else {
-                  const Real Disc =
-                      SlopeAbove * SlopeAbove - 4.0_Real * QuadA * QuadC;
-                  if (Disc >= 0.0_Real) {
-                     const Real SqrtDisc = Kokkos::sqrt(Disc);
-                     const Real T1 =
-                         (-SlopeAbove + SqrtDisc) / (2.0_Real * QuadA);
-                     const Real T2 =
-                         (-SlopeAbove - SqrtDisc) / (2.0_Real * QuadA);
-
-                     const bool T1Ok = (T1 >= 0.0_Real && T1 <= H);
-                     const bool T2Ok = (T2 >= 0.0_Real && T2 <= H);
-                     if (T1Ok && T2Ok) {
-                        // Both roots lie in the interval; prefer the one
-                        // nearest mid-interval, as CVMix does.
-                        const Real Mid = 0.5_Real * H;
-                        TCross =
-                            (Kokkos::abs(T1 - Mid) <= Kokkos::abs(T2 - Mid))
-                                ? T1
-                                : T2;
-                     } else if (T1Ok) {
-                        TCross = T1;
-                     } else if (T2Ok) {
-                        TCross = T2;
-                     } else {
-                        TCross = H;
-                     }
-                  }
-               }
-
-               TCross   = Kokkos::fmax(0.0_Real, Kokkos::fmin(H, TCross));
-               OBLDepth = ZAbove + TCross;
-            } else {
-               OBLDepth = ZBelow;
-            }
-         } else {
-            // Match center-based OSBL convention when crossing occurs in
-            // the top interval.
-            OBLDepth = Ssh - ZMid(ICell, KMin);
-         }
-      } else {
-         OBLDepth = Ssh - ZInterface(ICell, KIntDeep);
+      // Turbulent scalar velocity scale w_s at the surface-layer depth
+      Real WTurb = 0.0_Real;
+      if (UStar > KPP::NumericalTolerance) {
+         const Real U3   = UStar * UStar * UStar;
+         const Real Zeta = SurfaceLayerExtent * ZDepth * VonKar * BuoyFluxEff /
+                           Kokkos::fmax(U3, KPP::Tiny);
+         const Real PhiInvS = KPP::kppPhiInvScalar(Zeta);
+         WTurb              = VonKar * UStar * Kokkos::max(PhiInvS, 0.0_Real);
+      } else if (BuoyFluxEff < 0.0_Real) {
+         // Free convection limit: u* drops out and w_s ~ (c_s d B_0)^1/3
+         const Real CS = KPP::CMoS;
+         const Real WS3 =
+             -CS * SurfaceLayerExtent * ZDepth * VonKar * BuoyFluxEff;
+         WTurb = VonKar *
+                 Kokkos::pow(Kokkos::max(WS3, 0.0_Real), 1.0_Real / 3.0_Real);
       }
 
-      const Real TopLayerThickness =
-          Kokkos::abs(ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
-      const Real MinOBLDepth = 0.5_Real * TopLayerThickness;
-      const Real MaxOBLDepth = Ssh - ZMid(ICell, KMax);
-      // Impose chosen limits on the depth of the OSBL
-      OBLDepth = KPP::kppClampOSBLDepth(
-          OBLDepth, MinOBLDepth, MaxOBLDepth,
-          IceFrac > IceFracThresholdForMinimumOSBL, MinimumOSBLUnderSeaIce);
+      // Unresolved turbulent shear Vt^2 (m^2/s^2), Large et al. Eq.
+      // (23). Cv ramps from 2.1 to 1.7 as stratification strengthens.
+      const Real NInt =
+          Kokkos::sqrt(Kokkos::max(0.0_Real, BruntVaisalaFreqSq(ICell, KInt)));
+      const Real Cv =
+          (NInt < 0.002_Real) ? (2.1_Real - 200.0_Real * NInt) : 1.7_Real;
+      const Real Vt2 =
+          Kokkos::fmax(KPP::MinUnresolvedShearSq,
+                       Cv * VtCoef * ZCenter * NInt * WTurb /
+                           Kokkos::fmax(RiCritical, KPP::NumericalTolerance));
+      UnresolvedShear(ICell, KInt) = Vt2;
 
-      const I4 KFinal =
-          KPP::kppOSBLIndex(ZInterface, ICell, KMin, KMax, Ssh, OBLDepth);
+      const Real VelScaleSq = DeltaVSq + Vt2;
 
-      OSBLDepth(ICell)      = OBLDepth;
-      OSBLDepthIndex(ICell) = KFinal;
+      const Real RiBulk = RiScaling * DeltaB * ZCenter /
+                          Kokkos::fmax(VelScaleSq, KPP::NumericalTolerance);
+      BulkRichardsonNumber(ICell, KInt) = RiBulk;
+
+      if (KCross < 0 && RiBulk > RiCritical) {
+         KCross = K;
+         // Levels below the crossing only feed the Ri diagnostics
+         if (!FullRiProfile)
+            break;
+      }
    }
 
- private:
-   /// Compile-time bound for the per-thread edge scratch arrays
-   static constexpr I4 MaxEdgesBound = HorzMesh::MaxEdgesBound;
+   if (KCross >= KMin) {
+      if (KCross > KMin) {
+         // Ri values are defined at cell centers, so interpolate on
+         // center depths to keep the abscissa consistent.
+         // Define quantities to conduct the interpolation of Ri
+         // between the two model levels to determine the final
+         // boundary layer depth.
+         const I4 KAbove    = Kokkos::max(KMin, KCross - 1);
+         const I4 KBelow    = Kokkos::min(KCross, NVertLayers - 1);
+         const I4 KAboveRi  = Kokkos::min(KAbove + 1, NVertLayers);
+         const I4 KBelowRi  = Kokkos::min(KBelow + 1, NVertLayers);
+         const Real ZAbove  = Ssh - ZMid(ICell, KAbove);
+         const Real ZBelow  = Ssh - ZMid(ICell, KBelow);
+         const Real RiAbove = BulkRichardsonNumber(ICell, KAboveRi);
+         const Real RiBelow = BulkRichardsonNumber(ICell, KBelowRi);
 
-   I4 NVertLayers;
-   Array1DI4 MinLayerCell;
-   Array1DI4 MaxLayerCell;
-   Array1DI4 MinLayerEdgeBot;
-   Array1DI4 MaxLayerEdgeTop;
-   Array2DReal ZInterface;
-   Array2DReal ZMid;
-   Array1DReal SshCell;
-   Array1DI4 NEdgesOnCell;
-   Array2DI4 EdgesOnCell;
-   Array2DI4 CellsOnCell;
-   Array1DReal AreaCell;
-   Array1DReal DcEdge;
-   Array1DReal DvEdge;
+         const Real H = ZBelow - ZAbove;
+         if (H > KPP::NumericalTolerance) {
+            // CVMix-style QUAD interpolation for OSBL crossing:
+            // - first interior crossing uses zero slope at top point
+            // - deeper crossings use upstream slope.
+            // Quadratic interpolation is recommended by Danabosglu et al
+            // (2006)
+            // https://journals.ametsoc.org/view/journals/clim/19/11/jcli3739.1.pdf
+            Real SlopeAbove = 0.0_Real;
+            if (KCross > KMin + 1) {
+               const I4 KPrev    = Kokkos::max(KMin, KAbove - 1);
+               const I4 KPrevRi  = Kokkos::min(KPrev + 1, NVertLayers);
+               const Real ZPrev  = Ssh - ZMid(ICell, KPrev);
+               const Real RiPrev = BulkRichardsonNumber(ICell, KPrevRi);
+               const Real DZPrev = ZAbove - ZPrev;
+               if (Kokkos::abs(DZPrev) > KPP::NumericalTolerance) {
+                  SlopeAbove = (RiAbove - RiPrev) / DZPrev;
+               }
+            }
+
+            // In local coordinate T = z - ZAbove:
+            // Ri(T) = QuadA T^2 + SlopeAbove T + RiAbove, with QuadA
+            // fixed by requiring Ri(H) = RiBelow. The OSBL base is the
+            // root of Ri(T) = RiCritical.
+            const Real QuadA = (RiBelow - RiAbove - SlopeAbove * H) / (H * H);
+            const Real QuadC = RiAbove - RiCritical;
+
+            Real TCross = H;
+            if (Kokkos::abs(QuadA) < 1.0e-14_Real) {
+               // Degenerate quadratic -> linear fallback.
+               const Real DRi = RiBelow - RiAbove;
+               if (Kokkos::abs(DRi) > KPP::NumericalTolerance) {
+                  const Real Frac = Kokkos::fmax(
+                      0.0_Real,
+                      Kokkos::fmin(1.0_Real, (RiCritical - RiAbove) / DRi));
+                  TCross = Frac * H;
+               }
+            } else {
+               const Real Disc =
+                   SlopeAbove * SlopeAbove - 4.0_Real * QuadA * QuadC;
+               if (Disc >= 0.0_Real) {
+                  const Real SqrtDisc = Kokkos::sqrt(Disc);
+                  const Real T1 = (-SlopeAbove + SqrtDisc) / (2.0_Real * QuadA);
+                  const Real T2 = (-SlopeAbove - SqrtDisc) / (2.0_Real * QuadA);
+
+                  const bool T1Ok = (T1 >= 0.0_Real && T1 <= H);
+                  const bool T2Ok = (T2 >= 0.0_Real && T2 <= H);
+                  if (T1Ok && T2Ok) {
+                     // Both roots lie in the interval; prefer the one
+                     // nearest mid-interval, as CVMix does.
+                     const Real Mid = 0.5_Real * H;
+                     TCross = (Kokkos::abs(T1 - Mid) <= Kokkos::abs(T2 - Mid))
+                                  ? T1
+                                  : T2;
+                  } else if (T1Ok) {
+                     TCross = T1;
+                  } else if (T2Ok) {
+                     TCross = T2;
+                  } else {
+                     TCross = H;
+                  }
+               }
+            }
+
+            TCross   = Kokkos::fmax(0.0_Real, Kokkos::fmin(H, TCross));
+            OBLDepth = ZAbove + TCross;
+         } else {
+            OBLDepth = ZBelow;
+         }
+      } else {
+         // Match center-based OSBL convention when crossing occurs in
+         // the top interval.
+         OBLDepth = Ssh - ZMid(ICell, KMin);
+      }
+   } else {
+      OBLDepth = Ssh - ZInterface(ICell, KIntDeep);
+   }
+
+   const Real TopLayerThickness =
+       Kokkos::abs(ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
+   const Real MinOBLDepth = 0.5_Real * TopLayerThickness;
+   const Real MaxOBLDepth = Ssh - ZMid(ICell, KMax);
+   // Impose chosen limits on the depth of the OSBL
+   OBLDepth = KPP::kppClampOSBLDepth(OBLDepth, MinOBLDepth, MaxOBLDepth,
+                                     IceFrac > IceFracThresholdForMinimumOSBL,
+                                     MinimumOSBLUnderSeaIce);
+
+   const I4 KFinal =
+       KPP::kppOSBLIndex(ZInterface, ICell, KMin, KMax, Ssh, OBLDepth);
+
+   OSBLDepth(ICell)      = OBLDepth;
+   OSBLDepthIndex(ICell) = KFinal;
+}
+
+private :
+    /// Compile-time bound for the per-thread edge scratch arrays
+    static constexpr I4 MaxEdgesBound = HorzMesh::MaxEdgesBound;
+
+I4 NVertLayers;
+Array1DI4 MinLayerCell;
+Array1DI4 MaxLayerCell;
+Array1DI4 MinLayerEdgeBot;
+Array1DI4 MaxLayerEdgeTop;
+Array2DReal ZInterface;
+Array2DReal ZMid;
+Array1DReal SshCell;
+Array1DI4 NEdgesOnCell;
+Array2DI4 EdgesOnCell;
+Array2DI4 CellsOnCell;
+Array1DReal AreaCell;
+Array1DReal DcEdge;
+Array1DReal DvEdge;
 };
 
 /// @brief Area-weighted smoothing of the OSBL depth over each cell
@@ -787,8 +857,8 @@ class KPPMixingCoeffs {
          Real SigmaKtup = -ZKtup / H;
          SigmaKtup = Kokkos::fmax(-1.0_Real, Kokkos::fmin(0.0_Real, SigmaKtup));
          const Real SigmaCoord = -SigmaKtup;
-         const Real SigmaLoc   = Kokkos::fmin(SurfaceLayerExtent,
-                                              Kokkos::fmax(0.0_Real, SigmaCoord));
+         const Real SigmaLoc = Kokkos::fmin(SurfaceLayerExtent,
+                                            Kokkos::fmax(0.0_Real, SigmaCoord));
 
          Real WMKtup = 0.0_Real;
          Real WSKtup = 0.0_Real;
@@ -868,6 +938,13 @@ class KPPMix {
    static void init();
    static void destroyInstance();
 
+   /// @brief Prepare the current KPP state, surface forcing, and coefficients
+   /// from canonical ocean state, EOS, and forcing fields.
+   void update(const Array3DReal &TracerArray, I4 TempTracerIndex,
+               I4 SaltTracerIndex, const Array2DReal &NormalVelocity,
+               Eos *EqState, const Forcing *ForcingState,
+               bool UseTracerForcing);
+
    /// @brief Main computation routine
    /// Calls Stage 1 and Stage 2 computation in sequence
    ///
@@ -877,8 +954,8 @@ class KPPMix {
    /// Output arrays are computed in-place.
    void computeKPPMix(
        const Array2DReal
-           &PotentialDensity, ///< Density (kg/m³) [NCells×NLevels]
-       const Array2DReal &NormalVelocity,     ///< Normal vel on edges (m/s)
+           &PotentialDensity,             ///< Density (kg/m³) [NCells×NLevels]
+       const Array2DReal &NormalVelocity, ///< Normal vel on edges (m/s)
        const Array2DReal &TangentialVelocity, ///< Tangential vel on edges (m/s)
        const Array1DReal &SurfaceFrictionVelocity, ///< u* (m/s)
        const Array1DReal &SurfaceBuoyancyFlux,     ///< B_0 (m²/s³)
@@ -1009,6 +1086,13 @@ class KPPMix {
    const HorzMesh *Mesh;
    const VertCoord *VCoord;
 
+   /// @brief KPP-only workspaces reused across time steps
+   Array2DReal RefPressure;
+   Array2DReal TangentialVelocity;
+   Array1DReal IceFraction;
+   Array1DReal LangmuirFactor;
+   Array1DReal OSBLDepthSmooth;
+
  public:
    /// @brief Stage 1: Compute OSBL depth using edge-based velocity shear
    void computeOSBLDepth(const Array2DReal &PotentialDensity,
@@ -1022,7 +1106,6 @@ class KPPMix {
 
    /// @brief Stage 2: Compute KPP mixing contribution or matched coefficients
    void computeMixingCoefficients(
-       const Array2DReal &PotentialDensity,
        const Array1DReal &SurfaceFrictionVelocity,
        const Array1DReal &SurfaceBuoyancyFlux,
        const Array2DReal &InteriorVertDiff = Array2DReal(),
@@ -1031,8 +1114,6 @@ class KPPMix {
  private:
    /// @brief Print targeted diagnostics for KPP troubleshooting
    void logDiagnostics(const Array2DReal &PotentialDensity,
-                       const Array2DReal &NormalVelocity,
-                       const Array2DReal &TangentialVelocity,
                        const Array1DReal &SurfaceFrictionVelocity,
                        const Array1DReal &SurfaceBuoyancyFlux,
                        const Array1DReal &WindSpeed10m);
