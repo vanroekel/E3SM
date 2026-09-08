@@ -707,6 +707,9 @@ class KPPMixingCoeffs {
    bool UseEnhancedDiffusion = true;  ///< Apply enhanced mixing at OSBL base
    bool UseInteriorMix       = false; ///< Interior coefficients were supplied
    bool UseMatchedShapes     = false; ///< Match interior value at the OSBL base
+   /// Non-local flux normalization; depends only on SurfaceLayerExtent, so the
+   /// caller sets it once per call rather than every cell recomputing it.
+   Real NonLocalCs = 0.0_Real;
 
    /// Constructor for KPPMixingCoeffs
    KPPMixingCoeffs(const HorzMesh *Mesh, const VertCoord *VCoord);
@@ -735,9 +738,8 @@ class KPPMixingCoeffs {
       // heights must be offset by the sea surface height.
       const Real Ssh = SshCell(ICell);
 
-      const Real UStar      = SurfaceFrictionVelocity(ICell);
-      const Real BuoyFlux   = SurfaceBuoyancyFlux(ICell);
-      const Real NonLocalCs = KPP::kppNonLocalCs(VonKar, SurfaceLayerExtent);
+      const Real UStar    = SurfaceFrictionVelocity(ICell);
+      const Real BuoyFlux = SurfaceBuoyancyFlux(ICell);
 
       for (I4 K = KMin; K <= KMax + 1; ++K) {
          const I4 KIface   = Kokkos::min(Kokkos::max(K, 0), NVertLayers);

@@ -665,6 +665,7 @@ void KPPMix::computeMixingCoefficients(
    MixingCoeffsCalc.UseEnhancedDiffusion = UseEnhancedDiffusion;
    MixingCoeffsCalc.UseInteriorMix       = LocUseInteriorMix;
    MixingCoeffsCalc.UseMatchedShapes     = LocUseMatchedShapes;
+   MixingCoeffsCalc.NonLocalCs = KPP::kppNonLocalCs(VonKar, SurfaceLayerExtent);
 
    parallelFor(
        "KPP-MixingCoeffs", {Mesh->NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
