@@ -15,6 +15,7 @@
 #include "AuxiliaryState.h"
 #include "Config.h"
 #include "DataTypes.h"
+#include "Eos.h"
 #include "GlobalConstants.h"
 #include "HorzMesh.h"
 #include "HorzOperators.h"
@@ -28,7 +29,6 @@
 
 namespace OMEGA {
 
-class Eos;
 class Forcing;
 
 /// @brief enum sets which matching criterion is used at the OSBL base.
@@ -132,18 +132,12 @@ class KPPSurfaceForcingOnCell {
       const Real TempFlux = HeatFlux * HFluxFac;
       const Real SaltFlux =
           SeaIceSaltFlux(ICell) * SFluxFac - FreshWaterFlux * SaTop / RhoSw;
-      const Real SpVol  = Kokkos::max(1.0e-12_Real, SpecVol(ICell, KTop));
-      const Real RhoTop = 1.0_Real / SpVol;
-
-      Real Alpha = 0.0_Real;
-      Real Beta  = 0.0_Real;
-      if (EosChoice == EosType::Teos10Eos) {
-         Alpha = Teos10Coeff.calcAlpha(SaTop, CtTop, PTopDb, SpVol);
-         Beta  = Teos10Coeff.calcBeta(SaTop, CtTop, PTopDb, SpVol);
-      } else if (EosChoice == EosType::LinearEos) {
-         Alpha = -LinearDRhodT / RhoTop;
-         Beta  = LinearDRhodS / RhoTop;
-      }
+      const Real SpVol = Kokkos::max(1.0e-12_Real, SpecVol(ICell, KTop));
+      // LinearDRhodT/LinearDRhodS are ignored unless EosChoice is LinearEos.
+      const Real Alpha = Eos::computeAlpha(EosChoice, SaTop, CtTop, PTopDb,
+                                           SpVol, LinearDRhodT);
+      const Real Beta = Eos::computeBeta(EosChoice, SaTop, CtTop, PTopDb, SpVol,
+                                         LinearDRhodS);
       BuoyancyFlux(ICell) = Gravity * (Alpha * TempFlux - Beta * SaltFlux);
    }
 
@@ -153,7 +147,6 @@ class KPPSurfaceForcingOnCell {
    I4 NVertLayers;
    Array1DI4 MinLayerCell;
    EosType EosChoice;
-   Teos10BruntVaisalaFreqSq Teos10Coeff;
 };
 
 /// @brief Stage 1 kernel: Compute OSBL depth from the bulk Richardson number

@@ -58,7 +58,7 @@ KPPSurfaceForcingOnCell::KPPSurfaceForcingOnCell(const HorzMesh *Mesh,
     : LinearDRhodT(EosInst->getLinearDRhodT()),
       LinearDRhodS(EosInst->getLinearDRhodS()),
       NVertLayers(VCoord->NVertLayers), MinLayerCell(VCoord->MinLayerCell),
-      EosChoice(EosInst->EosChoice), Teos10Coeff(VCoord) {}
+      EosChoice(EosInst->EosChoice) {}
 
 /// Constructor for KPPMix
 KPPMix::KPPMix(const std::string &InName, const HorzMesh *InMesh,
