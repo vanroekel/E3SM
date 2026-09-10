@@ -626,9 +626,7 @@ void KPPMix::computeOSBLDepth(const Array2DReal &PotentialDensity,
        KOKKOS_LAMBDA(I4 ICell, I4 K) {
           const I4 KMin = LocMinLayerCell(ICell);
           const I4 KMax = LocMaxLayerCell(ICell);
-          const bool IsValidCell =
-              KMin >= 0 && KMin < NVertLayers && KMax >= KMin;
-          if (IsValidCell && K >= KMin && K <= KMax + 1) {
+          if (K >= KMin && K <= KMax + 1) {
              LocBulkRichardson(ICell, K)      = 0.0_Real;
              LocBulkRichardsonShear(ICell, K) = 0.0_Real;
              LocUnresolvedShear(ICell, K)     = 0.0_Real;
@@ -745,9 +743,8 @@ KPPOSBLDepthSearch::KPPOSBLDepthSearch(const HorzMesh *Mesh,
       AreaCell(Mesh->AreaCell), DcEdge(Mesh->DcEdge), DvEdge(Mesh->DvEdge) {}
 
 /// Constructor for KPPOSBLSmooth
-KPPOSBLSmooth::KPPOSBLSmooth(const HorzMesh *Mesh, const VertCoord *VCoord)
-    : NVertLayers(VCoord->NVertLayers), NCellsAll(Mesh->NCellsAll),
-      MinLayerCell(VCoord->MinLayerCell), NEdgesOnCell(Mesh->NEdgesOnCell),
+KPPOSBLSmooth::KPPOSBLSmooth(const HorzMesh *Mesh, const VertCoord *)
+    : NCellsAll(Mesh->NCellsAll), NEdgesOnCell(Mesh->NEdgesOnCell),
       CellsOnCell(Mesh->CellsOnCell), AreaCell(Mesh->AreaCell) {}
 
 /// Constructor for KPPOSBLCommit

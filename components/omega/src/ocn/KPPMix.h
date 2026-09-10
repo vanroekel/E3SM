@@ -197,8 +197,8 @@ class KPPOSBLDepthSearch {
       if (KMin < 0 || KMin >= NVertLayers || KMax < KMin) {
          return;
       }
-      const I4 KIntTop  = Kokkos::min(KMin + 1, NVertLayers);
-      const I4 KIntDeep = Kokkos::min(KMax + 1, NVertLayers);
+      const I4 KIntTop  = KMin + 1;
+      const I4 KIntDeep = KMax + 1;
 
       const Real IceFrac = IceFraction(ICell);
 
@@ -226,7 +226,8 @@ class KPPOSBLDepthSearch {
           (VonKar * VonKar);
 
       // ----------------------------------------------------------------
-      // Edge weights are the MPAS kite areas (0.25*dc*dv) normalized by
+      // Edge weights are the MPAS triangle areas formed between the
+      // cell center, and vertices, with area 0.25*dc*dv, normalized by
       // the cell area.
       // ----------------------------------------------------------------
       const I4 NEdges                 = NEdgesOnCell(ICell);
@@ -295,10 +296,9 @@ class KPPOSBLDepthSearch {
       }
 
       for (I4 K = KMin; K <= KMax; ++K) {
-         const I4 KCell     = Kokkos::min(K, NVertLayers - 1);
-         const I4 KInt      = Kokkos::min(K + 1, NVertLayers);
+         const I4 KInt      = K + 1;
          const Real ZDepth  = Ssh - ZInterface(ICell, KInt);
-         const Real ZCenter = Ssh - ZMid(ICell, KCell);
+         const Real ZCenter = Ssh - ZMid(ICell, K);
          if (ZDepth < KPP::NumericalTolerance)
             continue;
 
@@ -350,7 +350,7 @@ class KPPOSBLDepthSearch {
          const Real RhoAvgSurf      = SumRho * InvSumThickness;
 
          // Buoyancy jump B_r - B(d), positive for stable stratification
-         const Real RhoK     = PotentialDensity(ICell, KCell);
+         const Real RhoK     = PotentialDensity(ICell, K);
          const Real DeltaRho = RhoK - RhoAvgSurf;
          const Real DeltaB   = Gravity * DeltaRho / RhoSw;
          // The following field is for diagnostic purposes only
@@ -429,10 +429,10 @@ class KPPOSBLDepthSearch {
             // Define quantities to conduct the interpolation of Ri
             // between the two model levels to determine the final
             // boundary layer depth.
-            const I4 KAbove    = Kokkos::max(KMin, KCross - 1);
-            const I4 KBelow    = Kokkos::min(KCross, NVertLayers - 1);
-            const I4 KAboveRi  = Kokkos::min(KAbove + 1, NVertLayers);
-            const I4 KBelowRi  = Kokkos::min(KBelow + 1, NVertLayers);
+            const I4 KAbove    = KCross - 1;
+            const I4 KBelow    = KCross;
+            const I4 KAboveRi  = KAbove + 1;
+            const I4 KBelowRi  = KBelow + 1;
             const Real ZAbove  = Ssh - ZMid(ICell, KAbove);
             const Real ZBelow  = Ssh - ZMid(ICell, KBelow);
             const Real RiAbove = BulkRichardsonNumber(ICell, KAboveRi);
@@ -448,8 +448,8 @@ class KPPOSBLDepthSearch {
                // https://journals.ametsoc.org/view/journals/clim/19/11/jcli3739.1.pdf
                Real SlopeAbove = 0.0_Real;
                if (KCross > KMin + 1) {
-                  const I4 KPrev    = Kokkos::max(KMin, KAbove - 1);
-                  const I4 KPrevRi  = Kokkos::min(KPrev + 1, NVertLayers);
+                  const I4 KPrev    = KAbove - 1;
+                  const I4 KPrevRi  = KPrev + 1;
                   const Real ZPrev  = Ssh - ZMid(ICell, KPrev);
                   const Real RiPrev = BulkRichardsonNumber(ICell, KPrevRi);
                   const Real DZPrev = ZAbove - ZPrev;
@@ -567,13 +567,6 @@ class KPPOSBLSmooth {
 
    KOKKOS_FUNCTION void operator()(const Array1DReal &OSBLDepthSmooth, I4 ICell,
                                    const Array1DReal &OSBLDepth) const {
-
-      const I4 KMin = MinLayerCell(ICell);
-      if (KMin < 0 || KMin >= NVertLayers) {
-         OSBLDepthSmooth(ICell) = OSBLDepth(ICell);
-         return;
-      }
-
       const I4 NEdges = NEdgesOnCell(ICell);
       Real AreaSum    = 0.0_Real;
       Real BLDSum     = 0.0_Real;
@@ -582,11 +575,6 @@ class KPPOSBLSmooth {
       for (I4 J = 0; J < NEdges; ++J) {
          const I4 INeighbor = CellsOnCell(ICell, J);
          if (INeighbor == NCellsAll) {
-            continue;
-         }
-
-         const I4 KMinNbr = MinLayerCell(INeighbor);
-         if (KMinNbr < 0 || KMinNbr >= NVertLayers) {
             continue;
          }
 
@@ -610,9 +598,7 @@ class KPPOSBLSmooth {
    }
 
  private:
-   I4 NVertLayers;
    I4 NCellsAll;
-   Array1DI4 MinLayerCell;
    Array1DI4 NEdgesOnCell;
    Array2DI4 CellsOnCell;
    Array1DReal AreaCell;
@@ -628,15 +614,11 @@ class KPPOSBLCommit {
                                    const Array1DI4 &OSBLDepthIndex, I4 ICell,
                                    const Array1DReal &OSBLDepthSmooth) const {
 
-      const I4 KMin = MinLayerCell(ICell);
-      const I4 KMax = MaxLayerCell(ICell);
-      if (KMin < 0 || KMax < KMin || KMin >= NVertLayers) {
-         return;
-      }
-
+      const I4 KMin  = MinLayerCell(ICell);
+      const I4 KMax  = MaxLayerCell(ICell);
       const Real Ssh = SshCell(ICell);
 
-      const I4 KIntTop = Kokkos::min(KMin + 1, NVertLayers);
+      const I4 KIntTop = KMin + 1;
       const Real TopLayerThickness =
           Kokkos::abs(ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
       const Real MinOBLDepth = 0.5_Real * TopLayerThickness;
@@ -729,8 +711,7 @@ class KPPMixingCoeffs {
       const Real BuoyFlux = SurfaceBuoyancyFlux(ICell);
 
       for (I4 K = KMin; K <= KMax + 1; ++K) {
-         const I4 KIface   = Kokkos::min(Kokkos::max(K, 0), NVertLayers);
-         const Real ZDepth = Ssh - ZInterface(ICell, KIface);
+         const Real ZDepth = Ssh - ZInterface(ICell, K);
 
          // Check if within OSBL using depth below the free surface.
          if (ZDepth <= H && H > 0.0_Real) {
