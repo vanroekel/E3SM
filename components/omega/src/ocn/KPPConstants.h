@@ -385,9 +385,10 @@ void kppTurbScales(Real UStar, Real BuoyFlux, Real HOBL, Real SigmaLoc,
       const Real Zeta =
           SigmaLoc * HOBL * BuoyFlux * Kappa / Kokkos::max(U3, Real(Tiny));
 
-      // These return phi^{-1}; do not invert again.
-      WMTurb = Kappa * UStar * Kokkos::max(kppPhiInvMomentum(Zeta), 0.0_Real);
-      WSTurb = Kappa * UStar * Kokkos::max(kppPhiInvScalar(Zeta), 0.0_Real);
+      // These return phi^{-1}, which is positive over their whole domain;
+      // do not invert or floor again.
+      WMTurb = Kappa * UStar * kppPhiInvMomentum(Zeta);
+      WSTurb = Kappa * UStar * kppPhiInvScalar(Zeta);
    } else if (BuoyFlux < 0.0_Real) {
       // Free-convection edge case (u*=0, unstable forcing).
       const Real WM3 = -CMoM * SigmaLoc * HOBL * Kappa * BuoyFlux;
@@ -415,7 +416,7 @@ Real kppMatchShape(Real InteriorCoeff, Real HOBL, Real W) {
       return 0.0_Real;
    }
 
-   return InteriorCoeff / Kokkos::max(HOBL * W, Real(Tiny));
+   return InteriorCoeff / (HOBL * W);
 }
 
 /// @brief Non-local flux normalization constant

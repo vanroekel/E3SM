@@ -18,8 +18,12 @@
 #include "GlobalConstants.h"
 #include "KPPConstants.h"
 #include "Logging.h"
+#include "OceanState.h"
 #include "OmegaKokkos.h"
+#include "Pacer.h"
+#include "Tracers.h"
 #include "VertCoord.h"
+#include "VertMix.h"
 #include <limits>
 
 namespace OMEGA {
@@ -172,6 +176,9 @@ void KPPMix::init() {
 
    Err += KPPConfig.get("CriticalBulkRichardsonNumber",
                         DefKPPMix->CriticalRichardson);
+   // Clamp once here so kernels can trust CriticalRichardson is positive
+   DefKPPMix->CriticalRichardson =
+       Kokkos::fmax(KPP::NumericalTolerance, DefKPPMix->CriticalRichardson);
    Err += KPPConfig.get("SurfaceLayerExtent", DefKPPMix->SurfaceLayerExtent);
    // Clamp once here so kernels can trust SurfaceLayerExtent is in [0,1]
    DefKPPMix->SurfaceLayerExtent = Kokkos::fmax(
@@ -336,6 +343,55 @@ void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
                  SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
                  EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m,
                  InteriorVertDiff, InteriorVertVisc);
+}
+
+/// Prepare KPP fields for the current time step from canonical ocean state.
+void KPPMix::computeKPPFields(const OceanState *State,
+                              const Array3DReal &TracerArray,
+                              int ThickTimeLevel, int VelTimeLevel,
+                              bool UseTracerForcing) {
+
+   Eos *EqState = Eos::getInstance();
+   if (!EqState || !Enabled)
+      return;
+
+   Pacer::start("KPP:computeKPPFields", 1);
+
+   I4 TempIdx = -1;
+   I4 SaltIdx = -1;
+   if (Tracers::getIndex(TempIdx, "Temperature") != 0 ||
+       Tracers::getIndex(SaltIdx, "Salinity") != 0) {
+      LOG_WARN("KPPMix::computeKPPFields: Temperature/Salinity "
+               "tracers not found, skipping KPP update");
+      Pacer::stop("KPP:computeKPPFields", 1);
+      return;
+   }
+
+   const auto *ForcingState = Forcing::getDefault();
+   if (!ForcingState) {
+      LOG_WARN("KPPMix::computeKPPFields: Forcing has not "
+               "been initialized, skipping KPP update");
+      Pacer::stop("KPP:computeKPPFields", 1);
+      return;
+   }
+
+   // MatchBoth needs a non-KPP interior estimate to join its profile to;
+   // this is the previous step's snapshot from VertMix (one-step lag).
+   Array2DReal InteriorVertDiff;
+   Array2DReal InteriorVertVisc;
+   if (MatchTechnique == KPPMatchType::MatchBoth) {
+      VertMix *VMixInstance = VertMix::getInstance();
+      if (VMixInstance) {
+         InteriorVertDiff = VMixInstance->InteriorVertDiff;
+         InteriorVertVisc = VMixInstance->InteriorVertVisc;
+      }
+   }
+
+   Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
+   update(TracerArray, TempIdx, SaltIdx, NormalVelEdge, EqState, ForcingState,
+          UseTracerForcing, InteriorVertDiff, InteriorVertVisc);
+
+   Pacer::stop("KPP:computeKPPFields", 1);
 }
 
 /// Main computation routine

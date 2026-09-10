@@ -8,6 +8,7 @@
 #include "Config.h"
 #include "Error.h"
 #include "ForwardBackwardStepper.h"
+#include "KPPMix.h"
 #include "Logging.h"
 #include "Pacer.h"
 #include "RungeKutta2Stepper.h"
@@ -846,8 +847,15 @@ void TimeStepper::finalizeTracersUpdate(const Array3DReal &NextTracers,
 void TimeStepper::updateKPPFields(OceanState *State, int TracerTimeLevel,
                                   int ThickTimeLevel, int VelTimeLevel) const {
 
+   KPPMix *KPPInstance = KPPMix::getInstance();
+   if (!KPPInstance || !KPPInstance->Enabled)
+      return;
+
    Array3DReal CurTracerArray = Tracers::getAll(TracerTimeLevel);
-   Tend->computeKPPFields(State, CurTracerArray, ThickTimeLevel, VelTimeLevel);
+   const bool UseTracerForcing =
+       Tend->SfcTracerForcing.Enabled || Tend->TracerNonLocalFluxEnabled;
+   KPPInstance->computeKPPFields(State, CurTracerArray, ThickTimeLevel,
+                                 VelTimeLevel, UseTracerForcing);
 }
 
 //------------------------------------------------------------------------------

@@ -108,7 +108,7 @@ KPP does not define its own maximum.
 
 KPP coupling into tendencies occurs through:
 
-- `Tendencies::computeKPPFields(...)`
+- `KPPMix::computeKPPFields(...)`
 
 `computeKPPFields(...)` assembles required inputs:
 
@@ -138,7 +138,7 @@ KPP is evaluated exactly once per time step by every Omega time stepper
 `src/timeStepping/TimeStepper.cpp`:
 
 1. **Start-of-step compute**: `TimeStepper::updateKPPFields(...)` fetches the
-   current tracer array and calls `Tendencies::computeKPPFields(...)`. Each
+   current tracer array and calls `KPPMix::computeKPPFields(...)`. Each
    stepper calls it once at the top of `doStep()`, after `prescribeState` /
    `prescribeVelocity` and before the first tendency evaluation:
 
@@ -233,7 +233,7 @@ behavior in experiments.
    early-returns when disabled.
 3. Verify per-stepper sequencing: exactly one KPP evaluation per step for all
    three steppers, occurring before the first tendency evaluation and reused
-   by the end-of-step implicit vertical mixing. The `Tend:computeKPPFields`
+   by the end-of-step implicit vertical mixing. The `KPP:computeKPPFields`
    Pacer region can be used to confirm the call count.
 
 ### Diagnostics-based checks

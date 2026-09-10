@@ -1304,58 +1304,6 @@ void Tendencies::computeAllTendencies(
                                VelTimeLevel, Time);
 } // end all tendency compute
 
-//------------------------------------------------------------------------------
-// Prepare KPP state for the current time step. Final VertDiff/VertVisc
-// coefficient assembly is owned by VertMix::computeVertMix.
-void Tendencies::computeKPPFields(const OceanState *State,
-                                  const Array3DReal &TracerArray,
-                                  int ThickTimeLevel, int VelTimeLevel) {
-   KPPMix *KPPInstance = KPPMix::getInstance();
-
-   if (!EqState || !KPPInstance || !KPPInstance->Enabled)
-      return;
-
-   Pacer::start("Tend:computeKPPFields", 1);
-
-   I4 TempIdx = -1;
-   I4 SaltIdx = -1;
-   if (Tracers::getIndex(TempIdx, "Temperature") != 0 ||
-       Tracers::getIndex(SaltIdx, "Salinity") != 0) {
-      LOG_WARN("Tendencies::computeKPPFields: Temperature/Salinity "
-               "tracers not found, skipping KPP update");
-      Pacer::stop("Tend:computeKPPFields", 1);
-      return;
-   }
-
-   const auto *ForcingState = Forcing::getDefault();
-   if (!ForcingState) {
-      LOG_WARN("Tendencies::computeKPPFields: Forcing has not "
-               "been initialized, skipping KPP update");
-      Pacer::stop("Tend:computeKPPFields", 1);
-      return;
-   }
-
-   // MatchBoth needs a non-KPP interior estimate to join its profile to;
-   // this is the previous step's snapshot from VertMix (one-step lag).
-   Array2DReal InteriorVertDiff;
-   Array2DReal InteriorVertVisc;
-   if (KPPInstance->MatchTechnique == KPPMatchType::MatchBoth) {
-      VertMix *VMixInstance = VertMix::getInstance();
-      if (VMixInstance) {
-         InteriorVertDiff = VMixInstance->InteriorVertDiff;
-         InteriorVertVisc = VMixInstance->InteriorVertVisc;
-      }
-   }
-
-   Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
-   KPPInstance->update(TracerArray, TempIdx, SaltIdx, NormalVelEdge, EqState,
-                       ForcingState,
-                       SfcTracerForcing.Enabled || TracerNonLocalFluxEnabled,
-                       InteriorVertDiff, InteriorVertVisc);
-
-   Pacer::stop("Tend:computeKPPFields", 1);
-}
-
 } // end namespace OMEGA
 
 //===----------------------------------------------------------------------===//

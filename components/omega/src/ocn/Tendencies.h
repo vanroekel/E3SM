@@ -164,12 +164,6 @@ class Tendencies {
        const Array1DReal &FEdge          ///< [in] Coriolis parameter on edges
    ) const;
 
-   // Computes KPP boundary layer depth, coefficients and non-local flux.
-   // Called once per time step by the active time stepper.
-   void computeKPPFields(const OceanState *State,
-                         const Array3DReal &TracerArray, int ThickTimeLevel,
-                         int VelTimeLevel);
-
    // Create a non-default group of tendencies
    static Tendencies *
    create(const std::string &Name, ///< [in] Name for tendencies
