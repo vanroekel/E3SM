@@ -358,7 +358,8 @@ class KPPOSBLDepthSearch {
          BuoyancyJump(ICell, KInt) = DeltaB;
 
          // Resolved shear |V_r - V(d)|^2, averaged over the cell edges
-         Real DeltaVSq = 0.0_Real;
+         Real DeltaVSq      = 0.0_Real;
+         Real EdgeWeightSum = 0.0_Real;
          for (I4 J = 0; J < NEdges; ++J) {
             if (!EdgeValid[J]) {
                continue;
@@ -374,7 +375,12 @@ class KPPOSBLDepthSearch {
             const Real VtK       = TangentialVelocity(IEdge, KE);
             const Real DUn       = UnK - UnAvg;
             const Real DVt       = VtK - VtAvg;
-            DeltaVSq += EdgeWeights[J] * (DUn * DUn + DVt * DVt);
+            const Real EdgeShear = DUn * DUn + DVt * DVt;
+            DeltaVSq += EdgeWeights[J] * EdgeShear;
+            EdgeWeightSum += EdgeWeights[J];
+         }
+         if (EdgeWeightSum > 0.0_Real) {
+            DeltaVSq /= EdgeWeightSum;
          }
          BulkRichardsonShear(ICell, KInt) = DeltaVSq;
 

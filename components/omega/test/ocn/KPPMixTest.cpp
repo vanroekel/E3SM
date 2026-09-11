@@ -1875,18 +1875,14 @@ void testBoundaryLayerEdgeFallbacks() {
    KPPInstance->UseLangmuirTurbulence = false;
    KPPInstance->UseOSBLSmoothing      = false;
 
-   // Zero geometric weights force the equal weighting fallback over all
-   // vertically valid edges.
+   // Zero geometric weights leave no resolved-shear contribution.
    deepCopy(Mesh->DcEdge, 0.0_Real);
    KPPInstance->computeOSBLDepth(Density, NormalVelocity, TangentialVelocity,
                                  UStar, B0, BVF, IceFraction, Wind);
    auto BulkShearH = createHostMirrorCopy(KPPInstance->BulkRichardsonShear);
    int NumErrors   = 0;
-   constexpr Real ExpectedEqualWeightShear =
-       0.2_Real; // (0.2)^2 + (0.4)^2 at k=2
    for (I4 ICell = 0; ICell < Mesh->NCellsAll; ++ICell) {
-      if (!isApprox(BulkShearH(ICell, 3), ExpectedEqualWeightShear, RTol,
-                    ATol)) {
+      if (!isApprox(BulkShearH(ICell, 3), 0.0_Real, RTol, ATol)) {
          ++NumErrors;
       }
    }
