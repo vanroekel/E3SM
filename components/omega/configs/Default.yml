@@ -121,8 +121,6 @@ Omega:
       IceFractionThresholdForLangmuir: 0.05
       IceFractionThresholdForMinimumOSBL: 0.15
       MinimumOSBLUnderSeaIce: 5.0
-      BackgroundViscosity: 1.0e-4
-      BackgroundDiffusivity: 1.0e-5
       DebugDiagnostics: false
   IOStreams:
     HorzMeshIn:

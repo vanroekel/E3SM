@@ -1027,9 +1027,6 @@ class KPPMix {
    /// Min OSBL depth under sea ice (m)
    Real MinimumOSBLUnderSeaIce = KPP::MinOSBLUnderIce;
 
-   Real BackgroundVisc = 1.0e-4; ///< Background viscosity below OSBL (m²/s)
-   Real BackgroundDiff = 1.0e-5; ///< Background diffusivity below OSBL (m²/s)
-
    // KPP matching/profile controls (CVMix-style semantics)
    KPPMatchType MatchTechnique = KPPMatchType::SimpleShapes;
    std::string InterpType2Str  = "LMD94"; ///< Linear, Quadratic, Cubic, LMD94

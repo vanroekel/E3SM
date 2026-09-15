@@ -64,8 +64,6 @@ VertMix:
     IceFractionThresholdForLangmuir: 0.05
     IceFractionThresholdForMinimumOSBL: 0.15
     MinimumOSBLUnderSeaIce: 5.0
-    BackgroundViscosity: 1.0e-4
-    BackgroundDiffusivity: 1.0e-5
     DebugDiagnostics: false
 ```
 
@@ -84,13 +82,7 @@ VertMix:
 | `IceFractionThresholdForLangmuir` | Above this ice fraction, disable Langmuir enhancement | `0.05` |
 | `IceFractionThresholdForMinimumOSBL` | Above this ice fraction, enforce minimum OSBL depth | `0.15` |
 | `MinimumOSBLUnderSeaIce` | Minimum OSBL depth under sea ice (m) | `5.0` |
-| `BackgroundViscosity` | Background viscosity below the OBL (m^2/s) | `1.0e-4` |
-| `BackgroundDiffusivity` | Background diffusivity below the OBL (m^2/s) | `1.0e-5` |
 | `DebugDiagnostics` | Enable additional KPP diagnostics/logging in debug workflows, and extend the Ri diagnostic profiles below the boundary layer base | `false` |
-
-Note that KPP reads its own `BackgroundViscosity` and `BackgroundDiffusivity`
-from the `VertMix: KPP` group; these are separate from the `VertMix: Background`
-values used by the other vertical mixing schemes.
 
 ## Output and Diagnostics
 

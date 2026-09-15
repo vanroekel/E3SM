@@ -147,8 +147,6 @@ KPP is configured from the `VertMix: KPP` YAML group. Key parameters include:
 - `IceFractionThresholdForLangmuir`
 - `IceFractionThresholdForMinimumOSBL`
 - `MinimumOSBLUnderSeaIce`
-- `BackgroundViscosity`
-- `BackgroundDiffusivity`
 - `DebugDiagnostics`
 
 Defaults and usage examples are documented in the user guide page:

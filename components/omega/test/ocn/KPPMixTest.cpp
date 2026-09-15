@@ -1143,9 +1143,7 @@ void testConfiguredValues() {
        !isApprox(KPPInstance->MinimumOSBLUnderSeaIce, ExpectedMinimumOSBL, RTol,
                  ATol) ||
        !isApprox(KPPInstance->SurfaceLayerExtent, 0.1_Real, RTol, ATol) ||
-       !KPPInstance->UseLangmuirTurbulence ||
-       !isApprox(KPPInstance->BackgroundVisc, 1.0e-4_Real, RTol, ATol) ||
-       !isApprox(KPPInstance->BackgroundDiff, 1.0e-5_Real, RTol, ATol)) {
+       !KPPInstance->UseLangmuirTurbulence) {
       ++NumErrors;
    }
    checkResult("configured values and optional defaults", NumErrors);

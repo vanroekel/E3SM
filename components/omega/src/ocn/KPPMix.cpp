@@ -230,10 +230,6 @@ void KPPMix::init() {
       LOG_WARN("KPP debug diagnostics enabled");
    }
 
-   // Background mixing
-   Err += KPPConfig.get("BackgroundViscosity", DefKPPMix->BackgroundVisc);
-   Err += KPPConfig.get("BackgroundDiffusivity", DefKPPMix->BackgroundDiff);
-
    LOG_WARN("KPPMix::init: KPP initialized enabled={} debugDiagnostics={} "
             "match={}",
             DefKPPMix->Enabled, DefKPPMix->DebugDiagnostics,

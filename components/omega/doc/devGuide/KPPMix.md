@@ -186,8 +186,6 @@ Important keys and class members:
 - `IceFractionThresholdForLangmuir` -> `IceFractionThresholdForLangmuir`
 - `IceFractionThresholdForMinimumOSBL` -> `IceFractionThresholdForMinimumOSBL`
 - `MinimumOSBLUnderSeaIce` -> `MinimumOSBLUnderSeaIce`
-- `BackgroundViscosity` -> `BackgroundVisc`
-- `BackgroundDiffusivity` -> `BackgroundDiff`
 - `DebugDiagnostics` -> `DebugDiagnostics`
 
 See [User KPP guide](../userGuide/KPPMix.md) for defaults and runnable examples.
