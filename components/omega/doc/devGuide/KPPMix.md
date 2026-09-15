@@ -233,6 +233,8 @@ behavior in experiments.
    three steppers, occurring before the first tendency evaluation and reused
    by the end-of-step implicit vertical mixing. The `KPP:computeKPPFields`
    Pacer region can be used to confirm the call count.
+4. Run the KPP single column tests, comparing to prior baselines, MPAS-Ocean,
+   and analytic solutions where available
 
 ### Diagnostics-based checks
 

@@ -222,40 +222,66 @@ users in:
 
 ### 5.1 Unit-level checks
 
-Use targeted tests and diagnostics to verify:
+The KPP unit-test driver is [KPPMixTest.cpp](../../test/ocn/KPPMixTest.cpp).
+It supports focused test groups as well as an `all` group that runs all 28
+unit tests:
 
-- OBL depth search monotonicity and threshold crossing behavior
-- Positive bounded coefficients and expected background behavior below OBL
-- Correct enable/disable behavior for non-local flux and enhanced diffusion
+- `profiles` (10 tests) checks the stability-function (used for the turbulent velocity scales) branches and continuity,
+   simple shape and matched-shape functions, Langmuir utilities, OSBL depth clamping
+   and indexing, turbulent velocity scales, and non-local flux scaling.
+- `osbl` (7 tests) checks bulk-Richardson threshold crossing and quadratic interpolation,
+   nonuniform and horizontally varying layer pseudo thickness, SSH-offset invariance to confirm positive definite geometric depths,
+   partial columns, and area-weighted OSBL
+   smoothing.
+- `vmix` (8 tests) checks wind-only and convection-only profiles, stable and
+   zero-forcing behavior, unmatched non-local profiles, `MatchBoth` interior
+   coefficient matching, enhanced diffusion at the OSBL base, valid vertical
+   domain edges, and invalid wet bounds.
+- `integration` (3 tests) checks configuration parameters, the enabled
+   end-to-end KPP call and diagnostics, and preservation of existing output
+   fields when KPP is disabled.
+
+The driver also provides three separate expected-failure cases:
+`config-gradient`, `config-unsupported`, and `config-parabolic`. These inject
+unsupported `MatchTechnique` values and verify that `KPPMix::init()` rejects
+them; they are not included in the `all` group. The test registration and
+group dispatch are shown at the end of [KPPMixTest.cpp](../../test/ocn/KPPMixTest.cpp).
+
+Together, these tests verify:
+
+- OBL depth search threshold crossing, interpolation, diagnostics, and edge
+   handling
+- KPP profile, matching, enhanced-diffusion, and non-local-flux invariants
+- Langmuir, sea-ice, smoothing, stable-forcing, and zero-forcing behavior
+- KPP's separation from shared `VertMix` background mixing and its handling of
+   supplied interior coefficients
+- Correct enabled, disabled, and invalid-configuration behavior
 
 Tests cover requirements: 2.1, 2.2, 2.3, 2.4.
 
 ### 5.2 Polaris testing
 
-The single column test case can be run across a wide range of surface forcing
-(heat, evaporative, and momentum fluxes) and the following diagnostics will be
-plotted over time
+The single column test case in Polaris has been extended to include a new set of regimes
+to exercise KPP across a set of stratifications and forcings.  These tests are primarily
+drawn from [Wagner et al., 2025](https://doi.org/10.1029/2024MS004522) and
+[Van Roekel et al., 2018](https://doi.org/10.1029/2018MS001336), hereafter W25 and VR18 respectively.
 
-- `OSBLDepth`
-- `BulkRichardsonNumber`
-- `VertDiff`, `VertVisc`
-- `VertNonLocalFlux`
+The new tasks include
 
-For simple cases, such as free convection, boundary layer depth can be compared against
-a semi-analytic solution (e.g., Appendix F, ([Van Roekel et al, 2018](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2018MS001336)).
+| Test | Description |
+| :-------: | :---------- |
+| Wind-only, no Coriolis. | Tests mechanical shear-driven OSBL growth.<br>Can be compared to solution from [Kato and Phillips](https://doi.org/10.1017/S0022112069000784) |
+| Free convection (cooling) | VR18 FC case including a comparison to the analytic solution in Eq. F11 |
+| Mixed forcing convection | Wind, Evaporation, and cooling (all destabilizing) |
+| Nonlocal supression | Stable heating with evaporation (VR18 CEW case).<br>Tests suppression of nonlocal forcing under stable buoyancy forcing |
+| Langmuir | Uses a fixed Stokes drift to test langmuir turbulence enabled and disabled |
+| Sea ice | Wind forcing with a sea-ice fraction.  Tests OSBL clamping under sea ice. |
+| Convection with Evaporation | VR18 FCE case, cooling with evaporation.<br>Tests the salinity contribution to surface buoyancy forcing. |
+| Cooling with ML | VR18 FCML case with surface cooling on an existing ML. |
+| Strong convection and stratification | W25 case showing KPP creating heating in the presence of cooling<br>This is expected behavior |
 
-The global test case, forced by annual averaged ERA-5 net surface heat, freshwater, and
+These tests include conservation and physics checks for each regime.  These tests also include plots of critical quantities like the bulk Richardson number,
+ocean surface boundary layer depth, vertical diffusivity and viscosity, and the nonlocal flux.
+
+Global stand-alone Omega cases, forced by annual averaged ERA-5 net surface heat, freshwater, and
 momentum fluxes provides a qualitative assessment of KPP behavior.
-
-### 5.3 Configuration sensitivity checks
-
-Short single column and global test cases can be run varying critical parameters such as
-
-- `CriticalBulkRichardsonNumber`
-- `MatchTechnique`
-- `InterpType2`
-- `UseEnhancedDiffusion`
-- sea-ice thresholds
-
-to ensure expected qualitative and quantitative responses in OBL depth and
-mixing intensity.
