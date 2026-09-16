@@ -277,8 +277,6 @@ int ocnInit1(MPI_Comm Comm,                 ///< [in] ocean MPI communicator
       if (ShortwaveExtinctionError.isFail()) {
          ABORT_ERROR("Errors encountered reading ShortwaveExtinctionIn");
       }
-   PenetratingShortwaveTendencyEnable:
-      false
    }
 
    // Read from either initial state stream or restart stream based
