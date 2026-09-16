@@ -316,8 +316,8 @@ bool shouldSuppressOSBL(Real IceFrac, I4 LandIceMask) {
 KOKKOS_INLINE_FUNCTION
 Real constrainOSBLDepth(Real HOSBL, Real LayerThickness, Real WaterDepth,
                         Real IceFrac) {
-   // Lower bound: at least half the surface layer thickness
-   HOSBL = Kokkos::fmax(HOSBL, LayerThickness * 0.5);
+   // Lower bound: at least the full surface layer thickness
+   HOSBL = Kokkos::fmax(HOSBL, LayerThickness);
 
    // Enforce minimum under ice
    if (IceFrac > IceSuppressThresh) {
@@ -436,7 +436,7 @@ Real kppNonLocalCs(Real Kappa, Real SurfLayerExtent) {
 /// @brief Clamp a trial OSBL depth to the range supported by the column
 ///
 /// @param OSBLDepth Trial OSBL depth (m)
-/// @param MinOSBLDepth Lower bound, typically half the top layer thickness (m)
+/// @param MinOSBLDepth Lower bound, typically the top layer thickness (m)
 /// @param MaxOSBLDepth Upper bound, typically the deepest cell center (m)
 /// @param ApplyIceMinimum Whether the sea-ice minimum depth applies
 /// @param MinOSBLUnderIce Minimum OSBL depth under sea ice (m)

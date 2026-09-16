@@ -84,6 +84,9 @@ VertMix:
 | `MinimumOSBLUnderSeaIce` | Minimum OSBL depth under sea ice (m) | `5.0` |
 | `DebugDiagnostics` | Enable additional KPP diagnostics/logging in debug workflows, and extend the Ri diagnostic profiles below the boundary layer base | `false` |
 
+Independent of those options, KPP keeps the diagnosed OSBL depth at least as deep
+as the bottom of the first active layer.
+
 ## Output and Diagnostics
 
 To diagnose KPP, include KPP fields in output stream contents. Common fields:

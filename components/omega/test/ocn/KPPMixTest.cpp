@@ -322,7 +322,7 @@ void testOSBLUtilities() {
                                   : ITest == 1 ? 20.0_Real
                                   : ITest == 2 ? 1.0_Real
                                                : 200.0_Real;
-          Real ExpectedDepth    = Kokkos::fmax(InputDepth, 2.0_Real);
+          Real ExpectedDepth    = Kokkos::fmax(InputDepth, 4.0_Real);
           if (IceFraction > KPP::IceSuppressThresh)
              ExpectedDepth = Kokkos::fmax(ExpectedDepth, KPP::MinOSBLUnderIce);
           ExpectedDepth = Kokkos::fmin(ExpectedDepth, 95.0_Real);

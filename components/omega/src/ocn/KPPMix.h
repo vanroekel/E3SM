@@ -528,7 +528,7 @@ class KPPOSBLDepthSearch {
 
       const Real TopLayerThickness =
           Kokkos::abs(ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
-      const Real MinOBLDepth = 0.5_Real * TopLayerThickness;
+      const Real MinOBLDepth = TopLayerThickness;
       const Real MaxOBLDepth = Ssh - ZMid(ICell, KMax);
       // Impose chosen limits on the depth of the OSBL
       OBLDepth = KPP::kppClampOSBLDepth(
@@ -627,7 +627,7 @@ class KPPOSBLCommit {
       const I4 KIntTop = KMin + 1;
       const Real TopLayerThickness =
           Kokkos::abs(ZInterface(ICell, KIntTop) - ZInterface(ICell, KMin));
-      const Real MinOBLDepth = 0.5_Real * TopLayerThickness;
+      const Real MinOBLDepth = TopLayerThickness;
       const Real MaxOBLDepth = Ssh - ZMid(ICell, KMax);
 
       // The sea-ice minimum is deliberately not reapplied here; it was

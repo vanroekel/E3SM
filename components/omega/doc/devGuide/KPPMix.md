@@ -33,7 +33,9 @@ All KPP depths are measured downward from the free surface, not from the geoid.
 `z = 0`, with `GeomZInterface(ICell, MinLayerCell)` equal to
 `VertCoord::SshCell`. KPP therefore forms depths as
 `SshCell(ICell) - GeomZ...(ICell, K)`. Layer thicknesses are differences of
-geometric heights and are unaffected by the sea surface height.
+geometric heights and are unaffected by the sea surface height. After the
+Richardson-number search and any horizontal smoothing, the OSBL depth is clamped
+to be no shallower than the bottom of the first active layer.
 
 ## KPP Notation
 
