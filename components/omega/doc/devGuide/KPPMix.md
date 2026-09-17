@@ -220,7 +220,7 @@ behavior in experiments.
   name.
 - `MatchBoth` needs interior coefficients to be passed in; without them
   `ShapeAtBase` is zero and it degenerates exactly to `SimpleShapes`.
-- `Interptype2` accepts `LMD94`, `Linear`, `Quadratic`, and `Cubic`, but only `LMD94` is recommended strongly recommended.  For `MatchBoth` other options can result in negative diffusivities and viscosities.
+- `Interptype2` accepts `LMD94`, `Linear`, `Quadratic`, and `Cubic`, but `LMD94` is strongly recommended.  For `MatchBoth` other options can result in negative diffusivities and viscosities.
 - When `DebugDiagnostics` is enabled in debug builds, targeted diagnostic
   logging is available; behavior is compile/build-mode aware.
 

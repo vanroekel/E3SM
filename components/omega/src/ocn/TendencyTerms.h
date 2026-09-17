@@ -813,6 +813,33 @@ class TracerDiffOnCell {
    Array1DI4 MaxLayerEdgeTop;
 };
 
+/// KPP vertical non-local tracer flux tendency
+class KPPNonLocalTracerFluxOnCell {
+ public:
+   bool Enabled = false;
+
+   KPPNonLocalTracerFluxOnCell(const HorzMesh *Mesh, const VertCoord *VCoord);
+
+   KOKKOS_FUNCTION void operator()(const TeamMember &Team,
+                                   const Array3DReal &Tend, I4 L, I4 ICell,
+                                   const Array2DReal &SurfaceTracerFlux,
+                                   const Array2DReal &VertNonLocalFlux) const {
+      const int KMin = MinLayerCell(ICell);
+      const int KMax = MaxLayerCell(ICell);
+
+      parallelForInner(
+          Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
+             Tend(L, ICell, K) +=
+                 SurfaceTracerFlux(L, ICell) *
+                 (VertNonLocalFlux(ICell, K) - VertNonLocalFlux(ICell, K + 1));
+          });
+   }
+
+ private:
+   Array1DI4 MinLayerCell;
+   Array1DI4 MaxLayerCell;
+};
+
 // Tracer biharmonic horizontal mixing term
 class TracerHyperDiffOnCell {
  public:

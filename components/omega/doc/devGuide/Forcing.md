@@ -106,7 +106,7 @@ the surface layer pseudo-thickness.
 
 - Currently all forcing is applied to the surface layer only. In the future, vertical spreading of river runoff contributions will be needed.
 - `SeaIceFreshWaterFlux` is the pure freshwater mass from sea ice. The full mass flux from sea ice is `SeaIceFreshWaterFlux + SeaIceSaltFlux`
-- When `TracerNonLocalFluxTendencyEnable` is true, every active
+- When `KPPNonLocalTracerFluxTendencyEnable` is true, every active
   `SurfaceTracerFlux` entry must be supplied for the current forcing step.
   KPP validates this after inserting its temperature and salinity fluxes and
   aborts if an active entry retains its fill value. This prevents a missing

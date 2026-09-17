@@ -77,10 +77,9 @@ HorzMesh::HorzMesh(const std::string &Name, //< [in] Name for new mesh
    MaxEdges2      = MeshDecomp->MaxEdges2;
    NEdgesGlobal   = MeshDecomp->NEdgesGlobal;
 
-   if (MaxEdges > MaxEdgesBound) {
-      ABORT_ERROR("HorzMesh: MaxEdges={} exceeds compile-time bound {}",
-                  MaxEdges, MaxEdgesBound);
-   }
+   OMEGA_REQUIRE(MaxEdges <= MaxEdgesBound,
+                 "HorzMesh: MaxEdges={} exceeds compile-time bound {}",
+                 MaxEdges, MaxEdgesBound);
 
    NVerticesHalo  = MeshDecomp->NVerticesHalo;
    NVerticesHaloH = MeshDecomp->NVerticesHaloH;

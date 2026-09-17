@@ -79,8 +79,8 @@ Omega:
     PressureGradTendencyEnable: true
     VelVertMixTendencyEnable: true
     TracerVertMixTendencyEnable: true
-    TracerNonLocalFluxTendencyEnable: true
-    TracerNonLocalDiagnosticsEnable: true
+    KPPNonLocalTracerFluxTendencyEnable: true
+    KPPNonLocalTracerDiagnosticsEnable: true
   ManufacturedSolution:
     WavelengthX: 5.0e6
     WavelengthY: 4.33013e6

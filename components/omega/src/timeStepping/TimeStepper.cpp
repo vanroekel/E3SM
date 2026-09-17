@@ -854,7 +854,7 @@ void TimeStepper::updateKPPFields(OceanState *State, int TracerTimeLevel,
    Array3DReal CurTracerArray = Tracers::getAll(TracerTimeLevel);
    AuxState->computeMomVertAux(State, CurTracerArray, ThickTimeLevel);
    const bool UseTracerForcing =
-       Tend->SfcTracerForcing.Enabled || Tend->TracerNonLocalFluxEnabled;
+       Tend->SfcTracerForcing.Enabled || Tend->KPPNonLocalTracerFlux.Enabled;
    KPPInstance->computeKPPFields(State, CurTracerArray, ThickTimeLevel,
                                  VelTimeLevel, UseTracerForcing);
 }

@@ -180,16 +180,16 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
    CHECK_ERROR_ABORT(Err, "Forcing: SfcTracerForcingTendencyEnable not found "
                           "in Tendencies config");
 
-   bool TracerNonLocalFluxEnabled = false;
-   Error NonLocalFluxErr = TendConfig.get("TracerNonLocalFluxTendencyEnable",
-                                          TracerNonLocalFluxEnabled);
-   if (!NonLocalFluxErr.isSuccess()) {
-      NonLocalFluxErr.reset();
+   bool KPPNonLocalTracerFluxEnabled = false;
+   Error KPPNonLocalTracerFluxErr    = TendConfig.get(
+       "KPPNonLocalTracerFluxTendencyEnable", KPPNonLocalTracerFluxEnabled);
+   if (!KPPNonLocalTracerFluxErr.isSuccess()) {
+      KPPNonLocalTracerFluxErr.reset();
    }
 
    TracerForcingFieldsEnabled = SfcThicknessForcingEnabled ||
                                 SfcTracerForcingEnabled ||
-                                TracerNonLocalFluxEnabled;
+                                KPPNonLocalTracerFluxEnabled;
 }
 
 // Compute all forcing variables (dispatches to specific computations).

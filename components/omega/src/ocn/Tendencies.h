@@ -85,6 +85,7 @@ class Tendencies {
    SfcTracerForcingOnCell SfcTracerForcing;
    TracerHorzAdvOnCell TracerHorzAdv;
    TracerDiffOnCell TracerDiffusion;
+   KPPNonLocalTracerFluxOnCell KPPNonLocalTracerFlux;
    TracerHyperDiffOnCell TracerHyperDiff;
    SurfaceTracerRestoringOnCell SurfaceTracerRestoring;
 
@@ -96,14 +97,11 @@ class Tendencies {
 
    // Diagnostics for temperature forcing pathways used in KPP comparison.
    // These are raw contributions added to TracerTend before tracer update.
-   Array2DReal TempNonLocalTendDiag;
-   Array1DReal TempNonLocalColumnSumDiag;
-
-   // Enables explicit non-local tracer tendency from KPP
-   bool TracerNonLocalFluxEnabled = false;
+   Array2DReal KPPNonLocalTracerTempTendDiag;
+   Array1DReal KPPNonLocalTracerTempColumnSumDiag;
 
    // Enable diagnostics that isolate temperature non-local terms.
-   bool TracerNonLocalDiagnosticsEnable = true;
+   bool KPPNonLocalTracerDiagnosticsEnable = true;
 
    std::string Name;
 

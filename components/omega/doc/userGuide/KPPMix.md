@@ -122,7 +122,7 @@ full water column profile of these four fields; it does not change
 
 - Non-local tracer transport is required for physically correct KPP boundary
   layer tracer fluxes. It is applied through the
-  `Tendencies: TracerNonLocalFluxTendencyEnable` flag, which is on by default
+  `Tendencies: KPPNonLocalTracerFluxTendencyEnable` flag, which is on by default
   and should be left enabled; see
   [Tendency Terms](./TendencyTerms.md).
 - Use `DebugDiagnostics` sparingly for troubleshooting targeted cases.
