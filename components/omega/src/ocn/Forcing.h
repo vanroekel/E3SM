@@ -35,6 +35,15 @@ class Forcing {
    SfcStressForcingVars SfcStressForcing; ///< Surface stress forcing variables
    TracerForcingVars TracerForcing; ///< Tracer forcing vars (thickness and T,S)
 
+   /// 10 m wind speed (m/s), used for the KPP Langmuir enhancement estimate.
+   /// Only read/registered when KPP Langmuir turbulence is enabled.
+   Array1DReal WindSpeed10mCell;
+
+   /// Sea ice fraction (0-1), used by KPP for Langmuir suppression and the
+   /// minimum boundary layer depth under ice. Only read/registered when KPP
+   /// is enabled.
+   Array1DReal IceFractionCell;
+
    ~Forcing();
 
    /// Initialize the default forcing instance
@@ -98,6 +107,8 @@ class Forcing {
    Halo *MeshHalo;
    bool SfcStressFieldsEnabled     = false;
    bool TracerForcingFieldsEnabled = false;
+   bool WindSpeed10mFieldEnabled   = false;
+   bool IceFractionFieldEnabled    = false;
 
    static Forcing *DefaultForcing;
    static std::map<std::string, std::unique_ptr<Forcing>> AllForcing;

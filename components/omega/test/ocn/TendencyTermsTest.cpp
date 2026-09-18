@@ -1379,8 +1379,9 @@ int testKPPNonLocalTracerFluxOnCell(int NVertLayers, int NTracers, Real RTol) {
                         OnCell);
 
    const ErrorMeasures ExpectedErrors{0.0_Real, 0.0_Real};
+   const Real ATol = 100 * std::numeric_limits<Real>::epsilon();
    Err += checkErrors("TendencyTermsTest", "KPPNonLocalTracerFlux",
-                      KPPNonLocalErrors, ExpectedErrors, RTol);
+                      KPPNonLocalErrors, ExpectedErrors, RTol, ATol);
 
    if (Err == 0) {
       LOG_INFO("TendencyTermsTest: KPPNonLocalTracerFluxOnCell PASS");

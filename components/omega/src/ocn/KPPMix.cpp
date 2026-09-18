@@ -95,9 +95,12 @@ KPPMix::KPPMix(const std::string &InName, const HorzMesh *InMesh,
        Array2DReal("KPP-RefPressure", Mesh->NCellsSize, VCoord->NVertLayers);
    TangentialVelocity = Array2DReal("KPP-TangentialVelocity", Mesh->NEdgesSize,
                                     VCoord->NVertLayers);
-   IceFraction        = Array1DReal("KPP-IceFraction", Mesh->NCellsSize);
    LangmuirFactor     = Array1DReal("KPP-LangmuirFactor", Mesh->NCellsSize);
    OSBLDepthSmooth    = Array1DReal("KPP-OSBLDepthSmooth", Mesh->NCellsSize);
+
+   // Default to a no-op enhancement so Stage 2 is well-defined even if
+   // called before Stage 1 (e.g. standalone unit tests) has computed it.
+   deepCopy(LangmuirFactor, 1.0_Real);
 
    // Set field names
    VertDiffFldName            = "VertDiff";
@@ -113,6 +116,7 @@ KPPMix::KPPMix(const std::string &InName, const HorzMesh *InMesh,
    PotentialDensityFldName    = "PotentialDensity";
    SurfFricVelFldName         = "SurfaceFrictionVelocity";
    SurfBuoyFluxFldName        = "SurfaceBuoyancyFlux";
+   LangmuirFactorFldName      = "KPPLangmuirFactor";
 
    if (Name != "Default") {
       VertDiffFldName.append(Name);
@@ -128,6 +132,7 @@ KPPMix::KPPMix(const std::string &InName, const HorzMesh *InMesh,
       PotentialDensityFldName.append(Name);
       SurfFricVelFldName.append(Name);
       SurfBuoyFluxFldName.append(Name);
+      LangmuirFactorFldName.append(Name);
    }
 
    defineFields();
@@ -305,7 +310,6 @@ void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
    OMEGA_SCOPE(LocSurfaceForcing, SurfaceForcing);
    OMEGA_SCOPE(LocFrictionVelocity, SurfaceFrictionVelocity);
    OMEGA_SCOPE(LocBuoyancyFlux, SurfaceBuoyancyFlux);
-   OMEGA_SCOPE(LocIceFraction, IceFraction);
    OMEGA_SCOPE(LocSpecVol, EqState->SpecVol);
    OMEGA_SCOPE(ZonalStress, SfcStress.ZonalStressCell);
    OMEGA_SCOPE(MeridStress, SfcStress.MeridStressCell);
@@ -324,21 +328,20 @@ void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
    OMEGA_SCOPE(SeaIceSaltFlux, TracerForcing.SeaIceSaltFluxCell);
    parallelFor(
        "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
-          LocSurfaceForcing(LocFrictionVelocity, LocBuoyancyFlux,
-                            LocIceFraction, ICell, ConservTemp, AbsSalinity,
-                            LocPressureMid, LocSpecVol, ZonalStress,
-                            MeridStress, LatentHeatFluxEvap, SensibleHeatFlux,
-                            LongWaveHeatFluxUp, LongWaveHeatFluxDown,
-                            SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux,
-                            RainFlux, EvaporationFlux, SeaIceFreshWaterFlux,
-                            IceRunoffFlux, RiverRunoffFlux, SeaIceSaltFlux);
+          LocSurfaceForcing(
+              LocFrictionVelocity, LocBuoyancyFlux, ICell, ConservTemp,
+              AbsSalinity, LocPressureMid, LocSpecVol, ZonalStress, MeridStress,
+              LatentHeatFluxEvap, SensibleHeatFlux, LongWaveHeatFluxUp,
+              LongWaveHeatFluxDown, SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux,
+              RainFlux, EvaporationFlux, SeaIceFreshWaterFlux, IceRunoffFlux,
+              RiverRunoffFlux, SeaIceSaltFlux);
        });
 
-   Array1DReal WindSpeed10m;
    computeKPPMix(PotentialDensity, NormalVelocity, TangentialVelocity,
                  SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
-                 EqState->BruntVaisalaFreqSq, IceFraction, WindSpeed10m,
-                 InteriorVertDiff, InteriorVertVisc);
+                 EqState->BruntVaisalaFreqSq, ForcingState->IceFractionCell,
+                 ForcingState->WindSpeed10mCell, InteriorVertDiff,
+                 InteriorVertVisc);
 }
 
 /// Prepare KPP fields for the current time step from canonical ocean state.
@@ -681,6 +684,7 @@ void KPPMix::computeMixingCoefficients(
    OMEGA_SCOPE(LocTurbulentVelocityScale, TurbulentVelocityScale);
    OMEGA_SCOPE(LocSurfFricVel, SurfaceFrictionVelocity);
    OMEGA_SCOPE(LocSurfBuoyFlux, SurfaceBuoyancyFlux);
+   OMEGA_SCOPE(LocLangmuirFactor, LangmuirFactor);
    OMEGA_SCOPE(LocInteriorVertDiff, InteriorVertDiff);
    OMEGA_SCOPE(LocInteriorVertVisc, InteriorVertVisc);
    OMEGA_SCOPE(LocMinLayerCell, VCoord->MinLayerCell);
@@ -722,7 +726,8 @@ void KPPMix::computeMixingCoefficients(
           MixingCoeffsCalc(LocVertDiff, LocVertVisc, LocVertNonLocalFlux,
                            LocTurbulentVelocityScale, ICell, LocOSBLDepth,
                            LocOSBLDepthIndex, LocSurfFricVel, LocSurfBuoyFlux,
-                           LocInteriorVertDiff, LocInteriorVertVisc);
+                           LocLangmuirFactor, LocInteriorVertDiff,
+                           LocInteriorVertVisc);
        });
 }
 
@@ -904,6 +909,19 @@ void KPPMix::defineFields() {
                      CellDims);
    SurfBuoyFluxField->attachData<Array1DReal>(SurfaceBuoyancyFlux, false);
 
+   auto LangmuirFactorField =
+       Field::create(LangmuirFactorFldName,             // field name
+                     "KPP Langmuir enhancement factor", // long name
+                     "1",                               // units
+                     "",                                // CF standard name
+                     1.0,                               // min valid value
+                     2.0,                               // max valid value
+                     1,                                 // number of dims
+                     CellDims);
+   LangmuirFactorField->attachData<Array1DReal>(LangmuirFactor, false);
+
+   KPPGroup->addField(LangmuirFactorFldName);
+
    // OSBLDepth, OSBLDepthIndex, NonLocalFlux, BulkRichardson,
    // BulkRichardsonShear, UnresolvedShear, BuoyancyJump, and
    // TurbulentVelScale attached with FillOnAttach=true above, which already
@@ -912,14 +930,15 @@ void KPPMix::defineFields() {
    PotentialDensityField->addMetadata("_FillValue", FillValueReal);
    SurfFricVelField->addMetadata("_FillValue", FillValueReal);
    SurfBuoyFluxField->addMetadata("_FillValue", FillValueReal);
+   LangmuirFactorField->addMetadata("_FillValue", FillValueReal);
 
    LOG_INFO("KPPMix::defineFields: registered {}, {}, {}, {}, {}, {}, {}, {}, "
-            "{}, {}, {}",
+            "{}, {}, {}, {}",
             OSBLDepthFldName, OSBLDepthIndexFldName, NonLocalFluxFldName,
             BulkRichardsonFldName, BulkRichardsonShearFldName,
             UnresolvedShearFldName, BuoyancyJumpFldName,
             TurbulentVelScaleFldName, PotentialDensityFldName,
-            SurfFricVelFldName, SurfBuoyFluxFldName);
+            SurfFricVelFldName, SurfBuoyFluxFldName, LangmuirFactorFldName);
 }
 
 } // namespace OMEGA

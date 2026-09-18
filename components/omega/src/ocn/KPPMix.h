@@ -93,10 +93,10 @@ class KPPSurfaceForcingOnCell {
 
    KOKKOS_FUNCTION void operator()(
        const Array1DReal &FrictionVelocity, const Array1DReal &BuoyancyFlux,
-       const Array1DReal &IceFraction, I4 ICell, const Array2DReal &ConservTemp,
-       const Array2DReal &AbsSalinity, const Array2DReal &PressureMid,
-       const Array2DReal &SpecVol, const Array1DReal &ZonalStress,
-       const Array1DReal &MeridStress, const Array1DReal &LatentHeatFluxEvap,
+       I4 ICell, const Array2DReal &ConservTemp, const Array2DReal &AbsSalinity,
+       const Array2DReal &PressureMid, const Array2DReal &SpecVol,
+       const Array1DReal &ZonalStress, const Array1DReal &MeridStress,
+       const Array1DReal &LatentHeatFluxEvap,
        const Array1DReal &SensibleHeatFlux,
        const Array1DReal &LongWaveHeatFluxUp,
        const Array1DReal &LongWaveHeatFluxDown,
@@ -115,7 +115,6 @@ class KPPSurfaceForcingOnCell {
       FrictionVelocity(ICell) =
           Kokkos::sqrt(Kokkos::max(0.0_Real, TauMag / RhoSw));
       BuoyancyFlux(ICell) = 0.0_Real;
-      IceFraction(ICell)  = 0.0_Real;
       if (!UseTracerForcing)
          return;
 
@@ -697,6 +696,7 @@ class KPPMixingCoeffs {
                                    const Array1DI4 &OSBLDepthIndex,
                                    const Array1DReal &SurfaceFrictionVelocity,
                                    const Array1DReal &SurfaceBuoyancyFlux,
+                                   const Array1DReal &LangmuirFactor,
                                    const Array2DReal &InteriorVertDiff,
                                    const Array2DReal &InteriorVertVisc) const {
 
@@ -715,6 +715,9 @@ class KPPMixingCoeffs {
 
       const Real UStar    = SurfaceFrictionVelocity(ICell);
       const Real BuoyFlux = SurfaceBuoyancyFlux(ICell);
+      // Same Langmuir enhancement applied to the Stage 1 OSBL search, so the
+      // mixing magnitude is consistent with the diagnosed boundary layer.
+      const Real BuoyFluxEff = BuoyFlux * LangmuirFactor(ICell);
 
       for (I4 K = KMin; K <= KMax + 1; ++K) {
          const Real ZDepth = Ssh - ZInterface(ICell, K);
@@ -735,7 +738,7 @@ class KPPMixingCoeffs {
 
             Real WMTurb = 0.0_Real;
             Real WSTurb = 0.0_Real;
-            KPP::kppTurbScales(UStar, BuoyFlux, H, SigmaLoc, VonKar, WMTurb,
+            KPP::kppTurbScales(UStar, BuoyFluxEff, H, SigmaLoc, VonKar, WMTurb,
                                WSTurb);
 
             // For MatchBoth, the shape value the KPP profile must reach at
@@ -828,7 +831,7 @@ class KPPMixingCoeffs {
 
          Real WMKtup = 0.0_Real;
          Real WSKtup = 0.0_Real;
-         KPP::kppTurbScales(UStar, BuoyFlux, H, SigmaLoc, VonKar, WMKtup,
+         KPP::kppTurbScales(UStar, BuoyFluxEff, H, SigmaLoc, VonKar, WMKtup,
                             WSKtup);
 
          const Real MatchViscShape =
@@ -1047,6 +1050,7 @@ class KPPMix {
    std::string PotentialDensityFldName;
    std::string SurfFricVelFldName;
    std::string SurfBuoyFluxFldName;
+   std::string LangmuirFactorFldName;
    std::string Name;
 
  private:
@@ -1067,7 +1071,6 @@ class KPPMix {
    /// @brief KPP-only workspaces reused across time steps
    Array2DReal RefPressure;
    Array2DReal TangentialVelocity;
-   Array1DReal IceFraction;
    Array1DReal LangmuirFactor;
    Array1DReal OSBLDepthSmooth;
 

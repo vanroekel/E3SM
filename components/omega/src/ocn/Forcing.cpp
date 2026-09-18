@@ -18,6 +18,9 @@
 #include "OmegaKokkos.h"
 #include "Pacer.h"
 
+#include <limits>
+#include <vector>
+
 namespace OMEGA {
 
 // Static member initialization
@@ -32,7 +35,13 @@ static std::string stripDefault(const std::string &Name) {
 // mesh/halo.
 Forcing::Forcing(const std::string &Name, const HorzMesh *Mesh, Halo *MeshHalo)
     : Name(stripDefault(Name)), SfcStressForcing(stripDefault(Name), Mesh),
-      TracerForcing(stripDefault(Name), Mesh), Mesh(Mesh), MeshHalo(MeshHalo) {}
+      TracerForcing(stripDefault(Name), Mesh),
+      WindSpeed10mCell("WindSpeed10m" + stripDefault(Name), Mesh->NCellsSize),
+      IceFractionCell("IceFraction" + stripDefault(Name), Mesh->NCellsSize),
+      Mesh(Mesh), MeshHalo(MeshHalo) {
+   deepCopy(WindSpeed10mCell, 0.0_Real);
+   deepCopy(IceFractionCell, 0.0_Real);
+}
 
 // Destructor. Unregisters fields from IO streams.
 Forcing::~Forcing() { unregisterFields(); }
@@ -45,6 +54,26 @@ void Forcing::registerFields(const std::string &MeshName) const {
    if (TracerForcingFieldsEnabled) {
       TracerForcing.registerFields(MeshName);
    }
+   if (WindSpeed10mFieldEnabled) {
+      std::vector<std::string> DimNames(1);
+      DimNames[0] = MeshName == "Default" ? "NCells" : "NCells" + MeshName;
+      auto WindSpeed10mField =
+          Field::create(WindSpeed10mCell.label(), "10 m wind speed", "m s^-1",
+                        "", 0.0, std::numeric_limits<Real>::max(), 1, DimNames);
+      WindSpeed10mField->setOptionalRead(true);
+      FieldGroup::addFieldToGroup(WindSpeed10mCell.label(), "Forcing");
+      WindSpeed10mField->attachData<Array1DReal>(WindSpeed10mCell);
+   }
+   if (IceFractionFieldEnabled) {
+      std::vector<std::string> DimNames(1);
+      DimNames[0] = MeshName == "Default" ? "NCells" : "NCells" + MeshName;
+      auto IceFractionField =
+          Field::create(IceFractionCell.label(), "sea ice fraction", "1", "",
+                        0.0, 1.0, 1, DimNames);
+      IceFractionField->setOptionalRead(true);
+      FieldGroup::addFieldToGroup(IceFractionCell.label(), "Forcing");
+      IceFractionField->attachData<Array1DReal>(IceFractionCell);
+   }
 }
 
 // Unregister surface stress fields from IO streams.
@@ -54,6 +83,12 @@ void Forcing::unregisterFields() const {
    }
    if (TracerForcingFieldsEnabled) {
       TracerForcing.unregisterFields();
+   }
+   if (WindSpeed10mFieldEnabled && Field::exists(WindSpeed10mCell.label())) {
+      Field::destroy(WindSpeed10mCell.label());
+   }
+   if (IceFractionFieldEnabled && Field::exists(IceFractionCell.label())) {
+      Field::destroy(IceFractionCell.label());
    }
 }
 
@@ -190,6 +225,21 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
    TracerForcingFieldsEnabled = SfcThicknessForcingEnabled ||
                                 SfcTracerForcingEnabled ||
                                 KPPNonLocalTracerFluxEnabled;
+
+   Config KPPConfig("KPP");
+   Config VertMixConfig("VertMix");
+   Error KPPConfigErr = OmegaConfig->get(VertMixConfig);
+   KPPConfigErr += VertMixConfig.get(KPPConfig);
+   bool KPPEnabled            = false;
+   bool UseLangmuirTurbulence = false;
+   if (KPPConfigErr.isSuccess()) {
+      KPPConfig.get("Enable", KPPEnabled);
+      KPPConfig.get("UseLangmuirTurbulence", UseLangmuirTurbulence);
+   }
+   WindSpeed10mFieldEnabled = KPPEnabled && UseLangmuirTurbulence;
+   // Ice fraction feeds both Langmuir suppression and the minimum-OSBL-
+   // under-ice clamp, so it is needed whenever KPP itself is enabled.
+   IceFractionFieldEnabled = KPPEnabled;
 }
 
 // Compute all forcing variables (dispatches to specific computations).
@@ -221,6 +271,14 @@ void Forcing::resetArrays() {
       deepCopy(TracerForcing.ShortWaveHeatFluxCell, 0.0_Real);
       deepCopy(TracerForcing.SeaIceSaltFluxCell, 0.0_Real);
       deepCopy(TracerForcing.SurfaceTracerFluxCell, FillValueReal);
+   }
+
+   if (WindSpeed10mFieldEnabled) {
+      deepCopy(WindSpeed10mCell, 0.0_Real);
+   }
+
+   if (IceFractionFieldEnabled) {
+      deepCopy(IceFractionCell, 0.0_Real);
    }
 }
 
@@ -274,6 +332,14 @@ I4 Forcing::exchangeHalo() const {
       }
    }
 
+   if (WindSpeed10mFieldEnabled) {
+      Err += MeshHalo->exchangeFullArrayHalo(WindSpeed10mCell, OnCell);
+   }
+
+   if (IceFractionFieldEnabled) {
+      Err += MeshHalo->exchangeFullArrayHalo(IceFractionCell, OnCell);
+   }
+
    return Err;
 }
 
@@ -286,9 +352,10 @@ void Forcing::readStreamIntoArrays() {
 
    resetArrays();
 
-   // Nothing to read if neither stress nor tracer forcing tendencies are
+   // Nothing to read if no forcing tendencies or KPP wind/ice inputs are
    // enabled.
-   if (!SfcStressFieldsEnabled && !TracerForcingFieldsEnabled) {
+   if (!SfcStressFieldsEnabled && !TracerForcingFieldsEnabled &&
+       !WindSpeed10mFieldEnabled && !IceFractionFieldEnabled) {
       return;
    }
 
