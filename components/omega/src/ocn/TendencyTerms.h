@@ -1241,7 +1241,7 @@ class PenetratingShortwaveOnCell {
 
       Real FluxAtTop = SurfaceFlux;
       for (I4 K = KTop; K <= KBot; ++K) {
-         Real FluxAtBottom = 0.0_Real;
+         Real FluxAtBottom;
          if (K < KBot) {
             const Real Depth =
                 Kokkos::abs(GeomZInterface(ICell, K + 1) - ZSurface);
@@ -1249,6 +1249,10 @@ class PenetratingShortwaveOnCell {
                            (NearIrFraction * Kokkos::exp(-NearIrCoeff * Depth) +
                             RedFraction * Kokkos::exp(-Kr * Depth) +
                             BlueFraction * Kokkos::exp(-Kb * Depth));
+         } else {
+            // Deposit all shortwave radiation reaching the seafloor into the
+            // bottom layer so the column-integrated heating is conservative.
+            FluxAtBottom = 0.0_Real;
          }
          Tend(TempIndex, ICell, K) += (FluxAtTop - FluxAtBottom) * HFluxFac;
          FluxAtTop = FluxAtBottom;
