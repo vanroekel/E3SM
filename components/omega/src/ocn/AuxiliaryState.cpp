@@ -46,7 +46,12 @@ AuxiliaryState::AuxiliaryState(const std::string &Name, const HorzMesh *Mesh,
    VorticityAux.registerFields(GroupName, AuxMeshName);
    VelocityDel2Aux.registerFields(GroupName, AuxMeshName);
    SurfTracerRestAux.registerFields(GroupName, AuxMeshName);
-   ShortwavePenAux.registerFields("ShortwaveExtinction", AuxMeshName);
+   // Only the Default state's fields belong to the shared IO group created
+   // once in init(); non-default instances use their own GroupName instead.
+   if (Name == "Default")
+      ShortwavePenAux.registerFields("ShortwaveExtinction", AuxMeshName);
+   else
+      ShortwavePenAux.registerFields(GroupName, AuxMeshName);
    TracerAux.registerFields(GroupName, AuxMeshName);
    TransportAux.registerFields(GroupName, AuxMeshName);
 }
@@ -64,7 +69,10 @@ AuxiliaryState::~AuxiliaryState() {
    TransportAux.unregisterFields();
 
    FieldGroup::destroy(GroupName);
-   FieldGroup::destroy("ShortwaveExtinction");
+   // The shared IO group is created once in init(); only the Default
+   // instance owns it, so only it should destroy it.
+   if (Name.empty())
+      FieldGroup::destroy("ShortwaveExtinction");
 }
 
 // Compute auxiliary variables for vertical dynamics
