@@ -150,7 +150,6 @@ int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
       ABORT_ERROR("ocnInit: Error validating IO Streams");
    }
 
-   Metadata ShortwaveExtinctionMeta;
    if (Tendencies::getDefault()->PenetratingShortwave.Enabled) {
       Metadata ShortwaveExtinctionMeta;
       Error ShortwaveExtinctionError = IOStream::read(

@@ -1919,14 +1919,14 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    const auto VCoord = VertCoord::getDefault();
 
    // Arbitrary test values for the incident surface shortwave flux and the
-   // extinction coefficients. The layer thickness and number of layers are
-   // chosen so that the column is optically thick enough that essentially
-   // none of the incident flux reaches the bottom interface, so the total
-   // column-integrated heating should match the incident surface solar flux.
+   // extinction coefficients. The layer thickness and number of layers make
+   // the attenuation profile distinct across the active layers.
    const Real SurfaceFluxVal    = 235.0_Real; // W/m^2
    const Real ExtinctionRedVal  = 1.0_Real;   // 1/m
    const Real ExtinctionBlueVal = 0.5_Real;   // 1/m
-   const Real LayerThickness    = 10.0_Real;  // m
+   const Real NearIrFractionVal = 0.58_Real;
+   const Real NearIrCoeffVal    = 2.86_Real; // 1/m
+   const Real LayerThickness    = 10.0_Real; // m
 
    Array1DReal ShortWaveHeatFlux("ShortWaveHeatFlux", Mesh->NCellsSize);
    Array1DReal ExtinctionCoeffRed("ExtinctionCoeffRed", Mesh->NCellsSize);
@@ -1949,7 +1949,11 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    deepCopy(Tend, 0);
 
    PenetratingShortwaveOnCell PenSWOnC(Mesh, VCoord, /*TempTracerIndex=*/0);
-   PenSWOnC.Enabled = true;
+   PenSWOnC.Enabled        = true;
+   PenSWOnC.NearIrFraction = NearIrFractionVal;
+   PenSWOnC.NearIrCoeff    = NearIrCoeffVal;
+   const auto MinLayerCell = VCoord->MinLayerCell;
+   const auto MaxLayerCell = VCoord->MaxLayerCell;
 
    parallelFor(
        {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
@@ -1957,36 +1961,51 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
                    ExtinctionCoeffRed, ExtinctionCoeffBlue);
        });
 
-   // Summed over the full column, the tendency telescopes to the incident
-   // surface flux minus whatever flux reaches the bottom interface (see the
-   // FluxAtTop/FluxAtBottom loop in PenetratingShortwaveOnCell). With the
-   // extinction coefficients and depth chosen above, the residual bottom
-   // flux is negligible, so the column-integrated heating should equal the
-   // incident surface solar flux (converted to a conservative temperature
-   // flux via HFluxFac) to within RTol.
-   const Real ExpectedColumnHeating = HFluxFac * SurfaceFluxVal;
-
-   I4 NumBad = 0;
+   I4 NumBad                        = 0;
+   const Real ExpectedColumnHeating = SurfaceFluxVal * HFluxFac;
    parallelReduce(
        {Mesh->NCellsOwned},
        KOKKOS_LAMBDA(int ICell, I4 &Accum) {
-          Real ColumnHeating = 0;
-          for (int K = 0; K < NVertLayers; ++K) {
+          const I4 KTop      = MinLayerCell(ICell);
+          const I4 KBot      = MaxLayerCell(ICell);
+          Real FluxAtTop     = SurfaceFluxVal;
+          Real ColumnHeating = 0.0_Real;
+          for (I4 K = KTop; K <= KBot; ++K) {
+             Real FluxAtBottom = 0.0_Real;
+             if (K < KBot) {
+                const Real Depth = Kokkos::abs(GeomZInterface(ICell, K + 1) -
+                                               GeomZInterface(ICell, KTop));
+                FluxAtBottom =
+                    SurfaceFluxVal *
+                    (NearIrFractionVal * Kokkos::exp(-NearIrCoeffVal * Depth) +
+                     0.23_Real * Kokkos::exp(-ExtinctionRedVal * Depth) +
+                     0.19_Real * Kokkos::exp(-ExtinctionBlueVal * Depth));
+             }
+             const Real ExpectedLayerHeating =
+                 (FluxAtTop - FluxAtBottom) * HFluxFac;
              ColumnHeating += Tend(0, ICell, K);
+             const Real RelErr =
+                 Kokkos::abs(Tend(0, ICell, K) - ExpectedLayerHeating) /
+                 Kokkos::abs(ExpectedLayerHeating);
+             if (RelErr > RTol || Kokkos::isnan(Tend(0, ICell, K)) ||
+                 Kokkos::isinf(Tend(0, ICell, K))) {
+                Accum += 1;
+             }
+             FluxAtTop = FluxAtBottom;
           }
-          const Real RelErr =
+          const Real ColumnRelErr =
               Kokkos::abs(ColumnHeating - ExpectedColumnHeating) /
               Kokkos::abs(ExpectedColumnHeating);
-          if (RelErr > RTol or Kokkos::isnan(ColumnHeating) or
-              Kokkos::isinf(ColumnHeating))
+          if (ColumnRelErr > RTol || Kokkos::isnan(ColumnHeating) ||
+              Kokkos::isinf(ColumnHeating)) {
              Accum += 1;
+          }
        },
        NumBad);
 
    if (NumBad > 0) {
-      LOG_ERROR("TendencyTermsTest: PenetratingShortwave FAIL, {} cells have "
-                "column-integrated heating that does not match the incident "
-                "surface solar flux",
+      LOG_ERROR("TendencyTermsTest: PenetratingShortwave FAIL, {} layer or "
+                "column heating values do not match the expected results",
                 NumBad);
       Err += 1;
    } else {

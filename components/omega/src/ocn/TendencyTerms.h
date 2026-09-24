@@ -1216,7 +1216,11 @@ class TracerHyperDiffOnCell {
 /// Penetrating shortwave radiation forcing for conservative temperature.
 class PenetratingShortwaveOnCell {
  public:
-   bool Enabled = false;
+   bool Enabled        = false;
+   Real NearIrFraction = 0.58_Real;
+   Real NearIrCoeff    = 2.86_Real;
+   Real RedFraction    = 0.23_Real;
+   Real BlueFraction   = 0.19_Real;
 
    PenetratingShortwaveOnCell(const HorzMesh *Mesh, const VertCoord *VCoord,
                               I4 TempTracerIndex);
@@ -1260,11 +1264,6 @@ class PenetratingShortwaveOnCell {
    }
 
  private:
-   static constexpr Real NearIrFraction = 0.58_Real;
-   static constexpr Real RedFraction    = 0.23_Real;
-   static constexpr Real BlueFraction   = 0.19_Real;
-   static constexpr Real NearIrCoeff    = 2.86_Real;
-
    I4 TempIndex;
    Array1DI4 MinLayerCell;
    Array1DI4 MaxLayerCell;

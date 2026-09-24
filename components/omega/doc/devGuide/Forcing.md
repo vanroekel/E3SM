@@ -1,7 +1,6 @@
 (omega-dev-forcing)=
 
 # Forcing
-
 This page describes design and implementation details for forcing-related
 pathways in Omega, currently this includes:
 
@@ -132,15 +131,19 @@ the surface layer pseudo-thickness.
 ### Vertical deposition
 
 For a cell with surface depth coordinate $z=0$, the downward flux at depth $z$
-is defined following [Manizza et al. (2005)](https://doi.org/10.1029/2007JC004478) as
+is defined following [Manizza et al. (2008)](https://doi.org/10.1029/2007JC004478) as
 
 $$
 I(z) = I_0 \left[
-  0.58 e^{-2.86z} +
+  f_{nir} e^{-k_{nir}z} +
   0.23 e^{-k_r z} +
   0.19 e^{-k_b z}
 \right].
 $$
+
+Here $f_{nir}$ and $k_{nir}$ are configured with
+`Omega.Tendencies.NearIrFraction` and `Omega.Tendencies.NearIrCoeff`,
+respectively. Their default values are $0.58$ and $2.86\ \mathrm{m}^{-1}$.
 
 For each active layer, the deposited heat is the flux at its upper interface
 minus the flux at its lower interface. For the bottom active layer, the lower

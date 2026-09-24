@@ -122,6 +122,8 @@ Omega:
   Tendencies:
     SfcTracerForcingTendencyEnable: true
     PenetratingShortwaveTendencyEnable: true
+    NearIrFraction: 0.58
+    NearIrCoeff: 2.86
 
   IOStreams:
     ShortwaveExtinctionIn:
@@ -136,9 +138,14 @@ average used by the simulation.
 
 The incoming `ShortWaveHeatFlux` is split into three bands:
 
-- near infrared: fraction 0.58, extinction coefficient $2.86\ \mathrm{m}^{-1}$
+- near infrared: fraction `NearIrFraction`, extinction coefficient
+  `NearIrCoeff` ($0.58$ and $2.86\ \mathrm{m}^{-1}$ by default)
 - red: fraction 0.23, extinction coefficient $k_r$
 - blue/green: fraction 0.19, extinction coefficient $k_b$
+
+The near-infrared fraction and extinction coefficient can be changed under
+`Omega.Tendencies` with `NearIrFraction` and `NearIrCoeff`. The red and
+blue/green band fractions remain fixed at 0.23 and 0.19, respectively.
 
 The attenuated flux is converted to temperature heating from the difference
 between the flux at the top and bottom of each layer. Any flux remaining at the
