@@ -335,6 +335,17 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
                          this->PenetratingShortwave.Enabled);
    CHECK_ERROR_ABORT(Err, "Tendencies: PenetratingShortwaveTendencyEnable not "
                           "found in TendConfig");
+   Err += TendConfig.get("NearIrFraction",
+                         this->PenetratingShortwave.NearIrFraction);
+   CHECK_ERROR_ABORT(Err, "Tendencies: NearIrFraction not found in TendConfig");
+   Err += TendConfig.get("NearIrCoeff", this->PenetratingShortwave.NearIrCoeff);
+   CHECK_ERROR_ABORT(Err, "Tendencies: NearIrCoeff not found in TendConfig");
+   Err += TendConfig.get("RedFraction", this->PenetratingShortwave.RedFraction);
+   CHECK_ERROR_ABORT(Err, "Tendencies: RedFraction not found in TendConfig");
+   Err +=
+       TendConfig.get("BlueFraction", this->PenetratingShortwave.BlueFraction);
+   CHECK_ERROR_ABORT(Err, "Tendencies: BlueFraction not found in TendConfig");
+
    this->SfcTracerForcing.IncludeShortWaveHeatFlux =
        !this->PenetratingShortwave.Enabled;
 

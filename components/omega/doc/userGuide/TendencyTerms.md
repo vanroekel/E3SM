@@ -64,6 +64,8 @@ the currently available tendency terms:
 | SfcThicknessForcingOnCell | SfcThicknessForcingTendencyEnable | enable/disable term
 | SfcTracerForcingOnCell | SfcTracerForcingTendencyEnable | enable/disable term
 | PenetratingShortwaveOnCell | PenetratingShortwaveTendencyEnable | enable/disable depth-dependent shortwave heating
+| | NearIrFraction | near-infrared fraction of shortwave flux
+| | NearIrCoeff | near-infrared extinction coefficient ($\mathrm{m}^{-1}$)
 | SurfaceTracerRestoringOnCell | SurfaceTracerRestoringEnable | enable/disable term
 
 ## Second Order Horizontal Advection Algorithm
