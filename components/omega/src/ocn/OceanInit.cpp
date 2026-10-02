@@ -265,8 +265,6 @@ int ocnInit1(MPI_Comm Comm,                 ///< [in] ocean MPI communicator
    Error Err1;
 
    Metadata ReqMeta; // empty requested metadata from file
-   TimeStepperStartType StartType = DefStepper->getStartType();
-   bool ReadRestart               = false;
 
    Metadata ShortwaveExtinctionMeta;
    if (Tendencies::getDefault()->PenetratingShortwave.Enabled) {
