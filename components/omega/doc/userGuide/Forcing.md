@@ -121,9 +121,12 @@ layer. It is enabled with:
 Omega:
   Tendencies:
     SfcTracerForcingTendencyEnable: true
-    PenetratingShortwaveTendencyEnable: true
-    NearIrFraction: 0.58
-    NearIrCoeff: 2.86
+    PenetratingShortwaveTendency:
+      Enable: true
+      NearIrFraction: 0.58
+      NearIrCoeff: 2.86
+      RedFraction: 0.21
+      BlueFraction: 0.21
 
   IOStreams:
     ShortwaveExtinctionIn:
@@ -140,21 +143,24 @@ The incoming `ShortWaveHeatFlux` is split into three bands:
 
 - near infrared: fraction `NearIrFraction`, extinction coefficient
   `NearIrCoeff` ($0.58$ and $2.86\ \mathrm{m}^{-1}$ by default)
-- red: fraction 0.23, extinction coefficient $k_r$
-- blue/green: fraction 0.19, extinction coefficient $k_b$
+- red: fraction `RedFraction` ($0.21$ by default), extinction coefficient $k_r$
+- blue/green: fraction `BlueFraction` ($0.21$ by default), extinction coefficient $k_b$
 
-The near-infrared fraction and extinction coefficient can be changed under
-`Omega.Tendencies` with `NearIrFraction` and `NearIrCoeff`. The red and
-blue/green band fractions remain fixed at 0.23 and 0.19, respectively.
+The fractions (`NearIrFraction`, `RedFraction`, and `BlueFraction`) and the
+near-infrared extinction coefficient (`NearIrCoeff`) can be configured under
+`Omega.Tendencies.PenetratingShortwaveTendency`. By default, the red and blue
+fractions are set to 0.21 as in [Manizza et al. (2005)](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/2004GL020778).
+The sum of `NearIrFraction`, `RedFraction`, and `BlueFraction` must equal 1.
 
 The attenuated flux is converted to temperature heating from the difference
 between the flux at the top and bottom of each layer. Any flux remaining at the
 bottom of the active column is deposited in the bottom active layer, so the
 full incoming shortwave flux is conserved.
 
-When `PenetratingShortwaveTendencyEnable` is true, shortwave is removed from
-the surface-only heat sum in `SfcTracerForcingOnCell`; the other surface heat,
-freshwater enthalpy, and salt fluxes remain controlled by
+When `PenetratingShortwaveTendency.Enable` is true,
+`SfcTracerForcingTendencyEnable` must also be enabled. Shortwave is removed
+from the surface-only heat sum in `SfcTracerForcingOnCell`; the other surface
+heat, freshwater enthalpy, and salt fluxes remain controlled by
 `SfcTracerForcingTendencyEnable`.
 
 ## Surface tracer restoring

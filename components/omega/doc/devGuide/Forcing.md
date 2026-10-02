@@ -116,7 +116,7 @@ the surface layer pseudo-thickness.
   `ShortwaveExtinctionIn` stream.
 5. `Tendencies::computeTracerTendenciesOnly()` invokes
   `PenetratingShortwaveOnCell` when
-  `PenetratingShortwaveTendencyEnable` is enabled.
+  `PenetratingShortwaveTendency.Enable` is enabled.
 
 ### Key classes and fields
 
@@ -131,19 +131,23 @@ the surface layer pseudo-thickness.
 ### Vertical deposition
 
 For a cell with surface depth coordinate $z=0$, the downward flux at depth $z$
-is defined following [Manizza et al. (2008)](https://doi.org/10.1029/2007JC004478) as
+is defined following [Manizza et al. (2005)](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/2004GL020778) as
 
 $$
 I(z) = I_0 \left[
   f_{nir} e^{-k_{nir}z} +
-  0.23 e^{-k_r z} +
-  0.19 e^{-k_b z}
+  f_{red} e^{-k_r z} +
+  f_{blue} e^{-k_b z}
 \right].
 $$
 
-Here $f_{nir}$ and $k_{nir}$ are configured with
-`Omega.Tendencies.NearIrFraction` and `Omega.Tendencies.NearIrCoeff`,
-respectively. Their default values are $0.58$ and $2.86\ \mathrm{m}^{-1}$.
+Here $f_{nir}$, $k_{nir}$, $f_{red}$, and $f_{blue}$ are configured with
+`Omega.Tendencies.PenetratingShortwaveTendency.NearIrFraction`,
+`Omega.Tendencies.PenetratingShortwaveTendency.NearIrCoeff`,
+`Omega.Tendencies.PenetratingShortwaveTendency.RedFraction`, and
+`Omega.Tendencies.PenetratingShortwaveTendency.BlueFraction`,
+respectively. Their default values are $0.58$, $2.86\ \mathrm{m}^{-1}$, $0.21$,
+and $0.21$, and their sum $f_{nir} + f_{red} + f_{blue}$ must equal 1.
 
 For each active layer, the deposited heat is the flux at its upper interface
 minus the flux at its lower interface. For the bottom active layer, the lower

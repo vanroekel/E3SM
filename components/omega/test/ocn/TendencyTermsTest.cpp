@@ -1924,15 +1924,21 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    const auto Mesh   = HorzMesh::getDefault();
    const auto VCoord = VertCoord::getDefault();
 
-   // Arbitrary test values for the incident surface shortwave flux and the
-   // extinction coefficients. The layer thickness and number of layers make
-   // the attenuation profile distinct across the active layers.
+   // Test values for a shallow water column where shortwave radiation
+   // penetrates all the way to the seafloor with significant leftover energy. A
+   // layer thickness of 1.0 m (16 m total depth) with realistic blue and red
+   // extinction coefficients ensures that substantial flux reaches the bottom
+   // interface. The test verifies that this leftover flux is fully absorbed
+   // into the bottom layer so that column-integrated heating is conserved
+   // (integrated fraction is 1.0).
    const Real SurfaceFluxVal    = 235.0_Real; // W/m^2
-   const Real ExtinctionRedVal  = 1.0_Real;   // 1/m
-   const Real ExtinctionBlueVal = 0.5_Real;   // 1/m
+   const Real ExtinctionRedVal  = 0.2_Real;   // 1/m
+   const Real ExtinctionBlueVal = 0.05_Real;  // 1/m
    const Real NearIrFractionVal = 0.58_Real;
    const Real NearIrCoeffVal    = 2.86_Real; // 1/m
-   const Real LayerThickness    = 10.0_Real; // m
+   const Real RedFractionVal    = 0.21_Real;
+   const Real BlueFractionVal   = 0.21_Real;
+   const Real LayerThickness    = 1.0_Real; // m
 
    Array1DReal ShortWaveHeatFlux("ShortWaveHeatFlux", Mesh->NCellsSize);
    Array1DReal ExtinctionCoeffRed("ExtinctionCoeffRed", Mesh->NCellsSize);
@@ -1958,6 +1964,8 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    PenSWOnC.Enabled        = true;
    PenSWOnC.NearIrFraction = NearIrFractionVal;
    PenSWOnC.NearIrCoeff    = NearIrCoeffVal;
+   PenSWOnC.RedFraction    = RedFractionVal;
+   PenSWOnC.BlueFraction   = BlueFractionVal;
    const auto MinLayerCell = VCoord->MinLayerCell;
    const auto MaxLayerCell = VCoord->MaxLayerCell;
 
@@ -1972,8 +1980,30 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    parallelReduce(
        {Mesh->NCellsOwned},
        KOKKOS_LAMBDA(int ICell, I4 &Accum) {
-          const I4 KTop      = MinLayerCell(ICell);
-          const I4 KBot      = MaxLayerCell(ICell);
+          const I4 KTop = MinLayerCell(ICell);
+          const I4 KBot = MaxLayerCell(ICell);
+          if (KTop > KBot) {
+             return;
+          }
+
+          // Analytic flux that would reach the seafloor interface without
+          // bottom-layer absorption
+          const Real SeafloorDepth = Kokkos::abs(
+              GeomZInterface(ICell, KBot + 1) - GeomZInterface(ICell, KTop));
+          const Real ResidualSeafloorFlux =
+              SurfaceFluxVal *
+              (NearIrFractionVal *
+                   Kokkos::exp(-NearIrCoeffVal * SeafloorDepth) +
+               RedFractionVal * Kokkos::exp(-ExtinctionRedVal * SeafloorDepth) +
+               BlueFractionVal *
+                   Kokkos::exp(-ExtinctionBlueVal * SeafloorDepth));
+
+          // Ensure the test setup genuinely has significant leftover flux at
+          // the bottom interface (at least 5% of incident flux)
+          if (ResidualSeafloorFlux < 0.05_Real * SurfaceFluxVal) {
+             Accum += 1;
+          }
+
           Real FluxAtTop     = SurfaceFluxVal;
           Real ColumnHeating = 0.0_Real;
           for (I4 K = KTop; K <= KBot; ++K) {
@@ -1984,8 +2014,8 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
                 FluxAtBottom =
                     SurfaceFluxVal *
                     (NearIrFractionVal * Kokkos::exp(-NearIrCoeffVal * Depth) +
-                     0.23_Real * Kokkos::exp(-ExtinctionRedVal * Depth) +
-                     0.19_Real * Kokkos::exp(-ExtinctionBlueVal * Depth));
+                     RedFractionVal * Kokkos::exp(-ExtinctionRedVal * Depth) +
+                     BlueFractionVal * Kokkos::exp(-ExtinctionBlueVal * Depth));
              }
              const Real ExpectedLayerHeating =
                  (FluxAtTop - FluxAtBottom) * HFluxFac;
@@ -1997,6 +2027,19 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
                  Kokkos::isinf(Tend(0, ICell, K))) {
                 Accum += 1;
              }
+
+             // In the bottom layer, verify that the absorbed heating is
+             // strictly greater than unadjusted exponential divergence,
+             // confirming the leftover seafloor flux was absorbed in the bottom
+             // layer
+             if (K == KBot) {
+                const Real UnadjustedBottomHeating =
+                    (FluxAtTop - ResidualSeafloorFlux) * HFluxFac;
+                if (Tend(0, ICell, K) <= UnadjustedBottomHeating) {
+                   Accum += 1;
+                }
+             }
+
              FluxAtTop = FluxAtBottom;
           }
           const Real ColumnRelErr =

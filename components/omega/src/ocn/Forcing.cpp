@@ -178,17 +178,8 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
    CHECK_ERROR_ABORT(Err, "Forcing: SfcTracerForcingTendencyEnable not found "
                           "in Tendencies config");
 
-   bool PenetratingShortwaveEnabled = false;
-   Err += TendConfig.get("PenetratingShortwaveTendencyEnable",
-                         PenetratingShortwaveEnabled);
-   CHECK_ERROR_ABORT(
-       Err,
-       "Forcing: PenetratingShortwaveTendencyEnable not found in Tendencies "
-       "config");
-
-   TracerForcingFieldsEnabled = SfcThicknessForcingEnabled ||
-                                SfcTracerForcingEnabled ||
-                                PenetratingShortwaveEnabled;
+   TracerForcingFieldsEnabled =
+       SfcThicknessForcingEnabled || SfcTracerForcingEnabled;
 }
 
 // Compute all forcing variables (dispatches to specific computations).
