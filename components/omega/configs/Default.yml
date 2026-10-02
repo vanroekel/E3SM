@@ -70,11 +70,12 @@ Omega:
       BottomDragCoeff: 1.0e-3
     SfcThicknessForcingTendencyEnable: false
     SfcTracerForcingTendencyEnable: false
-    PenetratingShortwaveTendencyEnable: false
-    NearIrFraction: 0.58
-    NearIrCoeff: 2.86
-    BlueFraction: 0.19
-    RedFraction: 0.23
+    PenetratingShortwaveTendency:
+      Enable: false
+      NearIrFraction: 0.58
+      NearIrCoeff: 2.86
+      BlueFraction: 0.21
+      RedFraction: 0.21
     TracerHorzAdvTendencyEnable: true
     TracerDiffTendencyEnable: true
     EddyDiff2: 10.0

@@ -63,9 +63,12 @@ the currently available tendency terms:
 | | BottomDragTendency:BottomDragCoeff | bottom drag coefficient
 | SfcThicknessForcingOnCell | SfcThicknessForcingTendencyEnable | enable/disable term
 | SfcTracerForcingOnCell | SfcTracerForcingTendencyEnable | enable/disable term
-| PenetratingShortwaveOnCell | PenetratingShortwaveTendencyEnable | enable/disable depth-dependent shortwave heating
-| | NearIrFraction | near-infrared fraction of shortwave flux
-| | NearIrCoeff | near-infrared extinction coefficient ($\mathrm{m}^{-1}$)
+| PenetratingShortwaveOnCell | PenetratingShortwaveTendency | enable/disable depth-dependent shortwave heating
+| | PenetratingShortwaveTendency:Enable | enable/disable term
+| | PenetratingShortwaveTendency:NearIrFraction | near-infrared fraction of shortwave flux
+| | PenetratingShortwaveTendency:NearIrCoeff | near-infrared extinction coefficient ($\mathrm{m}^{-1}$)
+| | PenetratingShortwaveTendency:RedFraction | red-band fraction of shortwave flux
+| | PenetratingShortwaveTendency:BlueFraction | blue/green-band fraction of shortwave flux
 | SurfaceTracerRestoringOnCell | SurfaceTracerRestoringEnable | enable/disable term
 
 The vertical advection, pressure gradient and vertical mixing tendencies are not

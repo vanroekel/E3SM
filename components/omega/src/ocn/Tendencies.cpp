@@ -25,6 +25,8 @@
 #include "Tracers.h"
 #include "VertAdv.h"
 #include "VertMix.h"
+#include <cmath>
+#include <iostream>
 #include <string>
 
 namespace OMEGA {
@@ -334,20 +336,50 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
        Err,
        "Tendencies: SfcTracerForcingTendencyEnable not found in TendConfig");
 
-   Err += TendConfig.get("PenetratingShortwaveTendencyEnable",
-                         this->PenetratingShortwave.Enabled);
-   CHECK_ERROR_ABORT(Err, "Tendencies: PenetratingShortwaveTendencyEnable not "
+   Config PenSWConfig("PenetratingShortwaveTendency");
+   Err += TendConfig.get(PenSWConfig);
+   CHECK_ERROR_ABORT(Err, "Tendencies: PenetratingShortwaveTendency group not "
                           "found in TendConfig");
-   Err += TendConfig.get("NearIrFraction",
-                         this->PenetratingShortwave.NearIrFraction);
-   CHECK_ERROR_ABORT(Err, "Tendencies: NearIrFraction not found in TendConfig");
-   Err += TendConfig.get("NearIrCoeff", this->PenetratingShortwave.NearIrCoeff);
-   CHECK_ERROR_ABORT(Err, "Tendencies: NearIrCoeff not found in TendConfig");
-   Err += TendConfig.get("RedFraction", this->PenetratingShortwave.RedFraction);
-   CHECK_ERROR_ABORT(Err, "Tendencies: RedFraction not found in TendConfig");
+
+   Err += PenSWConfig.get("Enable", this->PenetratingShortwave.Enabled);
+   CHECK_ERROR_ABORT(
+       Err, "Tendencies: PenetratingShortwaveTendency Enable not found in "
+            "PenetratingShortwaveTendency config");
+   Err += PenSWConfig.get("NearIrFraction",
+                          this->PenetratingShortwave.NearIrFraction);
+   CHECK_ERROR_ABORT(Err, "Tendencies: NearIrFraction not found in "
+                          "PenetratingShortwaveTendency config");
    Err +=
-       TendConfig.get("BlueFraction", this->PenetratingShortwave.BlueFraction);
-   CHECK_ERROR_ABORT(Err, "Tendencies: BlueFraction not found in TendConfig");
+       PenSWConfig.get("NearIrCoeff", this->PenetratingShortwave.NearIrCoeff);
+   CHECK_ERROR_ABORT(Err, "Tendencies: NearIrCoeff not found in "
+                          "PenetratingShortwaveTendency config");
+   Err +=
+       PenSWConfig.get("RedFraction", this->PenetratingShortwave.RedFraction);
+   CHECK_ERROR_ABORT(Err, "Tendencies: RedFraction not found in "
+                          "PenetratingShortwaveTendency config");
+   Err +=
+       PenSWConfig.get("BlueFraction", this->PenetratingShortwave.BlueFraction);
+   CHECK_ERROR_ABORT(Err, "Tendencies: BlueFraction not found in "
+                          "PenetratingShortwaveTendency config");
+
+   const Real TotalFraction = this->PenetratingShortwave.NearIrFraction +
+                              this->PenetratingShortwave.RedFraction +
+                              this->PenetratingShortwave.BlueFraction;
+   if (std::abs(TotalFraction - 1.0_Real) > 1.0e-5_Real) {
+      ABORT_ERROR(
+          "Tendencies: The sum of NearIrFraction ({}), RedFraction ({}), "
+          "and BlueFraction ({}) must equal 1 (got {})",
+          this->PenetratingShortwave.NearIrFraction,
+          this->PenetratingShortwave.RedFraction,
+          this->PenetratingShortwave.BlueFraction, TotalFraction);
+   }
+
+   if (this->PenetratingShortwave.Enabled && !this->SfcTracerForcing.Enabled) {
+      ABORT_ERROR(
+          "Tendencies: PenetratingShortwaveTendency is enabled, but "
+          "SfcTracerForcingTendencyEnable is false. Penetrating shortwave "
+          "requires surface tracer forcing to be enabled.");
+   }
 
    this->SfcTracerForcing.IncludeShortWaveHeatFlux =
        !this->PenetratingShortwave.Enabled;

@@ -1249,8 +1249,8 @@ class PenetratingShortwaveOnCell {
    bool Enabled        = false;
    Real NearIrFraction = 0.58_Real;
    Real NearIrCoeff    = 2.86_Real;
-   Real RedFraction    = 0.23_Real;
-   Real BlueFraction   = 0.19_Real;
+   Real RedFraction    = 0.21_Real;
+   Real BlueFraction   = 0.21_Real;
 
    PenetratingShortwaveOnCell(const HorzMesh *Mesh, const VertCoord *VCoord,
                               I4 TempTracerIndex);
@@ -1273,23 +1273,25 @@ class PenetratingShortwaveOnCell {
       const Real Kb          = ExtinctionCoeffBlue(ICell);
       const Real ZSurface    = GeomZInterface(ICell, KTop);
 
-      Real FluxAtTop = SurfaceFlux;
+      Real FluxAtLayerTop = SurfaceFlux;
       for (I4 K = KTop; K <= KBot; ++K) {
-         Real FluxAtBottom;
+         Real FluxAtLayerBottom;
          if (K < KBot) {
             const Real Depth =
                 Kokkos::abs(GeomZInterface(ICell, K + 1) - ZSurface);
-            FluxAtBottom = SurfaceFlux *
-                           (NearIrFraction * Kokkos::exp(-NearIrCoeff * Depth) +
-                            RedFraction * Kokkos::exp(-Kr * Depth) +
-                            BlueFraction * Kokkos::exp(-Kb * Depth));
+            FluxAtLayerBottom =
+                SurfaceFlux *
+                (NearIrFraction * Kokkos::exp(-NearIrCoeff * Depth) +
+                 RedFraction * Kokkos::exp(-Kr * Depth) +
+                 BlueFraction * Kokkos::exp(-Kb * Depth));
          } else {
             // Deposit all shortwave radiation reaching the seafloor into the
             // bottom layer so the column-integrated heating is conservative.
-            FluxAtBottom = 0.0_Real;
+            FluxAtLayerBottom = 0.0_Real;
          }
-         Tend(TempIndex, ICell, K) += (FluxAtTop - FluxAtBottom) * HFluxFac;
-         FluxAtTop = FluxAtBottom;
+         Tend(TempIndex, ICell, K) +=
+             (FluxAtLayerTop - FluxAtLayerBottom) * HFluxFac;
+         FluxAtLayerTop = FluxAtLayerBottom;
       }
    }
 
