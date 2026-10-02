@@ -222,9 +222,6 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
       KPPNonLocalTracerFluxErr.reset();
    }
 
-   TracerForcingFieldsEnabled =
-       SfcThicknessForcingEnabled || SfcTracerForcingEnabled;
-
    Config KPPConfig("KPP");
    Config VertMixConfig("VertMix");
    Error KPPConfigErr = OmegaConfig->get(VertMixConfig);
@@ -239,6 +236,17 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
    // Ice fraction feeds both Langmuir suppression and the minimum-OSBL-
    // under-ice clamp, so it is needed whenever KPP itself is enabled.
    IceFractionFieldEnabled = KPPEnabled;
+   bool PenetratingShortwaveEnabled = false;
+   Err += TendConfig.get("PenetratingShortwaveTendencyEnable",
+                         PenetratingShortwaveEnabled);
+   CHECK_ERROR_ABORT(
+       Err,
+       "Forcing: PenetratingShortwaveTendencyEnable not found in Tendencies "
+       "config");
+
+   TracerForcingFieldsEnabled = SfcThicknessForcingEnabled ||
+                                SfcTracerForcingEnabled ||
+                                PenetratingShortwaveEnabled;
 }
 
 // Compute all forcing variables (dispatches to specific computations).
@@ -329,6 +337,8 @@ I4 Forcing::exchangeHalo() const {
                                             L, Kokkos::ALL);
          Err += MeshHalo->exchangeFullArrayHalo(TracerFlux, OnCell);
       }
+        Err += MeshHalo->exchangeFullArrayHalo(
+           TracerForcing.ShortWaveHeatFluxCell, OnCell);
    }
 
    if (WindSpeed10mFieldEnabled) {

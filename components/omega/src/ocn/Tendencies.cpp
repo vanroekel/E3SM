@@ -334,6 +334,13 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
        Err,
        "Tendencies: SfcTracerForcingTendencyEnable not found in TendConfig");
 
+   Err += TendConfig.get("PenetratingShortwaveTendencyEnable",
+                         this->PenetratingShortwave.Enabled);
+   CHECK_ERROR_ABORT(Err, "Tendencies: PenetratingShortwaveTendencyEnable not "
+                          "found in TendConfig");
+   this->SfcTracerForcing.IncludeShortWaveHeatFlux =
+       !this->PenetratingShortwave.Enabled;
+
    if (this->TracerDiffusion.Enabled) {
       Err += TendConfig.get("EddyDiff2", this->TracerDiffusion.EddyDiff2);
       CHECK_ERROR_ABORT(Err, "Tendencies: EddyDiff2 not found in TendConfig");
@@ -578,9 +585,10 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
       ExplicitBottomDrag(Mesh, VCoord), SfcThicknessForcing(Mesh, VCoord),
       SfcTracerForcing(Mesh, VCoord, Tracers::IndxTemp, Tracers::IndxSalt,
                        EqState),
-      TracerDiffusion(Mesh, VCoord), KPPNonLocalTracerFlux(Mesh, VCoord),
-      TracerHyperDiff(Mesh, VCoord), TracerHorzAdv(Mesh, VCoord, VAdv_),
-      SurfaceTracerRestoring(Mesh), CustomThicknessTend(InCustomThicknessTend),
+      PenetratingShortwave(Mesh, VCoord, Tracers::IndxTemp),
+    TracerHorzAdv(Mesh, VCoord, VAdv_), TracerDiffusion(Mesh, VCoord),
+    KPPNonLocalTracerFlux(Mesh, VCoord), TracerHyperDiff(Mesh, VCoord),
+    SurfaceTracerRestoring(Mesh), CustomThicknessTend(InCustomThicknessTend),
       CustomVelocityTend(InCustomVelocityTend), EqState(EqState), PGrad(PGrad),
       VMix(VMix) {
 
@@ -1323,6 +1331,26 @@ void Tendencies::computeTracerTendenciesOnly(
 
          Pacer::stop("Tend:KPPNonLocalTracerFlux", 2);
       }
+    }
+   OMEGA_SCOPE(LocPenetratingShortwave, PenetratingShortwave);
+   if (LocPenetratingShortwave.Enabled) {
+      Pacer::start("Tend:penetratingShortwave", 2);
+      const auto *ForcingState = Forcing::getDefault();
+      const auto &ShortWaveHeatFlux =
+          ForcingState->TracerForcing.ShortWaveHeatFluxCell;
+      const auto &GeomZInterface = VCoord->GeomZInterface;
+      const auto &ExtinctionCoeffRed =
+          AuxState->ShortwavePenAux.ExtinctionCoeffRedCell;
+      const auto &ExtinctionCoeffBlue =
+          AuxState->ShortwavePenAux.ExtinctionCoeffBlueCell;
+
+      parallelFor(
+          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
+             LocPenetratingShortwave(LocTracerTend, ICell, GeomZInterface,
+                                     ShortWaveHeatFlux, ExtinctionCoeffRed,
+                                     ExtinctionCoeffBlue);
+          });
+      Pacer::stop("Tend:penetratingShortwave", 2);
    }
 
    Pacer::stop("Tend:computeTracerTendenciesOnly", 1);
