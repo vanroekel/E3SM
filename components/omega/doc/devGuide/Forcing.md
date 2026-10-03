@@ -116,7 +116,8 @@ the surface layer pseudo-thickness.
   `ShortwaveExtinctionIn` stream.
 5. `Tendencies::computeTracerTendenciesOnly()` invokes
   `PenetratingShortwaveOnCell` when
-  `PenetratingShortwaveTendency.Enable` is enabled.
+  `PenetratingShortwaveTendency.Enable` is enabled and
+   `SfcTracerForcingTendencyEnable` is true.
 
 ### Key classes and fields
 
