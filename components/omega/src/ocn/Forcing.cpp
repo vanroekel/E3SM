@@ -1,11 +1,8 @@
 //===-- ocn/Forcing.cpp - Forcing ------------------*- C++ -*-===//
 //
-// The Forcing class manages the external forcing (from data or coupled
-//  components). For now, it only includes ocean surface stress forcing
-// but will include surface restoring and surface thermodynamical forcing.
-// For now, it contains
-// surface stress data on cells and provides methods to compute
-// edge-normal stress components, manage halo exchanges, and handle IO.
+// The Forcing class manages external forcing from data or coupled components,
+// including ocean surface stress, tracer forcing, and shortwave extinction
+// coefficients.
 //
 //===--------------------------------------------------------------===//
 
@@ -36,6 +33,7 @@ static std::string stripDefault(const std::string &Name) {
 Forcing::Forcing(const std::string &Name, const HorzMesh *Mesh, Halo *MeshHalo)
     : Name(stripDefault(Name)), SfcStressForcing(stripDefault(Name), Mesh),
       TracerForcing(stripDefault(Name), Mesh),
+   ShortwavePenForcing(stripDefault(Name), Mesh),
       WindSpeed10mCell("WindSpeed10m" + stripDefault(Name), Mesh->NCellsSize),
       IceFractionCell("IceFraction" + stripDefault(Name), Mesh->NCellsSize),
       Mesh(Mesh), MeshHalo(MeshHalo) {
@@ -46,8 +44,11 @@ Forcing::Forcing(const std::string &Name, const HorzMesh *Mesh, Halo *MeshHalo)
 // Destructor. Unregisters fields from IO streams.
 Forcing::~Forcing() { unregisterFields(); }
 
-// Register surface stress fields with IO streams for a given mesh.
+// Register forcing fields with IO streams for a given mesh.
 void Forcing::registerFields(const std::string &MeshName) const {
+   ShortwavePenForcing.registerFields("ShortwaveExtinction", MeshName);
+   ShortwavePenFieldsRegistered = true;
+
    if (SfcStressFieldsEnabled) {
       SfcStressForcing.registerFields(MeshName);
    }
@@ -76,8 +77,13 @@ void Forcing::registerFields(const std::string &MeshName) const {
    }
 }
 
-// Unregister surface stress fields from IO streams.
+// Unregister forcing fields from IO streams.
 void Forcing::unregisterFields() const {
+   if (ShortwavePenFieldsRegistered) {
+      ShortwavePenForcing.unregisterFields();
+      ShortwavePenFieldsRegistered = false;
+   }
+
    if (SfcStressFieldsEnabled) {
       SfcStressForcing.unregisterFields();
    }
@@ -121,6 +127,7 @@ void Forcing::init() {
    }
 
    FieldGroup::create("Forcing");
+   FieldGroup::create("ShortwaveExtinction");
 
    const HorzMesh *DefMesh = HorzMesh::getDefault();
    OMEGA_REQUIRE(DefMesh, "Null default HorzMesh pointer in Forcing::init");
@@ -172,6 +179,9 @@ void Forcing::clear() {
    DefaultForcing = nullptr;
    if (FieldGroup::exists("Forcing")) {
       FieldGroup::destroy("Forcing");
+   }
+   if (FieldGroup::exists("ShortwaveExtinction")) {
+      FieldGroup::destroy("ShortwaveExtinction");
    }
 }
 
@@ -337,8 +347,6 @@ I4 Forcing::exchangeHalo() const {
                                             L, Kokkos::ALL);
          Err += MeshHalo->exchangeFullArrayHalo(TracerFlux, OnCell);
       }
-        Err += MeshHalo->exchangeFullArrayHalo(
-           TracerForcing.ShortWaveHeatFluxCell, OnCell);
    }
 
    if (WindSpeed10mFieldEnabled) {
@@ -348,7 +356,6 @@ I4 Forcing::exchangeHalo() const {
    if (IceFractionFieldEnabled) {
       Err += MeshHalo->exchangeFullArrayHalo(IceFractionCell, OnCell);
    }
-
    return Err;
 }
 

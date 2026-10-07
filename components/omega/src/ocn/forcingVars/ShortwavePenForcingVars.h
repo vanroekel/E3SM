@@ -1,5 +1,5 @@
-#ifndef OMEGA_AUX_SHORTWAVE_PEN_H
-#define OMEGA_AUX_SHORTWAVE_PEN_H
+#ifndef OMEGA_FORCING_SHORTWAVE_PEN_H
+#define OMEGA_FORCING_SHORTWAVE_PEN_H
 
 #include "DataTypes.h"
 #include "HorzMesh.h"
@@ -8,12 +8,12 @@
 
 namespace OMEGA {
 
-class ShortwavePenAuxVars {
+class ShortwavePenForcingVars {
  public:
    Array1DReal ExtinctionCoeffRedCell;
    Array1DReal ExtinctionCoeffBlueCell;
 
-   ShortwavePenAuxVars(const std::string &AuxStateSuffix, const HorzMesh *Mesh);
+   ShortwavePenForcingVars(const std::string &Suffix, const HorzMesh *Mesh);
 
    void registerFields(const std::string &GroupName,
                        const std::string &MeshName) const;

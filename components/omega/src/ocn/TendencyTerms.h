@@ -1274,8 +1274,8 @@ class PenetratingShortwaveOnCell {
       const Real ZSurface    = GeomZInterface(ICell, KTop);
 
       Real FluxAtLayerTop = SurfaceFlux;
+      Real FluxAtLayerBottom;
       for (I4 K = KTop; K <= KBot; ++K) {
-         Real FluxAtLayerBottom;
          if (K < KBot) {
             const Real Depth =
                 Kokkos::abs(GeomZInterface(ICell, K + 1) - ZSurface);

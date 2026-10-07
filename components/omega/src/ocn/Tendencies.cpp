@@ -336,36 +336,36 @@ void Tendencies::readConfig(Config *OmegaConfig ///< [in] Omega config
        Err,
        "Tendencies: SfcTracerForcingTendencyEnable not found in TendConfig");
 
-   Config PenSWConfig("PenetratingShortwaveTendency");
-   Err += TendConfig.get(PenSWConfig);
+   Config PenSwConfig("PenetratingShortwaveTendency");
+   Err += TendConfig.get(PenSwConfig);
    CHECK_ERROR_ABORT(Err, "Tendencies: PenetratingShortwaveTendency group not "
                           "found in TendConfig");
 
-   Err += PenSWConfig.get("Enable", this->PenetratingShortwave.Enabled);
+   Err += PenSwConfig.get("Enable", this->PenetratingShortwave.Enabled);
    CHECK_ERROR_ABORT(
        Err, "Tendencies: PenetratingShortwaveTendency Enable not found in "
             "PenetratingShortwaveTendency config");
-   Err += PenSWConfig.get("NearIrFraction",
+   Err += PenSwConfig.get("NearIrFraction",
                           this->PenetratingShortwave.NearIrFraction);
    CHECK_ERROR_ABORT(Err, "Tendencies: NearIrFraction not found in "
                           "PenetratingShortwaveTendency config");
    Err +=
-       PenSWConfig.get("NearIrCoeff", this->PenetratingShortwave.NearIrCoeff);
+       PenSwConfig.get("NearIrCoeff", this->PenetratingShortwave.NearIrCoeff);
    CHECK_ERROR_ABORT(Err, "Tendencies: NearIrCoeff not found in "
                           "PenetratingShortwaveTendency config");
    Err +=
-       PenSWConfig.get("RedFraction", this->PenetratingShortwave.RedFraction);
+       PenSwConfig.get("RedFraction", this->PenetratingShortwave.RedFraction);
    CHECK_ERROR_ABORT(Err, "Tendencies: RedFraction not found in "
                           "PenetratingShortwaveTendency config");
    Err +=
-       PenSWConfig.get("BlueFraction", this->PenetratingShortwave.BlueFraction);
+       PenSwConfig.get("BlueFraction", this->PenetratingShortwave.BlueFraction);
    CHECK_ERROR_ABORT(Err, "Tendencies: BlueFraction not found in "
                           "PenetratingShortwaveTendency config");
 
    const Real TotalFraction = this->PenetratingShortwave.NearIrFraction +
                               this->PenetratingShortwave.RedFraction +
                               this->PenetratingShortwave.BlueFraction;
-   if (std::abs(TotalFraction - 1.0_Real) > 1.0e-5_Real) {
+   if (Kokkos::abs(TotalFraction - 1.0_Real) > 1.0e-5_Real) {
       ABORT_ERROR(
           "Tendencies: The sum of NearIrFraction ({}), RedFraction ({}), "
           "and BlueFraction ({}) must equal 1 (got {})",
@@ -1301,17 +1301,15 @@ void Tendencies::computeTracerTendenciesOnly(
       const auto &SeaIceSaltFlux =
           ForcingState->TracerForcing.SeaIceSaltFluxCell;
       const auto &PressureMid = VCoord->PressureMid;
-      const auto &SurfaceTracerFlux =
-          ForcingState->TracerForcing.SurfaceTracerFluxCell;
 
       parallelFor(
-          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
-             LocSfcTracerForcing(
-                 LocTracerTend, SurfaceTracerFlux, ICell, TracerArray,
-                 LatentHeatFluxEvap, SensibleHeatFlux, LongWaveHeatFluxUp,
-                 LongWaveHeatFluxDown, SeaIceHeatFlux, ShortWaveHeatFlux,
-                 SnowFlux, RainFlux, IceRunoffFlux, RiverRunoffFlux,
-                 EvaporationFlux, SeaIceSaltFlux);
+          {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
+             LocSfcTracerForcing(LocTracerTend, ICell, TracerArray, PressureMid,
+                                 LatentHeatFluxEvap, SensibleHeatFlux,
+                                 LongWaveHeatFluxUp, LongWaveHeatFluxDown,
+                                 SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux,
+                                 RainFlux, IceRunoffFlux, RiverRunoffFlux,
+                                 EvaporationFlux, SeaIceSaltFlux);
           });
       Pacer::stop("Tend:sfcTracerForcing", 2);
    }
@@ -1383,12 +1381,12 @@ void Tendencies::computeTracerTendenciesOnly(
           ForcingState->TracerForcing.ShortWaveHeatFluxCell;
       const auto &GeomZInterface = VCoord->GeomZInterface;
       const auto &ExtinctionCoeffRed =
-          AuxState->ShortwavePenAux.ExtinctionCoeffRedCell;
+          ForcingState->ShortwavePenForcing.ExtinctionCoeffRedCell;
       const auto &ExtinctionCoeffBlue =
-          AuxState->ShortwavePenAux.ExtinctionCoeffBlueCell;
+          ForcingState->ShortwavePenForcing.ExtinctionCoeffBlueCell;
 
       parallelFor(
-          {Mesh->NCellsAll}, KOKKOS_LAMBDA(int ICell) {
+          {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
              LocPenetratingShortwave(LocTracerTend, ICell, GeomZInterface,
                                      ShortWaveHeatFlux, ExtinctionCoeffRed,
                                      ExtinctionCoeffBlue);

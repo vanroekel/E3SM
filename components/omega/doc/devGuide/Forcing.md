@@ -125,8 +125,9 @@ the surface layer pseudo-thickness.
   `CplToOcnFields::ShortWaveHeatFlux`.
 2. `SfcCoupling::applyImportFields()` copies the field to
   `TracerForcingVars::ShortWaveHeatFluxCell`.
-3. `Forcing::exchangeHalo()` updates the shortwave field on halo cells.
-4. `AuxiliaryState` reads the cell-centered annual-average fields
+3. Surface tracer forcing and penetrating shortwave heating are computed only
+  on owned cells, so the shortwave forcing field needs no halo exchange.
+4. `Forcing` owns the cell-centered annual-average fields
   `ExtinctionCoeffRedCell` and `ExtinctionCoeffBlueCell` from the
   `ShortwaveExtinctionIn` stream.
 5. `Tendencies::computeTracerTendenciesOnly()` invokes
@@ -138,7 +139,7 @@ the surface layer pseudo-thickness.
 
 - `CplToOcnFields::ShortWaveHeatFlux`: host-side coupled shortwave flux.
 - `TracerForcingVars::ShortWaveHeatFluxCell`: device-side cell forcing field.
-- `ShortwavePenAuxVars`: owns and registers the two extinction coefficient
+- `ShortwavePenForcingVars`: owns and registers the two extinction coefficient
   fields in the `ShortwaveExtinction` field group.
 - `PenetratingShortwaveOnCell`: Kokkos functor whose operator is defined in
   `ocn/TendencyTerms.h`; its constructor is defined in

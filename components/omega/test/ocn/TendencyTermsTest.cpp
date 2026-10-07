@@ -2034,18 +2034,18 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    Array3DReal Tend("Tend", 1, Mesh->NCellsSize, NVertLayers);
    deepCopy(Tend, 0);
 
-   PenetratingShortwaveOnCell PenSWOnC(Mesh, VCoord, /*TempTracerIndex=*/0);
-   PenSWOnC.Enabled        = true;
-   PenSWOnC.NearIrFraction = NearIrFractionVal;
-   PenSWOnC.NearIrCoeff    = NearIrCoeffVal;
-   PenSWOnC.RedFraction    = RedFractionVal;
-   PenSWOnC.BlueFraction   = BlueFractionVal;
+   PenetratingShortwaveOnCell PenSwOnC(Mesh, VCoord, /*TempTracerIndex=*/0);
+   PenSwOnC.Enabled        = true;
+   PenSwOnC.NearIrFraction = NearIrFractionVal;
+   PenSwOnC.NearIrCoeff    = NearIrCoeffVal;
+   PenSwOnC.RedFraction    = RedFractionVal;
+   PenSwOnC.BlueFraction   = BlueFractionVal;
    const auto MinLayerCell = VCoord->MinLayerCell;
    const auto MaxLayerCell = VCoord->MaxLayerCell;
 
    parallelFor(
        {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
-          PenSWOnC(Tend, ICell, GeomZInterface, ShortWaveHeatFlux,
+          PenSwOnC(Tend, ICell, GeomZInterface, ShortWaveHeatFlux,
                    ExtinctionCoeffRed, ExtinctionCoeffBlue);
        });
 

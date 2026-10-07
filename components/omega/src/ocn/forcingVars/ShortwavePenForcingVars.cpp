@@ -1,19 +1,19 @@
-#include "ShortwavePenAuxVars.h"
+#include "ShortwavePenForcingVars.h"
 #include "Field.h"
 
 #include <limits>
 
 namespace OMEGA {
 
-ShortwavePenAuxVars::ShortwavePenAuxVars(const std::string &AuxStateSuffix,
-                                         const HorzMesh *Mesh)
-    : ExtinctionCoeffRedCell("ExtinctionCoeffRedCell" + AuxStateSuffix,
+ShortwavePenForcingVars::ShortwavePenForcingVars(const std::string &Suffix,
+                                                 const HorzMesh *Mesh)
+    : ExtinctionCoeffRedCell("ExtinctionCoeffRedCell" + Suffix,
                              Mesh->NCellsSize),
-      ExtinctionCoeffBlueCell("ExtinctionCoeffBlueCell" + AuxStateSuffix,
+      ExtinctionCoeffBlueCell("ExtinctionCoeffBlueCell" + Suffix,
                               Mesh->NCellsSize) {}
 
-void ShortwavePenAuxVars::registerFields(const std::string &GroupName,
-                                         const std::string &MeshName) const {
+void ShortwavePenForcingVars::registerFields(
+    const std::string &GroupName, const std::string &MeshName) const {
    const int NDims = 1;
    std::string DimSuffix;
    if (MeshName != "Default") {
@@ -38,7 +38,7 @@ void ShortwavePenAuxVars::registerFields(const std::string &GroupName,
        ExtinctionCoeffBlueCell);
 }
 
-void ShortwavePenAuxVars::unregisterFields() const {
+void ShortwavePenForcingVars::unregisterFields() const {
    Field::destroy(ExtinctionCoeffRedCell.label());
    Field::destroy(ExtinctionCoeffBlueCell.label());
 }
