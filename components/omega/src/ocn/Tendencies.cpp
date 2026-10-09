@@ -629,9 +629,9 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
       SfcTracerForcing(Mesh, VCoord, Tracers::IndxTemp, Tracers::IndxSalt,
                        EqState),
       PenetratingShortwave(Mesh, VCoord, Tracers::IndxTemp),
-    TracerHorzAdv(Mesh, VCoord, VAdv_), TracerDiffusion(Mesh, VCoord),
-    KPPNonLocalTracerFlux(Mesh, VCoord), TracerHyperDiff(Mesh, VCoord),
-    SurfaceTracerRestoring(Mesh), CustomThicknessTend(InCustomThicknessTend),
+      TracerHorzAdv(Mesh, VCoord, VAdv_), TracerDiffusion(Mesh, VCoord),
+      KPPNonLocalTracerFlux(Mesh, VCoord), TracerHyperDiff(Mesh, VCoord),
+      SurfaceTracerRestoring(Mesh), CustomThicknessTend(InCustomThicknessTend),
       CustomVelocityTend(InCustomVelocityTend), EqState(EqState), PGrad(PGrad),
       VMix(VMix) {
 
@@ -1301,15 +1301,17 @@ void Tendencies::computeTracerTendenciesOnly(
       const auto &SeaIceSaltFlux =
           ForcingState->TracerForcing.SeaIceSaltFluxCell;
       const auto &PressureMid = VCoord->PressureMid;
+      const auto &SurfaceTracerFlux =
+          ForcingState->TracerForcing.SurfaceTracerFluxCell;
 
       parallelFor(
           {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
-             LocSfcTracerForcing(LocTracerTend, ICell, TracerArray, PressureMid,
-                                 LatentHeatFluxEvap, SensibleHeatFlux,
-                                 LongWaveHeatFluxUp, LongWaveHeatFluxDown,
-                                 SeaIceHeatFlux, ShortWaveHeatFlux, SnowFlux,
-                                 RainFlux, IceRunoffFlux, RiverRunoffFlux,
-                                 EvaporationFlux, SeaIceSaltFlux);
+             LocSfcTracerForcing(
+                 LocTracerTend, SurfaceTracerFlux, ICell, TracerArray,
+                 LatentHeatFluxEvap, SensibleHeatFlux, LongWaveHeatFluxUp,
+                 LongWaveHeatFluxDown, SeaIceHeatFlux, ShortWaveHeatFlux,
+                 SnowFlux, RainFlux, IceRunoffFlux, RiverRunoffFlux,
+                 EvaporationFlux, SeaIceSaltFlux);
           });
       Pacer::stop("Tend:sfcTracerForcing", 2);
    }
@@ -1372,7 +1374,7 @@ void Tendencies::computeTracerTendenciesOnly(
 
          Pacer::stop("Tend:KPPNonLocalTracerFlux", 2);
       }
-    }
+   }
    OMEGA_SCOPE(LocPenetratingShortwave, PenetratingShortwave);
    if (LocPenetratingShortwave.Enabled) {
       Pacer::start("Tend:penetratingShortwave", 2);
