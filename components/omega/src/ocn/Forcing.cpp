@@ -247,12 +247,13 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
    // under-ice clamp, so it is needed whenever KPP itself is enabled.
    IceFractionFieldEnabled          = KPPEnabled;
    bool PenetratingShortwaveEnabled = false;
-   Err += TendConfig.get("PenetratingShortwaveTendencyEnable",
-                         PenetratingShortwaveEnabled);
-   CHECK_ERROR_ABORT(
-       Err,
-       "Forcing: PenetratingShortwaveTendencyEnable not found in Tendencies "
-       "config");
+   Config PenSwConfig("PenetratingShortwaveTendency");
+   Err += TendConfig.get(PenSwConfig);
+   CHECK_ERROR_ABORT(Err, "Forcing: PenetratingShortwaveTendency group not "
+                          "found in Tendencies config");
+   Err += PenSwConfig.get("Enable", PenetratingShortwaveEnabled);
+   CHECK_ERROR_ABORT(Err, "Forcing: PenetratingShortwaveTendency Enable not "
+                          "found in PenetratingShortwaveTendency config");
 
    TracerForcingFieldsEnabled = SfcThicknessForcingEnabled ||
                                 SfcTracerForcingEnabled ||
