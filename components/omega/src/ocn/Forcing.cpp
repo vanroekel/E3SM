@@ -33,7 +33,7 @@ static std::string stripDefault(const std::string &Name) {
 Forcing::Forcing(const std::string &Name, const HorzMesh *Mesh, Halo *MeshHalo)
     : Name(stripDefault(Name)), SfcStressForcing(stripDefault(Name), Mesh),
       TracerForcing(stripDefault(Name), Mesh),
-   ShortwavePenForcing(stripDefault(Name), Mesh),
+      ShortwavePenForcing(stripDefault(Name), Mesh),
       WindSpeed10mCell("WindSpeed10m" + stripDefault(Name), Mesh->NCellsSize),
       IceFractionCell("IceFraction" + stripDefault(Name), Mesh->NCellsSize),
       Mesh(Mesh), MeshHalo(MeshHalo) {
@@ -245,7 +245,7 @@ void Forcing::readConfigOptions(Config *OmegaConfig) {
    WindSpeed10mFieldEnabled = KPPEnabled && UseLangmuirTurbulence;
    // Ice fraction feeds both Langmuir suppression and the minimum-OSBL-
    // under-ice clamp, so it is needed whenever KPP itself is enabled.
-   IceFractionFieldEnabled = KPPEnabled;
+   IceFractionFieldEnabled          = KPPEnabled;
    bool PenetratingShortwaveEnabled = false;
    Err += TendConfig.get("PenetratingShortwaveTendencyEnable",
                          PenetratingShortwaveEnabled);

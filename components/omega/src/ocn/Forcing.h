@@ -106,10 +106,10 @@ class Forcing {
 
    const HorzMesh *Mesh;
    Halo *MeshHalo;
-   bool SfcStressFieldsEnabled     = false;
-   bool TracerForcingFieldsEnabled = false;
-   bool WindSpeed10mFieldEnabled   = false;
-   bool IceFractionFieldEnabled    = false;
+   bool SfcStressFieldsEnabled               = false;
+   bool TracerForcingFieldsEnabled           = false;
+   bool WindSpeed10mFieldEnabled             = false;
+   bool IceFractionFieldEnabled              = false;
    mutable bool ShortwavePenFieldsRegistered = false;
 
    static Forcing *DefaultForcing;
