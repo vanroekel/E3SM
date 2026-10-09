@@ -2043,9 +2043,10 @@ int testPenetratingShortwaveOnCell(int NVertLayers, Real RTol) {
    const auto MinLayerCell = VCoord->MinLayerCell;
    const auto MaxLayerCell = VCoord->MaxLayerCell;
 
-   parallelFor(
-       {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
-          PenSwOnC(Tend, ICell, GeomZInterface, ShortWaveHeatFlux,
+   parallelForOuter(
+       LaunchConfig({Mesh->NCellsOwned}, TeamScratch<Real>(NVertLayers + 1)),
+       KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+          PenSwOnC(Team, Tend, ICell, GeomZInterface, ShortWaveHeatFlux,
                    ExtinctionCoeffRed, ExtinctionCoeffBlue);
        });
 

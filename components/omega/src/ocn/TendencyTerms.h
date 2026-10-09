@@ -1256,7 +1256,7 @@ class PenetratingShortwaveOnCell {
                               I4 TempTracerIndex);
 
    KOKKOS_FUNCTION void
-   operator()(const Array3DReal &Tend, I4 ICell,
+   operator()(const TeamMember &Team, const Array3DReal &Tend, I4 ICell,
               const Array2DReal &GeomZInterface,
               const Array1DReal &ShortWaveHeatFlux,
               const Array1DReal &ExtinctionCoeffRed,
@@ -1273,30 +1273,40 @@ class PenetratingShortwaveOnCell {
       const Real Kb          = ExtinctionCoeffBlue(ICell);
       const Real ZSurface    = GeomZInterface(ICell, KTop);
 
-      Real FluxAtLayerTop = SurfaceFlux;
-      Real FluxAtLayerBottom;
-      for (I4 K = KTop; K <= KBot; ++K) {
-         if (K < KBot) {
-            const Real Depth =
-                Kokkos::abs(GeomZInterface(ICell, K + 1) - ZSurface);
-            FluxAtLayerBottom =
-                SurfaceFlux *
-                (NearIrFraction * Kokkos::exp(-NearIrCoeff * Depth) +
-                 RedFraction * Kokkos::exp(-Kr * Depth) +
-                 BlueFraction * Kokkos::exp(-Kb * Depth));
-         } else {
-            // Deposit all shortwave radiation reaching the seafloor into the
-            // bottom layer so the column-integrated heating is conservative.
-            FluxAtLayerBottom = 0.0_Real;
-         }
-         Tend(TempIndex, ICell, K) +=
-             (FluxAtLayerTop - FluxAtLayerBottom) * HFluxFac;
-         FluxAtLayerTop = FluxAtLayerBottom;
-      }
+      // First compute the shortwave flux crossing each layer interface and
+      // store in scratch. The top interface receives the full surface flux and
+      // the bottom interface is set to zero.
+      ScratchArray1DReal FluxAtInterface(teamScratch(Team), NVertLayers + 1);
+      parallelForInner(
+          Team, Range{KTop, KBot + 1}, INNER_LAMBDA(int K) {
+             if (K == KTop) {
+                FluxAtInterface(K) = SurfaceFlux;
+             } else if (K == KBot + 1) {
+                FluxAtInterface(K) = 0.0_Real;
+             } else {
+                const Real Depth =
+                    Kokkos::abs(GeomZInterface(ICell, K) - ZSurface);
+                FluxAtInterface(K) =
+                    SurfaceFlux *
+                    (NearIrFraction * Kokkos::exp(-NearIrCoeff * Depth) +
+                     RedFraction * Kokkos::exp(-Kr * Depth) +
+                     BlueFraction * Kokkos::exp(-Kb * Depth));
+             }
+          });
+
+      teamBarrier(Team);
+
+      // Deposit the flux divergence across each layer as the heating tendency.
+      parallelForInner(
+          Team, Range{KTop, KBot}, INNER_LAMBDA(int K) {
+             Tend(TempIndex, ICell, K) +=
+                 (FluxAtInterface(K) - FluxAtInterface(K + 1)) * HFluxFac;
+          });
    }
 
  private:
    I4 TempIndex;
+   I4 NVertLayers;
    Array1DI4 MinLayerCell;
    Array1DI4 MaxLayerCell;
 };

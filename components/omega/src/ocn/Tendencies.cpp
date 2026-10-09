@@ -1385,9 +1385,11 @@ void Tendencies::computeTracerTendenciesOnly(
       const auto &ExtinctionCoeffBlue =
           ForcingState->ShortwavePenForcing.ExtinctionCoeffBlueCell;
 
-      parallelFor(
-          {Mesh->NCellsOwned}, KOKKOS_LAMBDA(int ICell) {
-             LocPenetratingShortwave(LocTracerTend, ICell, GeomZInterface,
+      parallelForOuter(
+          LaunchConfig({Mesh->NCellsOwned},
+                       TeamScratch<Real>(VCoord->NVertLayers + 1)),
+          KOKKOS_LAMBDA(int ICell, const TeamMember &Team) {
+             LocPenetratingShortwave(Team, LocTracerTend, ICell, GeomZInterface,
                                      ShortWaveHeatFlux, ExtinctionCoeffRed,
                                      ExtinctionCoeffBlue);
           });
