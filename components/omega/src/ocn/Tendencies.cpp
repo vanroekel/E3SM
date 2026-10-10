@@ -25,8 +25,6 @@
 #include "Tracers.h"
 #include "VertAdv.h"
 #include "VertMix.h"
-#include <cmath>
-#include <iostream>
 #include <string>
 
 namespace OMEGA {
