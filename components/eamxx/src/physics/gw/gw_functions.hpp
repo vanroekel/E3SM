@@ -11,6 +11,9 @@
 
 #include <array>
 #include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
 
 namespace scream {
 namespace gw {
@@ -60,8 +63,8 @@ struct Functions
 
     // defaults for gw_common_init()
     static inline constexpr bool do_molec_diff_default = false; // Flag for molecular diffusion
-    static inline constexpr int  nbot_molec_default = 0;         // bottom level for molecular diffusion
-    static inline constexpr int  ktop_default = 0;               // Top level for gravity waves
+    static inline constexpr int  nbot_molec_default = 0;        // bottom level for molecular diffusion
+    static inline constexpr int  ktop_default = 0;              // Top level for gravity waves
     static inline constexpr Real kwv_default = 6.28e-5;         // Effective horizontal wave number (100 km wavelength)
 
     static inline constexpr Real rog = C::Rair.value / C::gravit.value;
@@ -141,7 +144,6 @@ struct Functions
 
     Real gw_orographic_eff;
 
-    bool orographic_only;   // this changes the order of operations (normally false)
     int pver;               // Number of levels in the atmosphere
     int pgwv;               // Maximum number of waves allowed (i.e. wavenumbers are -pgwv:pgwv).
     Real dc;                // Bin width for spectrum => huge(1._r8)
@@ -200,6 +202,59 @@ struct Functions
   // -----------------------------------------------------------------------------------------------
   // Utility Functions
 
+  // print parameter values for the log file
+  static void print_params(std::ostream& os = std::cout) {
+    const std::string indent = "  ";
+    // preserve and restore the stream's formatting flags
+    const std::ios::fmtflags saved_flags = os.flags();
+    os << std::boolalpha;
+    os << "\n";
+    os << "GWD parameter values - common:\n";
+    // GwCommonInit
+    os << indent << "use_gw_convect             :" << s_common_init.use_gw_convect << "\n";
+    os << indent << "use_gw_frontal             :" << s_common_init.use_gw_frontal << "\n";
+    os << indent << "use_gw_orographic          :" << s_common_init.use_gw_orographic << "\n";
+    os << indent << "gw_orographic_eff          :" << s_common_init.gw_orographic_eff << "\n";
+    os << indent << "pver                       :" << s_common_init.pver << "\n";
+    os << indent << "pgwv                       :" << s_common_init.pgwv << "\n";
+    os << indent << "dc                         :" << s_common_init.dc << "\n";
+    os << indent << "do_molec_diff              :" << s_common_init.do_molec_diff << "\n";
+    os << indent << "nbot_molec                 :" << s_common_init.nbot_molec << "\n";
+    os << indent << "tau_0_ubc                  :" << s_common_init.tau_0_ubc << "\n";
+    os << indent << "fcrit2                     :" << s_common_init.fcrit2 << "\n";
+    os << indent << "kwv                        :" << s_common_init.kwv << "\n";
+    os << indent << "oroko2                     :" << s_common_init.oroko2 << "\n";
+    os << indent << "ktop                       :" << s_common_init.ktop << "\n";
+    os << indent << "kbotbg                     :" << s_common_init.kbotbg << "\n";
+    os << indent << "effkwv                     :" << s_common_init.effkwv << "\n";
+    os << indent << "tndmax                     :" << s_common_init.tndmax << "\n";
+    // GwConvectInit
+    if (s_common_init.use_gw_convect) {
+      os << "GWD parameter values - convective:\n";
+      os << indent << "maxh                       : " << s_convect_init.maxh << "\n";
+      os << indent << "maxuh                      : " << s_convect_init.maxuh << "\n";
+      os << indent << "k_src_wind                 : " << s_convect_init.k_src_wind << "\n";
+      os << indent << "gw_convect_eff             : " << s_convect_init.gw_convect_eff << "\n";
+      os << indent << "gw_convect_hcf             : " << s_convect_init.gw_convect_hcf << "\n";
+      os << indent << "gw_convect_hdepth_scale    : " << s_convect_init.gw_convect_hdepth_scale << "\n";
+      os << indent << "gw_convect_hdepth_min      : " << s_convect_init.gw_convect_hdepth_min << "\n";
+      os << indent << "gw_convect_storm_speed_min : " << s_convect_init.gw_convect_storm_speed_min << "\n";
+      os << indent << "gw_convect_plev_src_wind   : " << s_convect_init.gw_convect_plev_src_wind << "\n";
+      os << indent << "use_gw_convect_old         : " << s_convect_init.use_gw_convect_old << "\n";
+    }
+    // GwFrontInit
+    if (s_common_init.use_gw_frontal) {
+      os << "GWD parameter values - frontal:\n";
+      os << indent << "initialized                : " << s_front_init.initialized << "\n";
+      os << indent << "taubgnd                    : " << s_front_init.taubgnd << "\n";
+      os << indent << "frontgfc                   : " << s_front_init.frontgfc << "\n";
+      os << indent << "kfront                     : " << s_front_init.kfront << "\n";
+      os << indent << "gw_frontal_eff             : " << s_front_init.gw_frontal_eff << "\n";
+    }
+    os << std::endl;
+    os.flags(saved_flags);
+  }
+
   // Interpolate the values of the input array along dimension 2
   KOKKOS_INLINE_FUNCTION
   static void midpoint_interp(
@@ -250,7 +305,6 @@ struct Functions
     const Int& pgwv_in,
     const Real& dc_in,
     const uview_1d<const Real>& cref_in,
-    const bool& orographic_only_in,
     const bool& do_molec_diff_in,
     const bool& tau_0_ubc_in,
     const Int& nbot_molec_in,
@@ -270,6 +324,19 @@ struct Functions
     const Int& ktop_in,
     const Real& kwv_in);
 
+  // Read the convective GW source-spectrum table ("mfcc") from gw_drag_file
+  // and stage it as a device view shaped (HD,MW,npgw), ready to hand to
+  // gw_convect_init(). Handles two mismatches between the on-disk table and
+  // what the runtime needs:
+  //   - the file stores mfcc with dims ordered (PS,MW,HD), not (HD,MW,PS)
+  //   - the file's native phase-speed spectrum (ngwv_file, from its PS dim)
+  //     may be wider than the runtime pgwv, and must be centered-windowed
+  //     down to it (mirrors gw_drag.F90's NF90_GET_VAR 'start' offset)
+  static view_3d<Real> gw_convect_read_mfcc_table(
+    // Inputs
+    const std::string& gw_drag_file,
+    const int& npgw);
+
   static void gw_convect_init(
     // Inputs
     const Real& plev_src_wind,
@@ -278,6 +345,7 @@ struct Functions
   static void gw_convect_init(
     // Inputs
     ekat::ParameterList& params,
+    const uview_1d<const Real>& pref_int,
     const uview_3d<const Real>& mfcc_in);
 
   static void gw_front_init(
@@ -516,8 +584,8 @@ struct Functions
     const uview_1d<const Real>& u,
     const uview_1d<const Real>& v,
     // Outputs
-    Real& xv,
-    Real& yv,
+    Real& xv,  // thread-private: pass per-thread storage, not a view element
+    Real& yv,  // thread-private: pass per-thread storage, not a view element
     const uview_1d<Real>& ubm,
     const uview_1d<Real>& ubi);
 
@@ -546,13 +614,13 @@ struct Functions
     const uview_1d<const Real>& v,
     const uview_1d<const Real>& frontgf,
     // Outputs
-    Int& src_level,
-    Int& tend_level,
+    Int& src_level,  // thread-private: pass per-thread storage, not a view element
+    Int& tend_level,  // thread-private: pass per-thread storage, not a view element
     const uview_2d<Real>& tau,
     const uview_1d<Real>& ubm,
     const uview_1d<Real>& ubi,
-    Real& xv,
-    Real& yv,
+    Real& xv,  // thread-private: pass per-thread storage, not a view element
+    Real& yv,  // thread-private: pass per-thread storage, not a view element
     const uview_1d<Real>& c);
 
   KOKKOS_FUNCTION
@@ -564,8 +632,8 @@ struct Functions
     const uview_1d<const Real>& u,
     const uview_1d<const Real>& v,
     // Outputs
-    Real& xv,
-    Real& yv,
+    Real& xv,  // thread-private: pass per-thread storage, not a view element
+    Real& yv,  // thread-private: pass per-thread storage, not a view element
     const uview_1d<Real>& ubm,
     const uview_1d<Real>& ubi);
 
@@ -646,16 +714,16 @@ struct Functions
     const Real& storm_speed_min,
     const bool& use_gw_convect_old,
     // Outputs
-    Int& src_level,
-    Int& tend_level,
+    Int& src_level,   // thread-private: pass per-thread storage, not a view element
+    Int& tend_level,  // thread-private: pass per-thread storage, not a view element
     const uview_2d<Real>& tau,
     const uview_1d<Real>& ubm,
     const uview_1d<Real>& ubi,
-    Real& xv,
-    Real& yv,
+    Real& xv,         // thread-private: pass per-thread storage, not a view element
+    Real& yv,         // thread-private: pass per-thread storage, not a view element
     const uview_1d<Real>& c,
-    Real& hdepth,
-    Real& maxq0_out);
+    Real& hdepth,     // shared: written once by the kernel
+    Real& maxq0_out); // shared: written once by the kernel
 
   KOKKOS_FUNCTION
   static void gw_ediff(
@@ -716,13 +784,13 @@ struct Functions
     const uview_1d<const Real>& zm,
     const uview_1d<const Real>& nm,
     // Outputs
-    Int& src_level,
-    Int& tend_level,
+    Int& src_level,  // thread-private: pass per-thread storage, not a view element
+    Int& tend_level,  // thread-private: pass per-thread storage, not a view element
     const uview_2d<Real>& tau,
     const uview_1d<Real>& ubm,
     const uview_1d<Real>& ubi,
-    Real& xv,
-    Real& yv,
+    Real& xv,  // thread-private: pass per-thread storage, not a view element
+    Real& yv,  // thread-private: pass per-thread storage, not a view element
     const uview_1d<Real>& c);
 
   KOKKOS_FUNCTION

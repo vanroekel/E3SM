@@ -106,13 +106,16 @@ template <typename ArrayT> class HorzMeanOp : public AnalysisOperator {
       // Allocate 1D output data array (always Real type)
       OutputData = Array1DReal(OutputNames[0], NVertSize);
 
-      // Register output Field with metadata over the vertical dimension
+      // Register output Field with metadata over the vertical dimension. A
+      // horizontal mean has the units and standard name of the field it
+      // averages; its cell_methods record the reduction after any the input
+      // already carries.
       I4 NDims                          = 1;
       std::vector<std::string> DimNames = {VertDimName};
-      auto OutputField                  = Field::create(
+      auto Meta        = inheritMetadata(InputNames[0], "area: mean");
+      auto OutputField = createOutputField(
           OutputNames[0], "Area-weighted horizontal mean of " + InputNames[0],
-          "",                                // Units
-          "",                                // Standard name
+          Meta,                              // CF metadata
           -std::numeric_limits<Real>::max(), // Min valid value
           std::numeric_limits<Real>::max(),  // Max valid value
           NDims,                             // Rank

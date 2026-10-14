@@ -31,8 +31,17 @@ constexpr int OMEGA_TEAMSIZE = 64;
 constexpr int OMEGA_TEAMSIZE = 1;
 #endif
 
-#define INNER_LAMBDA [=]
-// #define INNER_LAMBDA [&]
+/// team scratch level for hierarchical parallelism
+/// On host backends, Kokkos backs levels 0 and 1 with the same team buffer
+/// but caps level 0 at 32 KiB, so use level 1 to allow larger requests
+#ifdef OMEGA_TARGET_DEVICE
+constexpr int OMEGA_SCRATCH_LEVEL = 0;
+#else
+constexpr int OMEGA_SCRATCH_LEVEL = 1;
+#endif
+
+#define INNER_LAMBDA [&]
+// #define INNER_LAMBDA [=]
 
 // Workaround for ICE with the Intel classic compiler
 // To be removed as soon as Omega stops supporting it
@@ -115,7 +124,10 @@ KOKKOS_INLINE_FUNCTION void teamBarrier(const TeamMember &Team) {
 }
 
 KOKKOS_INLINE_FUNCTION decltype(auto) teamScratch(const TeamMember &Team) {
-   return Team.team_scratch(0);
+   // team_scratch takes the level by reference, so pass a local copy
+   // rather than the namespace-scope constant, which device code can't use
+   const int Level = OMEGA_SCRATCH_LEVEL;
+   return Team.team_scratch(Level);
 }
 
 // parallelForOuter: with label and with launch config
@@ -133,7 +145,8 @@ inline void parallelForOuter(const std::string &Label,
    auto Policy = TeamPolicy(LinBound, LConfig.TeamSize);
 
    if (LConfig.ScratchBytesPerTeam > 0) {
-      Policy.set_scratch_size(0, Kokkos::PerTeam(LConfig.ScratchBytesPerTeam));
+      Policy.set_scratch_size(OMEGA_SCRATCH_LEVEL,
+                              Kokkos::PerTeam(LConfig.ScratchBytesPerTeam));
    }
 
    Kokkos::parallel_for(
@@ -196,7 +209,8 @@ inline void parallelReduceOuter(const std::string &Label,
 
    auto Policy = TeamPolicy(LinBound, LConfig.TeamSize);
    if (LConfig.ScratchBytesPerTeam > 0) {
-      Policy.set_scratch_size(0, Kokkos::PerTeam(LConfig.ScratchBytesPerTeam));
+      Policy.set_scratch_size(OMEGA_SCRATCH_LEVEL,
+                              Kokkos::PerTeam(LConfig.ScratchBytesPerTeam));
    }
 
    Kokkos::parallel_reduce(

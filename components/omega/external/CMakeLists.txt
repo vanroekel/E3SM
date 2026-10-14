@@ -28,6 +28,10 @@ if (NOT TARGET spdlog AND NOT TARGET spdlog::spdlog)
 	  ${OMEGA_SOURCE_DIR}/external/spdlog
 	  ${CMAKE_CURRENT_BINARY_DIR}/external/spdlog
 	)
+        # workaround for craygnu-mphipcc error on frontier when compiling spdlog
+        if("${OMEGA_ARCH}" STREQUAL "HIP")
+          target_compile_definitions(spdlog PRIVATE NDEBUG=1)
+        endif()
 endif()
 
 # Omega links the bare name (src/CMakeLists.txt), so guarantee it exists.
@@ -246,6 +250,7 @@ if (NOT TARGET cpptrace::cpptrace AND NOT TARGET cpptrace-lib)
 	# PACKAGE_VERSION (e.g. 2.10.2) from leaking into libdwarf's configure_file
 	unset(PACKAGE_VERSION)
 	option(CPPTRACE_INHERIT_HOST_STANDARD "" ON)
+        option(CPPTRACE_DISABLE_CXX_20_MODULES "" ON)
 	add_subdirectory(
 	  ${OMEGA_SOURCE_DIR}/external/cpptrace
 	  ${CMAKE_CURRENT_BINARY_DIR}/external/cpptrace

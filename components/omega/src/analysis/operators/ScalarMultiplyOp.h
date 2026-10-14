@@ -32,6 +32,8 @@
 
 #include "AnalysisOperator.h"
 
+#include <cmath>
+
 namespace OMEGA {
 
 /// ScalarMultiplyOp multiplies all elements of an input field by a scalar
@@ -65,10 +67,14 @@ template <typename ArrayT> class ScalarMultiplyOp : public AnalysisOperator {
       // Read required scalar parameter from configuration.
       // Read as string first to preserve the original representation for field
       // naming (std::to_string loses precision, e.g. "1.0e-6" -> "0.000001").
+      // The units are scaled with the scalar in double precision, so that in
+      // a single-precision build 1e-6 still gives units of 1e+06 m3 s-1.
       std::string ScalarStr;
+      double ScalarR8;
       Error Err = Options.get("Scalar", ScalarStr);
       if (Err.isSuccess()) {
-         Scalar = static_cast<Real>(std::stod(ScalarStr));
+         ScalarR8 = std::stod(ScalarStr);
+         Scalar   = static_cast<Real>(ScalarR8);
       } else {
          // Fallback: try reading directly as Real
          Err = Options.get("Scalar", Scalar);
@@ -78,6 +84,7 @@ template <typename ArrayT> class ScalarMultiplyOp : public AnalysisOperator {
                 "in configuration");
          }
          ScalarStr = std::to_string(Scalar);
+         ScalarR8  = static_cast<double>(Scalar);
       }
 
       // Read optional InPlace parameter (default: false)
@@ -104,24 +111,33 @@ template <typename ArrayT> class ScalarMultiplyOp : public AnalysisOperator {
       InstanceName = OutputFieldName;
 
       // Get input metadata
-      std::string InputDescr, InputUnits, InputStdName;
-      ScalarT InputValidMin, InputValidMax, InputFillValue;
-      InputField->getMetadata("Description", InputDescr);
-      InputField->getMetadata("StdName", InputStdName);
-      InputField->getMetadata("ValidMin", InputValidMin);
-      InputField->getMetadata("ValidMax", InputValidMax);
+      std::string InputDescr;
+      ScalarT InputValidMin, InputValidMax;
+      InputField->getMetadata("long_name", InputDescr);
+      InputField->getMetadata("valid_min", InputValidMin);
+      InputField->getMetadata("valid_max", InputValidMax);
+
+      // Multiplying the values by the scalar scales the units by its
+      // reciprocal, so a transport in m3 s-1 multiplied by 1e-6 is in
+      // 1e+06 m3 s-1 (Sverdrups). A negative scalar also reverses the sign of
+      // the quantity, which then no longer matches the input standard name. A
+      // zero scalar gives zeros, which are valid in any units.
+      auto Meta = inheritMetadata(InputNames[0]);
+      if (ScalarR8 != 0)
+         Meta.Units = CFUnits::scale(Meta.Units, 1.0 / std::abs(ScalarR8));
+      if (ScalarR8 < 0)
+         Meta.StdName = "";
 
       // Create output Field with same dimensions as input
       auto OutputField =
-          Field::create(OutputNames[0],
-                        InputDescr + " multiplied by " +
-                            std::to_string(Scalar), // Description
-                        "",                         // Units
-                        InputStdName,               // Standard name
-                        InputValidMin,              // Min valid
-                        InputValidMax,              // Max valid
-                        NDims,                      // Rank
-                        DimNames                    // Dimension names
+          createOutputField(OutputNames[0],
+                            InputDescr + " multiplied by " +
+                                std::to_string(Scalar), // Description
+                            Meta,                       // CF metadata
+                            InputValidMin,              // Min valid
+                            InputValidMax,              // Max valid
+                            NDims,                      // Rank
+                            DimNames                    // Dimension names
           );
 
       // Store array size for parallel iteration

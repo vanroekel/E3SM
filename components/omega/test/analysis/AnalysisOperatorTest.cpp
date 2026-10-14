@@ -34,6 +34,11 @@ int NumTests  = 0;
 int NumPassed = 0;
 int NumFailed = 0;
 
+// Units and standard name given to every test field, which the operators
+// must pass through to their outputs
+const std::string TestUnits   = "m";
+const std::string TestStdName = "test_field_standard_name";
+
 //===----------------------------------------------------------------------===//
 // Generic Helper Template Struct
 //===----------------------------------------------------------------------===//
@@ -112,9 +117,9 @@ template <typename ArrayType> struct TestHelper {
          ValidMax = 1.0e30;
       }
 
-      auto TestField =
-          Field::create(FieldName, "Test field for multi-type validation", "m",
-                        "", ValidMin, ValidMax, 1, DimNames);
+      auto TestField = Field::create(
+          FieldName, "Test field for multi-type validation", TestUnits,
+          TestStdName, ValidMin, ValidMax, 1, DimNames);
 
       ArrayType TestData(FieldName + "_data", Dims[0]);
       TestField->template attachData<ArrayType>(TestData, false);
@@ -147,9 +152,9 @@ template <typename ArrayType> struct TestHelper {
          ValidMax = 1.0e30;
       }
 
-      auto TestField =
-          Field::create(FieldName, "Test field for multi-type validation", "m",
-                        "", ValidMin, ValidMax, 2, DimNames);
+      auto TestField = Field::create(
+          FieldName, "Test field for multi-type validation", TestUnits,
+          TestStdName, ValidMin, ValidMax, 2, DimNames);
 
       ArrayType TestData(FieldName + "_data", Dims[0], Dims[1]);
       TestField->template attachData<ArrayType>(TestData, false);
@@ -184,9 +189,9 @@ template <typename ArrayType> struct TestHelper {
          ValidMax = 1.0e30;
       }
 
-      auto TestField =
-          Field::create(FieldName, "Test field for multi-type validation", "m",
-                        "", ValidMin, ValidMax, 3, DimNames);
+      auto TestField = Field::create(
+          FieldName, "Test field for multi-type validation", TestUnits,
+          TestStdName, ValidMin, ValidMax, 3, DimNames);
 
       ArrayType TestData(FieldName + "_data", Dims[0], Dims[1], Dims[2]);
       TestField->template attachData<ArrayType>(TestData, false);
@@ -324,6 +329,54 @@ bool checkClose(const std::string &TestName, Real Computed, Real Expected,
    return Passed;
 }
 
+//------------------------------------------------------------------------------
+// Returns a string attribute of a field, or an empty string if the field has
+// no such attribute. Field::create may store an empty attribute or omit it;
+// both mean the field has none.
+std::string getAttribute(const std::string &FieldName,
+                         const std::string &AttName) {
+   auto FieldPtr = Field::get(FieldName);
+   std::string Value;
+   if (FieldPtr && FieldPtr->hasMetadata(AttName))
+      FieldPtr->getMetadata(AttName, Value);
+   return Value;
+}
+
+//------------------------------------------------------------------------------
+// Checks that an operator's output field carries the expected units, standard
+// name and cell methods
+void checkOutputMetadata(const std::string &TestName,
+                         const std::string &OutputName,
+                         const std::string &ExpectedUnits,
+                         const std::string &ExpectedStdName,
+                         const std::string &ExpectedCellMethods) {
+
+   std::string Units       = getAttribute(OutputName, "units");
+   std::string StdName     = getAttribute(OutputName, "standard_name");
+   std::string CellMethods = getAttribute(OutputName, "cell_methods");
+
+   bool Passed = (Units == ExpectedUnits) && (StdName == ExpectedStdName) &&
+                 (CellMethods == ExpectedCellMethods);
+   reportTest(TestName + " metadata", Passed);
+
+   if (!Passed) {
+      LOG_ERROR("  units: '{}', expected '{}'", Units, ExpectedUnits);
+      LOG_ERROR("  standard_name: '{}', expected '{}'", StdName,
+                ExpectedStdName);
+      LOG_ERROR("  cell_methods: '{}', expected '{}'", CellMethods,
+                ExpectedCellMethods);
+   }
+}
+
+//------------------------------------------------------------------------------
+// Returns the cell method the spatial operators record for a test field of
+// the given rank: 1D fields are horizontal only, higher ranks have depth
+std::string expectedSpatialCellMethod(int Rank, const std::string &Method) {
+   if (Rank >= 2)
+      return "area: depth: " + Method;
+   return "area: " + Method;
+}
+
 //===----------------------------------------------------------------------===//
 // Operator Test Templates
 //===----------------------------------------------------------------------===//
@@ -416,6 +469,9 @@ void testSpatialMaxOpType(const std::string &TypeName, const MachEnv *Env,
    bool Passed = (std::abs(ComputedMax - ExpectedMaxReal) <=
                   static_cast<Real>(Helper::getTolerance()));
    reportTest("SpatialMaxOp: " + TypeName, Passed);
+   checkOutputMetadata("SpatialMaxOp: " + TypeName, FieldName + "_SpatialMax",
+                       TestUnits, TestStdName,
+                       expectedSpatialCellMethod(Rank, "maximum"));
 
    if (!Passed) {
       LOG_ERROR("  Expected: {}, Got: {}", ExpectedMaxReal, ComputedMax);
@@ -492,6 +548,9 @@ void testSpatialMinOpType(const std::string &TypeName, const MachEnv *Env,
    bool Passed = (std::abs(ComputedMin - ExpectedMinReal) <=
                   static_cast<Real>(Helper::getTolerance()));
    reportTest("SpatialMinOp: " + TypeName, Passed);
+   checkOutputMetadata("SpatialMinOp: " + TypeName, FieldName + "_SpatialMin",
+                       TestUnits, TestStdName,
+                       expectedSpatialCellMethod(Rank, "minimum"));
 
    if (!Passed) {
       LOG_ERROR("  Expected: {}, Got: {}", ExpectedMinReal, ComputedMin);
@@ -576,6 +635,9 @@ void testSpatialMeanOpType(const std::string &TypeName, const MachEnv *Env,
    // Verify
    checkClose("SpatialMeanOp: " + TypeName, ComputedMean, ExpectedMean,
               Helper::getRelTolerance());
+   checkOutputMetadata("SpatialMeanOp: " + TypeName, FieldName + "_SpatialMean",
+                       TestUnits, TestStdName,
+                       expectedSpatialCellMethod(Rank, "mean"));
 }
 
 //------------------------------------------------------------------------------
@@ -662,6 +724,9 @@ void testSpatialStdDevOpType(const std::string &TypeName, const MachEnv *Env,
    // Verify
    checkClose("SpatialStdDevOp: " + TypeName, ComputedStdDev, ExpectedStdDev,
               Helper::getRelTolerance());
+   checkOutputMetadata("SpatialStdDevOp: " + TypeName,
+                       FieldName + "_SpatialStdDev", TestUnits, TestStdName,
+                       expectedSpatialCellMethod(Rank, "standard_deviation"));
 }
 
 //------------------------------------------------------------------------------
@@ -861,6 +926,9 @@ void testTimeMeanOpType(const std::string &TypeName, const MachEnv *Env,
    }
 
    reportTest("TimeMeanOp: " + TypeName, Passed);
+   checkOutputMetadata("TimeMeanOp: " + TypeName,
+                       FieldName + "_TimeMean" + PeriodLabel, TestUnits,
+                       TestStdName, "time: mean");
 
    if (!Passed) {
       LOG_ERROR("  Expected mean: {}", ExpectedMean);
@@ -1114,6 +1182,117 @@ void testWeightedStats(const MachEnv *Env, const HorzMesh *Mesh,
    }
 }
 
+//------------------------------------------------------------------------------
+// Tests that metadata is inherited along an operator chain: a time mean of a
+// spatial mean keeps the units and standard name and lists both reductions in
+// order in cell_methods. Also tests that a field without units or a standard
+// name yields outputs without them rather than with invented ones.
+void testInheritedMetadata(const MachEnv *Env, const HorzMesh *Mesh,
+                           const VertCoord *VCoord, Clock *ModelClock) {
+
+   using Helper = TestHelper<Array2DR8>;
+
+   std::vector<I4> Dims = Helper::getDims(Mesh, VCoord);
+   Config EmptyConfig;
+
+   // Chain: SpatialMean then TimeMean of a 2D field with units "m"
+   std::string FieldName = "TestFieldChain";
+   Helper::createField(FieldName, Dims,
+                       [](I4 i, I4 j) -> R8 { return static_cast<R8>(1); });
+
+   auto MeanOp =
+       AnalysisOpFactory::createOp("SpatialMean", {FieldName}, EmptyConfig);
+   MeanOp->initialize(Env, Mesh, VCoord, EmptyConfig);
+
+   std::string MeanName = FieldName + "_SpatialMean";
+   std::string Period   = "1day";
+   auto ChainOp         = AnalysisOpFactory::createOp(
+       "TimeMean", {MeanName}, makeOpConfig(opParam("Period", Period)));
+   ChainOp->initialize(Env, Mesh, VCoord, EmptyConfig);
+
+   checkOutputMetadata("TimeMean of SpatialMean",
+                       MeanName + "_TimeMean" + Period, TestUnits, TestStdName,
+                       "area: depth: mean time: mean");
+
+   // A field with no units and no standard name: the outputs have none either
+   std::string BareName              = "TestFieldBare";
+   std::vector<std::string> DimNames = Helper::getDimNames();
+   auto BareField = Field::create(BareName, "Test field without units", "", "",
+                                  -1.0e30, 1.0e30, 2, DimNames);
+   Array2DR8 BareData(BareName + "_data", Dims[0], Dims[1]);
+   BareField->attachData<Array2DR8>(BareData);
+
+   auto BareMaxOp =
+       AnalysisOpFactory::createOp("SpatialMax", {BareName}, EmptyConfig);
+   BareMaxOp->initialize(Env, Mesh, VCoord, EmptyConfig);
+
+   checkOutputMetadata("SpatialMax of field without units",
+                       BareName + "_SpatialMax", "", "",
+                       "area: depth: maximum");
+}
+
+//------------------------------------------------------------------------------
+// Tests the units operators derive along a chain like the MOC's: a velocity
+// times an area is a volume flux, and multiplying the flux by 1e-6 to get
+// Sverdrups scales its units by 1e6. Also tests that a product with a field
+// without units has no units, and that a negative scalar drops the standard
+// name of the quantity it reverses.
+void testDerivedUnits(const MachEnv *Env, const HorzMesh *Mesh,
+                      const VertCoord *VCoord) {
+
+   std::vector<std::string> DimNames = {"NCells"};
+   auto createUnitsField             = [&](const std::string &Name,
+                               const std::string &Units,
+                               const std::string &StdName) {
+      auto NewField = Field::create(Name, "Derived units test field", Units,
+                                                StdName, -1.0e30, 1.0e30, 1, DimNames);
+      Array1DReal Data(Name + "_data", Mesh->NCellsSize);
+      NewField->attachData<Array1DReal>(Data);
+   };
+   createUnitsField("TestUnitsVelocity", "m s-1", "upward_sea_water_velocity");
+   createUnitsField("TestUnitsArea", "m2", "cell_area");
+   createUnitsField("TestUnitsBare", "", "");
+
+   Config EmptyConfig;
+   auto scalarConfig = [](const std::string &Scalar) {
+      return makeOpConfig(opParam("Scalar", Scalar));
+   };
+
+   // A velocity times an area is a volume flux with no standard name
+   std::string FluxName = "TestUnitsVelocity_BinaryMultiply(TestUnitsArea)";
+   auto FluxOp          = AnalysisOpFactory::createOp(
+       "BinaryMultiply", {"TestUnitsVelocity", "TestUnitsArea"}, EmptyConfig);
+   checkOutputMetadata("BinaryMultiply of velocity and area", FluxName,
+                       "m3 s-1", "", "");
+
+   // Values multiplied by 1e-6 are in units of 1e6 m3 s-1
+   auto SvOp = AnalysisOpFactory::createOp("ScalarMultiply", {FluxName},
+                                           scalarConfig("1.0e-6"));
+   checkOutputMetadata("ScalarMultiply of flux to Sverdrups",
+                       FluxName + "_ScalarMultiply(1.0e-6)", "1e+06 m3 s-1", "",
+                       "");
+
+   // A scalar of 1 keeps the units and standard name; -1 keeps the units but
+   // reverses the quantity, so it drops the standard name
+   auto OneOp = AnalysisOpFactory::createOp(
+       "ScalarMultiply", {"TestUnitsVelocity"}, scalarConfig("1"));
+   checkOutputMetadata("ScalarMultiply by 1",
+                       "TestUnitsVelocity_ScalarMultiply(1)", "m s-1",
+                       "upward_sea_water_velocity", "");
+   auto NegOp = AnalysisOpFactory::createOp(
+       "ScalarMultiply", {"TestUnitsVelocity"}, scalarConfig("-1"));
+   checkOutputMetadata("ScalarMultiply by -1",
+                       "TestUnitsVelocity_ScalarMultiply(-1)", "m s-1", "", "");
+
+   // A product with a field without units has no units, rather than the
+   // units of the other field
+   auto BareOp = AnalysisOpFactory::createOp(
+       "BinaryMultiply", {"TestUnitsVelocity", "TestUnitsBare"}, EmptyConfig);
+   checkOutputMetadata("BinaryMultiply with a field without units",
+                       "TestUnitsVelocity_BinaryMultiply(TestUnitsBare)", "",
+                       "", "");
+}
+
 //===----------------------------------------------------------------------===//
 // Main Test Functions
 //===----------------------------------------------------------------------===//
@@ -1335,6 +1514,9 @@ void testScalarMultiplyOpType(const std::string &TypeName, const MachEnv *Env,
    }
 
    reportTest("ScalarMultiplyOp: " + TypeName, Passed);
+   checkOutputMetadata("ScalarMultiplyOp: " + TypeName,
+                       FieldName + "_ScalarMultiply(" + ScalarStr + ")",
+                       "0.4 m", TestStdName, "");
 
    if (!Passed) {
       LOG_ERROR("  Expected: {}, Scalar: {}", static_cast<Real>(ExpectedValue),
@@ -1466,6 +1648,9 @@ void testBinaryMultiplyOpSameRank(const std::string &TypeName,
    }
 
    reportTest("BinaryMultiplyOp (same-rank): " + TypeName, Passed);
+   checkOutputMetadata("BinaryMultiplyOp (same-rank): " + TypeName,
+                       Field1Name + "_BinaryMultiply(" + Field2Name + ")", "m2",
+                       "", "");
 
    if (!Passed) {
       LOG_ERROR("  Expected: {}, Value1: {}, Value2: {}",
@@ -1546,6 +1731,9 @@ void testBinaryMultiplyOpVerticalExpansion(const std::string &TypeName,
    }
 
    reportTest("BinaryMultiplyOp (vertical expansion): " + TypeName, Passed);
+   checkOutputMetadata("BinaryMultiplyOp (vertical expansion): " + TypeName,
+                       Field2DName + "_BinaryMultiply(" + Field1DName + ")",
+                       "m2", "", "");
 
    if (!Passed) {
       LOG_ERROR("  Expected: {}, Value2D: {}, Value1D: {}",
@@ -1740,6 +1928,8 @@ void testPrefixSumOpType(const std::string &TypeName, const MachEnv *Env,
             break;
       }
       reportTest("PrefixSumOp: " + TypeName, Passed);
+      checkOutputMetadata("PrefixSumOp: " + TypeName, FieldName + "_PrefixSum",
+                          "units", "", "");
    }
 }
 
@@ -1872,6 +2062,9 @@ void testPrefixSumOpWithBCType(const std::string &TypeName, const MachEnv *Env,
    }
 
    reportTest("PrefixSumOpWithBC: " + TypeName, Passed);
+   checkOutputMetadata("PrefixSumOpWithBC: " + TypeName,
+                       InputFieldName + "_PrefixSum(BC=" + BCFieldName + ")",
+                       "m3/s", "", "");
 }
 
 //------------------------------------------------------------------------------
@@ -1965,6 +2158,8 @@ void testCoordinateBinningOp(const MachEnv *Env, const HorzMesh *Mesh,
    }
 
    reportTest("CoordinateBinningOp", Passed);
+   checkOutputMetadata("CoordinateBinningOp", FieldName + "_BinIndex", "1", "",
+                       "");
 }
 
 //------------------------------------------------------------------------------
@@ -2065,6 +2260,10 @@ void testBinnedAccumulatorOp(const MachEnv *Env, const HorzMesh *Mesh,
    }
 
    reportTest("BinnedAccumulatorOp", Passed);
+   checkOutputMetadata("BinnedAccumulatorOp",
+                       ValueFieldName + "_BinnedAccumulator(" +
+                           BinIndexFieldName + ")",
+                       "m3/s", "", "");
 }
 
 //------------------------------------------------------------------------------
@@ -2226,6 +2425,9 @@ void testPseudoToGeometricOpType(const std::string &TypeName,
    }
 
    reportTest("PseudoToGeometricOp: " + TypeName, Passed);
+   checkOutputMetadata("PseudoToGeometricOp: " + TypeName,
+                       FieldName + "_PseudoToGeometric", TestUnits, TestStdName,
+                       "");
 
    if (!Passed) {
       LOG_ERROR("PseudoToGeometricOp {} test failed after verifying {} points",
@@ -2428,6 +2630,8 @@ void testExtractRegionOpType(const std::string &TypeName, const MachEnv *Env,
    }
 
    reportTest("ExtractRegionOp: " + TypeName, Passed);
+   checkOutputMetadata("ExtractRegionOp: " + TypeName, OutputNames[0],
+                       TestUnits, TestStdName, "");
 
    if (!Passed) {
       LOG_ERROR("ExtractRegionOp {} test failed after verifying {} points",
@@ -2547,6 +2751,8 @@ void testHorzMeanOp(const MachEnv *Env, const HorzMesh *Mesh,
    }
 
    reportTest("HorzMeanOp", Passed);
+   checkOutputMetadata("HorzMeanOp", OutputNames[0], TestUnits, TestStdName,
+                       "area: mean");
 
    Field::destroy(OutputNames[0]);
 
@@ -2832,6 +3038,7 @@ void testTransectAccumulatorOp(const MachEnv *Env, const HorzMesh *Mesh,
    }
 
    reportTest("TransectAccumulatorOp", Passed);
+   checkOutputMetadata("TransectAccumulatorOp", OutputNames[0], "m3/s", "", "");
 }
 
 //===----------------------------------------------------------------------===//
@@ -3009,6 +3216,10 @@ int main(int argc, char *argv[]) {
       testHorzMeanOp(DefEnv, Mesh, VCoord);
 
       testTransectAccumulatorOp(DefEnv, Mesh, VCoord);
+
+      testInheritedMetadata(DefEnv, Mesh, VCoord, ModelClock);
+
+      testDerivedUnits(DefEnv, Mesh, VCoord);
 
       if (NumFailed > 0) {
          Err = 1;

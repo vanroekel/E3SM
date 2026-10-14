@@ -44,7 +44,8 @@ CIME_VAR_RE = re.compile(r'[$][{](\w+)[}]')
 #    Examples:
 #      - constraints="ge 0; lt 4" means the value V must satisfy V>=0 && V<4.
 #      - constraints="mod 2 eq 0" means the value V must be a multiple of 2.
-METADATA_ATTRIBS = ("type", "valid_values", "locked", "constraints", "inherit", "doc", "append")
+#  - optional: if set to true, marks a "file" param where UNSET is a valid/intentional value
+METADATA_ATTRIBS = ("type", "valid_values", "locked", "constraints", "inherit", "doc", "action", "optional")
 
 ###############################################################################
 def do_cime_vars(entry, case, refine=False, extra=None):
@@ -67,7 +68,7 @@ def do_cime_vars(entry, case, refine=False, extra=None):
     >>> do_cime_vars('hi ${invalid} there', case)
     Traceback (most recent call last):
       ...
-    CIME.utils.CIMEError: ERROR: Cannot resolve XML entry 'hi ${invalid} there', CIME has no value for 'invalid'
+    CIME.core.exceptions.CIMEError: ERROR: Cannot resolve XML entry 'hi ${invalid} there', CIME has no value for 'invalid'
     >>> d = { 'foo' : '${foo}',
     ...      'subdict' : { 'bar' : 'foo', 'baz' : '${foo}' } }
     >>> do_cime_vars(d, case)
@@ -126,14 +127,14 @@ def perform_consistency_checks(case, xml):
     >>> case = MockCase({'ATM_NCPL':'24', 'REST_N':2, 'REST_OPTION':'nsteps'})
     >>> perform_consistency_checks(case,xml)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: rrtmgp::rad_frequency (3 steps) incompatible with restart frequency (2 steps).
+    CIME.core.exceptions.CIMEError: ERROR: rrtmgp::rad_frequency (3 steps) incompatible with restart frequency (2 steps).
      Please, ensure restart happens on a step when rad is ON
     >>> case = MockCase({'ATM_NCPL':'24', 'REST_N':10800, 'REST_OPTION':'nseconds'})
     >>> perform_consistency_checks(case,xml)
     >>> case = MockCase({'ATM_NCPL':'24', 'REST_N':7200, 'REST_OPTION':'nseconds'})
     >>> perform_consistency_checks(case,xml)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
+    CIME.core.exceptions.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
      Please, ensure restart happens on a step when rad is ON
       rest_tstep: 7200
       rad_testep: 10800.0
@@ -142,7 +143,7 @@ def perform_consistency_checks(case, xml):
     >>> case = MockCase({'ATM_NCPL':'24', 'REST_N':120, 'REST_OPTION':'nminutes'})
     >>> perform_consistency_checks(case,xml)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
+    CIME.core.exceptions.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
      Please, ensure restart happens on a step when rad is ON
       rest_tstep: 7200
       rad_testep: 10800.0
@@ -151,7 +152,7 @@ def perform_consistency_checks(case, xml):
     >>> case = MockCase({'ATM_NCPL':'24', 'REST_N':8, 'REST_OPTION':'nhours'})
     >>> perform_consistency_checks(case,xml)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
+    CIME.core.exceptions.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
      Please, ensure restart happens on a step when rad is ON
       rest_tstep: 28800
       rad_testep: 10800.0
@@ -160,9 +161,18 @@ def perform_consistency_checks(case, xml):
     >>> case = MockCase({'ATM_NCPL':'10', 'REST_N':2, 'REST_OPTION':'ndays'})
     >>> perform_consistency_checks(case,xml)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
+    CIME.core.exceptions.CIMEError: ERROR: rrtmgp::rad_frequency incompatible with restart frequency.
      Please, ensure restart happens on a step when rad is ON
      For daily (or less frequent) restart, rad_frequency must divide ATM_NCPL
+    >>> turbulence_xml = ET.fromstring('''
+    ... <params>
+    ...   <homme><do_3d_turbulence_homme>false</do_3d_turbulence_homme></homme>
+    ...   <ctl_nl><do_3d_turbulence>true</do_3d_turbulence></ctl_nl>
+    ... </params>
+    ... ''')
+    >>> perform_consistency_checks(MockCase({}), turbulence_xml)
+    >>> find_node(find_node(turbulence_xml, "homme"), "do_3d_turbulence_homme").text
+    'true'
     """
 
     # RRTMGP can be supercycled. Restarts cannot fall in the middle
@@ -218,6 +228,90 @@ def perform_consistency_checks(case, xml):
                     "rrtmgp::rad_frequency incompatible with restart frequency.\n"
                     " Please, ensure restart happens on a step when rad is ON\n"
                     " For daily (or less frequent) restart, rad_frequency must divide ATM_NCPL")
+
+    ctl_nl = find_node(xml, "ctl_nl")
+    if ctl_nl is not None:
+        # HOMME reads do_3d_turbulence from ctl_nl, while the atmosphere
+        # driver needs the same value in HOMME's process parameters in order
+        # to forward it to SHOC. Keep the process parameter as a locked mirror
+        # so ctl_nl remains the single user-facing source of truth.
+        homme = find_node(xml, "homme")
+        do_3d_turbulence = find_node(ctl_nl, "do_3d_turbulence")
+        if homme is not None and do_3d_turbulence is not None:
+            homme_do_3d_turbulence = find_node(homme, "do_3d_turbulence_homme")
+            expect(homme_do_3d_turbulence is not None,
+                   "Missing locked homme::do_3d_turbulence_homme mirror")
+            homme_do_3d_turbulence.text = do_3d_turbulence.text
+
+        hypervis_subcycle = find_node(ctl_nl, "hypervis_subcycle")
+        horiz_turb_subcycle = find_node(ctl_nl, "horiz_turb_subcycle")
+        if hypervis_subcycle is not None and horiz_turb_subcycle is not None:
+            if int(horiz_turb_subcycle.text) == -1:
+                horiz_turb_subcycle.text = hypervis_subcycle.text
+        hypervis_subcycle_q = find_node(ctl_nl, "hypervis_subcycle_q")
+        horiz_turb_subcycle_q = find_node(ctl_nl, "horiz_turb_subcycle_q")
+        if hypervis_subcycle_q is not None and horiz_turb_subcycle_q is not None:
+            if int(horiz_turb_subcycle_q.text) < 0:
+                horiz_turb_subcycle_q.text = hypervis_subcycle_q.text
+
+    # Check for UNSET required file parameters. After selector evaluation, any
+    # type="file" or type="array(file)" element still holding the sentinel value
+    # "UNSET" and lacking any selector attributes means no entry in
+    # namelist_defaults_eamxx.xml matched the current configuration (e.g. grid+nlev
+    # combination). Catching this here gives a clear, actionable error at buildnml
+    # time instead of an obscure "No such file or directory" from PIO at run time.
+    #
+    # Note: elements where a selector *did* match (e.g. topography_filename set to
+    # UNSET for aquaplanet compsets) retain their selector attributes after
+    # evaluation. We skip those - a deliberate UNSET is not an error.
+    #
+    enable_iop = find_node(xml, "enable_iop")
+    iop_file = find_node(xml, "iop_file")
+    iop_enabled = (enable_iop is not None and enable_iop.text is not None
+                   and enable_iop.text.strip().lower() == "true")
+
+    parent_map = {child: parent for parent in xml.iter() for child in parent}
+    unset_params = []
+    file_type_elems = xml.findall('.//*[@type="file"]') + xml.findall('.//*[@type="array(file)"]')
+    for item in file_type_elems:
+        if item.text is None or not item.text.strip() or item.text.strip() == "UNSET":
+            # iop_file is required only when IOP is enabled.
+            if item is iop_file and not iop_enabled:
+                continue
+            # Skip params explicitly marked optional: UNSET is valid for them.
+            if item.attrib.get("optional") == "true":
+                continue
+            # If any non-metadata attribute is present, a selector matched and
+            # intentionally set this value to UNSET, so skip it.
+            selector_attribs = [k for k in item.attrib if k not in METADATA_ATTRIBS]
+            if selector_attribs:
+                continue
+            parent = parent_map.get(item)
+            path = "{} -> {}".format(parent.tag, item.tag) if parent is not None else item.tag
+            unset_params.append(path)
+
+    iop_file_unset = (iop_file is None or iop_file.text is None
+                      or not iop_file.text.strip()
+                      or iop_file.text.strip() == "UNSET")
+    expect(not iop_enabled or not iop_file_unset,
+           "The iop_file parameter must be set when enable_iop is true.")
+
+    if unset_params:
+        scream_cmake_opts = case.get_value("SCREAM_CMAKE_OPTIONS") or ""
+        nlev_match = re.search(r"SCREAM_NUM_VERTICAL_LEV\s+(\d+)", scream_cmake_opts)
+        nlev = nlev_match.group(1) if nlev_match else "unknown"
+        atm_grid = case.get_value("ATM_GRID") or "unknown"
+        params_str = "\n  ".join(unset_params)
+        expect (False,
+                "The following required file parameter(s) are UNSET for the current "
+                f"configuration (ATM_GRID='{atm_grid}', nlev={nlev}):\n"
+                f"  {params_str}\n"
+                "This typically means no entry exists in namelist_defaults_eamxx.xml "
+                "for this grid + vertical-level combination.\n"
+                f"To fix, add an entry for ATM_GRID='{atm_grid}' with nlev={nlev} "
+                "to namelist_defaults_eamxx.xml, or switch to a supported "
+                "configuration.\n"
+                "See existing entries in namelist_defaults_eamxx.xml for examples.")
 
 ###############################################################################
 def ordered_dump(data, item, Dumper=yaml.SafeDumper, **kwds):
@@ -406,6 +500,64 @@ def evaluate_selectors(element, case, ez_selectors):
     True
     >>> get_child(inherit,'ivar').attrib.get('doc')=='an integer'
     True
+    >>> ############## ARRAY ACTIONS #####################
+    >>> xml_act = '''
+    ... <namelist_defaults>
+    ...   <a type="array(integer)">1,2</a>
+    ...   <a nlev="128" action="append">3,4</a>
+    ...   <a nlev="128" action="remove">2</a>
+    ...   <a nlev="64" action="append">5</a>
+    ...   <b type="array(string)">x,y,z</b>
+    ...   <b grid="ne4ne4" action="remove">y,x</b>
+    ...   <c type="array(integer)">1,2</c>
+    ...   <c grid="ne4ne4">7,8</c>
+    ... </namelist_defaults>
+    ... '''
+    >>> act = ET.fromstring(xml_act)
+    >>> evaluate_selectors(act,case,selectors_good)
+    >>> get_child(act,'a').text=="1,3,4"
+    True
+    >>> get_child(act,'b').text=="z"
+    True
+    >>> get_child(act,'c').text=="7,8"
+    True
+    >>> get_child(act,'b').attrib['type']=='array(string)'
+    True
+    >>> ############## EMPTY ARRAYS #####################
+    >>> empty = ET.fromstring('<n><a type="array(integer)"></a><a grid="ne4ne4" action="append">1</a><b type="array(integer)">1</b><b grid="ne4ne4" action="remove">1</b><b nlev="128" action="append">2,3</b></n>')
+    >>> evaluate_selectors(empty,case,selectors_good)
+    >>> get_child(empty,'a').text=="1"
+    True
+    >>> get_child(empty,'b').text=="2,3"
+    True
+    >>> ############## BAD ACTIONS #####################
+    >>> bad_act = ET.fromstring('<n><a type="array(integer)">1,2</a><a grid="ne4ne4" action="remove">3</a></n>')
+    >>> evaluate_selectors(bad_act,case,selectors_good)
+    Traceback (most recent call last):
+    CIME.core.exceptions.CIMEError: ERROR: Cannot remove '3' from 'a': expected exactly one occurrence, found 0. Curr entries: 1,2
+    >>> bad_act = ET.fromstring('<n><a type="array(integer)">1,2,2</a><a grid="ne4ne4" action="remove">2</a></n>')
+    >>> evaluate_selectors(bad_act,case,selectors_good)
+    Traceback (most recent call last):
+    CIME.core.exceptions.CIMEError: ERROR: Cannot remove '2' from 'a': expected exactly one occurrence, found 2. Curr entries: 1,2,2
+    >>> bad_act = ET.fromstring('<n><a type="array(integer)">1,2</a><a grid="ne4ne4" action="prepend">3</a></n>')
+    >>> evaluate_selectors(bad_act,case,selectors_good)
+    Traceback (most recent call last):
+    CIME.core.exceptions.CIMEError: ERROR: Unrecognized value for 'action' attribute
+      param name  : a
+      action value: prepend
+      valid values: append, remove
+    <BLANKLINE>
+    >>> bad_act = ET.fromstring('<n><a type="integer">1</a><a grid="ne4ne4" action="append">3</a></n>')
+    >>> evaluate_selectors(bad_act,case,selectors_good)
+    Traceback (most recent call last):
+    CIME.core.exceptions.CIMEError: ERROR: The 'action' metadata attribute is only supported for entries of array type
+     param name: a
+     param type: integer
+    >>> bad_act = ET.fromstring('<n><a type="array(integer)" action="append">1</a></n>')
+    >>> evaluate_selectors(bad_act,case,selectors_good)
+    Traceback (most recent call last):
+    CIME.core.exceptions.CIMEError: ERROR: The 'append' action for 'a' requires a previously selected value to modify
+     Selector element attributes: {'type': 'array(integer)', 'action': 'append'}
     >>> ############## BAD SELECTOR DEFINITION #####################
     >>> xml_sel_bad1 = '''
     ... <selectors_xml>
@@ -418,7 +570,7 @@ def evaluate_selectors(element, case, ez_selectors):
     >>> good = ET.fromstring(xml_good)
     >>> evaluate_selectors(good,case,selectors_bad1)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: Bad easy selector 'grid' definition. Relies on unknown case value 'BADENV'
+    CIME.core.exceptions.CIMEError: ERROR: Bad easy selector 'grid' definition. Relies on unknown case value 'BADENV'
     >>> ############## BAD SELECTOR DEFINITION #####################
     >>> xml_sel_bad2 = '''
     ... <selectors_xml>
@@ -431,7 +583,7 @@ def evaluate_selectors(element, case, ez_selectors):
     >>> good = ET.fromstring(xml_good)
     >>> evaluate_selectors(good,case,selectors_bad2)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: Selector 'grid' has invalid custom regex '.*' which does not capture exactly 1 group
+    CIME.core.exceptions.CIMEError: ERROR: Selector 'grid' has invalid custom regex '.*' which does not capture exactly 1 group
     >>> ############## BAD SELECTOR NAME #####################
     >>> xml_bad1 = '''
     ... <namelist_defaults>
@@ -442,7 +594,7 @@ def evaluate_selectors(element, case, ez_selectors):
     >>> bad1 = ET.fromstring(xml_bad1)
     >>> evaluate_selectors(bad1,case,selectors_good)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: Bad selector 'my_grid' for child 'var1'. 'my_grid' is not a valid case value or easy selector
+    CIME.core.exceptions.CIMEError: ERROR: Bad selector 'my_grid' for child 'var1'. 'my_grid' is not a valid case value or easy selector
     >>> ############## BAD DEFAULTS ORDERING #####################
     >>> xml_bad2 = '''
     ... <namelist_defaults>
@@ -453,7 +605,7 @@ def evaluate_selectors(element, case, ez_selectors):
     >>> bad2 = ET.fromstring(xml_bad2)
     >>> evaluate_selectors(bad2,case,selectors_good)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: child 'var1' element without selectors occurred after other parameter elements for this parameter
+    CIME.core.exceptions.CIMEError: ERROR: child 'var1' element without selectors occurred after other parameter elements for this parameter
     >>> ############## MULTIPLE MATCHES #####################
     >>> xml_bad3 = '''
     ... <namelist_defaults>
@@ -464,12 +616,11 @@ def evaluate_selectors(element, case, ez_selectors):
     >>> bad3 = ET.fromstring(xml_bad3)
     >>> evaluate_selectors(bad3,case,selectors_good)
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: child 'var1' element without selectors occurred after other parameter elements for this parameter
+    CIME.core.exceptions.CIMEError: ERROR: child 'var1' element without selectors occurred after other parameter elements for this parameter
     """
 
     selected_child = {} # elem_name -> evaluated XML element
     children_to_remove = []
-    child_base_value = {} # map elme name to values to be appended to if append=="base"
     child_type  = {} # map elme name to its type (since only first entry may have type specified)
     for child in element:
         # Note: in our system, an XML element is either a "node" (has children)
@@ -486,21 +637,19 @@ def evaluate_selectors(element, case, ez_selectors):
             if child_name not in child_type:
                 child_type[child_name] = selectors["type"] if "type" in selectors.keys() else "unset"
 
-            is_array = child_type[child_name].startswith("array")
-            expect (is_array or "append" not in selectors.keys(),
-                    "The 'append' metadata attribute is only supported for entries of array type\n"
-                    f" param name: {child_name}\n"
-                    f" param type: {child_type[child_name]}")
-
-            append = selectors["append"] if "append" in selectors.keys() else "no"
-            expect (append in ["no","base","last"],
-                    "Unrecognized value for 'append' attribute\n" +
-                    f"  param name  : {child_name}\n" +
-                    f"  append value: {append}\n" +
-                     "  valid values: base, last\n")
+            action = selectors.get("action")
+            if action is not None:
+                expect (child_type[child_name].startswith("array"),
+                        "The 'action' metadata attribute is only supported for entries of array type\n"
+                        f" param name: {child_name}\n"
+                        f" param type: {child_type[child_name]}")
+                expect (action in ["append","remove"],
+                        "Unrecognized value for 'action' attribute\n"
+                        f"  param name  : {child_name}\n"
+                        f"  action value: {action}\n"
+                        "  valid values: append, remove\n")
             if selectors:
                 all_match = True
-                had_case_selectors = False
                 for sel_name, sel_value in selectors.items():
                     # Metadata attributes are used only when it's time to generate the input files
                     if sel_name in METADATA_ATTRIBS:
@@ -510,7 +659,6 @@ def evaluate_selectors(element, case, ez_selectors):
                                         f"The 'type' attribute of {child_name} is not consistent across different selectors")
                         continue
 
-                    had_case_selectors = True
                     selectors_matched = evaluate_selector(sel_name, sel_value, ez_selectors, case, child_name)
                     if not selectors_matched:
                         all_match = False
@@ -524,37 +672,42 @@ def evaluate_selectors(element, case, ez_selectors):
                         # We replace orig_child with child (rather than updating orig_child
                         # in-place) so that the surviving element retains the selector
                         # attributes of the matching variant, e.g. for diagnostics.
-                        if append=="base":
-                            expect(child_name in child_base_value,
-                                   f"'append=base' used for '{child_name}' but no default "
-                                   f"(base) element was defined. "
-                                   f"Selector element attributes: {dict(child.attrib)}")
-                            new_text = child_base_value[child_name] + "," + child.text
-                        elif append=="last":
-                            new_text = orig_child.text + "," + child.text
+                        if action=="append":
+                            new_list = [] if not orig_child.text else orig_child.text.strip().split(",")
+                            new_list.append(child.text)
+                            new_text = ",".join(new_list)
+                        elif action=="remove":
+                            new_list = [] if not orig_child.text else [item.strip() for item in orig_child.text.split(",")]
+                            items = [item.strip() for item in child.text.split(",")]
+                            for item in items:
+                                expect(new_list.count(item)==1,
+                                       f"Cannot remove '{item}' from '{child_name}': expected exactly one occurrence, "
+                                       f"found {new_list.count(item)}. Curr entries: {orig_child.text}")
+                                new_list.remove(item)
+                            new_text = ",".join(new_list)
                         else:
                             new_text = child.text
                         # Copy non-selector metadata from the previously selected element
                         # to the newly selected one (if not already set on the new element).
                         # This allows metadata (e.g. constraints, doc) to be defined only
                         # on the default element and inherited by all selector-specific variants.
+                        # ('action' is specific to each element, so it is never inherited)
                         for attr in METADATA_ATTRIBS:
-                            if attr in orig_child.attrib and attr not in child.attrib:
+                            if attr!="action" and attr in orig_child.attrib and attr not in child.attrib:
                                 child.attrib[attr] = orig_child.attrib[attr]
                         child.text = new_text
                         children_to_remove.append(orig_child)
                         selected_child[child_name] = child
 
                     else:
-                        # If all selectors were the METADATA_ATTRIB ones, then this is the "base" value
-                        if not had_case_selectors:
-                            child_base_value[child_name] = child.text
+                        expect (action is None,
+                                f"The '{action}' action for '{child_name}' requires a previously selected value to modify\n"
+                                f" Selector element attributes: {dict(child.attrib)}")
                         selected_child[child_name] = child
 
             else:
                 expect(child_name not in selected_child,
                        "child '{}' element without selectors occurred after other parameter elements for this parameter".format(child_name))
-                child_base_value[child_name] = child.text
                 selected_child[child_name] = child
                 child.text = do_cime_vars(child_val, case)
 
@@ -899,7 +1052,7 @@ def _dump_to_nml_impl(dict_contents):
     ... }
     >>> print(_dump_to_nml_impl(good2))
     Traceback (most recent call last):
-    CIME.utils.CIMEError: ERROR: Error! _dump_to_nml_impl cannot mix nested and non-nested dicts.
+    CIME.core.exceptions.CIMEError: ERROR: Error! _dump_to_nml_impl cannot mix nested and non-nested dicts.
     """
 
     result = ""
@@ -1172,7 +1325,7 @@ def do_cime_vars_on_yaml_output_files(case, caseroot):
                    f"   frequency_units: {units}\n"
                    f"   ATM_NCPL: {case.get_value('ATM_NCPL')}\n"
                    f" This yields dt_atm={dt_atm} > dt_output={dt_out}. Please, adjust 'frequency' and/or 'frequency_units'\n")
-        
+
         # Check for duplicate output file signatures
         prefix = content['filename_prefix']
         avg_type = content['averaging_type'].upper()
@@ -1190,7 +1343,7 @@ def do_cime_vars_on_yaml_output_files(case, caseroot):
                 f"    - frequency_units: {units}\n"
                 f"    - filename_prefix: {prefix}\n"
                 f"  This would cause both outputs to write to the same NetCDF file.\n"
-                f"  Please modify one of the YAML files to use a different prefix or output frequency.")            
+                f"  Please modify one of the YAML files to use a different prefix or output frequency.")
         file_signatures.append((fn, signature))
 
         ordered_dump(content, open(dst_yaml, "w"))

@@ -121,9 +121,9 @@ MOC::MOC(const std::string &GroupName, Config &AnalysisGroupOptions,
    buildTemporalChains(ChainStems, AnalysisGroupOptions, AnalysisManager,
                        ChainConfigs);
 
-   // Stamp Sverdrup units and a readable long_name on every streamfunction
-   // output field. Both the CF-compliant "units" and the legacy capitalized
-   // "Units" are set.
+   // Stamp a readable long_name on every streamfunction output field. The
+   // operators derive the units, 1e+06 m3 s-1 (Sverdrups) after the final
+   // ScalarMultiply(1e-6); "Sv" would be read by udunits as the sievert.
    for (size_t i = 0; i < ChainStems.size(); ++i) {
       const auto &StemStr    = ChainStems[i];
       const auto &RegionName = RegionList[i];
@@ -137,8 +137,6 @@ MOC::MOC(const std::string &GroupName, Config &AnalysisGroupOptions,
       for (const auto &SFName : SFFieldNames) {
          if (Field::exists(SFName)) {
             auto SFField = Field::get(SFName);
-            SFField->updateMetadata("units", std::string("Sv"));
-            SFField->updateMetadata("Units", std::string("Sv"));
             SFField->updateMetadata("long_name", LongName);
          }
       }
@@ -330,8 +328,8 @@ std::string MOC::buildMOCChain(const std::string &RegionName,
                         "northern edge of last bin)", // Description
                         "degrees_north",              // Units
                         "latitude",                   // Standard name
-                        MinLat,                       // ValidMin
-                        MaxLat,                       // ValidMax
+                        AdjMinLat,                    // ValidMin
+                        AdjMaxLat,                    // ValidMax
                         1,                            // Rank
                         BinBoundDimNames,             // Dimension names
                         false                         // Not time dependent
@@ -460,15 +458,14 @@ std::string MOC::buildDepthCoordChain(const std::string &RegionName,
    // intermediate fields shared with other chains).
    AnalysisManager->parseChainAndBuildOps(ChainStr, Cfg);
 
-   // Attach descriptive depth metadata for output (once per unique field).
+   // Attach a descriptive long_name for output (once per unique field). The
+   // HorzMean operator derives the units from GeomZInterface.
    if (Field::exists(DepthFieldName)) {
       auto DepthField = Field::get(DepthFieldName);
       DepthField->updateMetadata(
           "long_name",
           std::string("Area-weighted representative interface depth (") +
               RegionName + ")");
-      DepthField->updateMetadata("units", std::string("m"));
-      DepthField->updateMetadata("Units", std::string("m"));
    }
 
    return DepthFieldName;

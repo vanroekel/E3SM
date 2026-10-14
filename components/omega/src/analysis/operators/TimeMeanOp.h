@@ -83,29 +83,27 @@ template <typename ArrayT> class TimeMeanOp : public AnalysisOperator {
       std::vector<std::string> DimNames;
       InputField->getDimNames(DimNames);
 
-      // Fetch input metadata
-      std::string InputDescr, InputUnits, InputStdName;
+      // Fetch the input description and valid range
+      std::string InputDescr;
       ScalarT InputValidMin, InputValidMax;
-      InputField->getMetadata("Description", InputDescr);
-      InputField->getMetadata("Units", InputUnits);
-      InputField->getMetadata("StdName", InputStdName);
-      InputField->getMetadata("ValidMin", InputValidMin);
-      InputField->getMetadata("ValidMax", InputValidMax);
+      InputField->getMetadata("long_name", InputDescr);
+      InputField->getMetadata("valid_min", InputValidMin);
+      InputField->getMetadata("valid_max", InputValidMax);
 
-      // Register output Field with same dimensions as input but Real type
+      // Register output Field with same dimensions as input but Real type.
+      // A time mean has the units and standard name of the field it
+      // averages; its cell_methods record the reduction after any the input
+      // already carries (e.g. "area: mean time: mean").
+      auto Meta = inheritMetadata(InputNames[0], "time: mean");
       auto OutputField =
-          Field::create(OutputNames[0],
-                        "Time average of " + InputDescr,  // Description
-                        InputUnits,                       // Units
-                        InputStdName,                     // Standard name
-                        static_cast<Real>(InputValidMin), // Min valid value
-                        static_cast<Real>(InputValidMax), // Max valid value
-                        NDims,                            // Rank
-                        DimNames                          // Dimension names
+          createOutputField(OutputNames[0],
+                            "Time average of " + InputDescr,  // Description
+                            Meta,                             // CF metadata
+                            static_cast<Real>(InputValidMin), // Min valid
+                            static_cast<Real>(InputValidMax), // Max valid
+                            NDims,                            // Rank
+                            DimNames                          // Dim names
           );
-
-      // Stamp CF-compliant cell_methods for time-mean output.
-      OutputField->addMetadata("cell_methods", std::string("time: mean"));
 
       // Store array size for parallel iteration
       ArraySize = static_cast<I4>(InputData.size());

@@ -143,14 +143,34 @@ template <typename ArrayT> class PrefixSumOp : public AnalysisOperator {
       OutputNames  = {OutputFieldName};
       InstanceName = OutputFieldName;
 
-      // Get input metadata
-      std::string InputDescr, InputUnits, InputStdName;
+      // Get input metadata. A cumulative sum has the units of the values
+      // summed.
+      std::string InputDescr;
       ScalarT InputValidMin, InputValidMax;
-      InputField->getMetadata("Description", InputDescr);
-      InputField->getMetadata("Units", InputUnits);
-      InputField->getMetadata("StdName", InputStdName);
-      InputField->getMetadata("ValidMin", InputValidMin);
-      InputField->getMetadata("ValidMax", InputValidMax);
+      InputField->getMetadata("long_name", InputDescr);
+      InputField->getMetadata("valid_min", InputValidMin);
+      InputField->getMetadata("valid_max", InputValidMax);
+      auto Meta = inheritMetadata(InputNames[0]);
+
+      // The BC field seeds the sum, so it must be in the same units as the
+      // input. If either has unknown units, so does the sum.
+      if (!BCFieldName.empty()) {
+         CFUnits InputUnits, BCUnits;
+         Error Err = CFUnits::parse(Meta.Units, InputUnits);
+         CHECK_ERROR_ABORT(Err, "PrefixSumOp: invalid units of field {}",
+                           InputNames[0]);
+         Err = CFUnits::parse(getFieldAttribute(BCFieldName, "units"), BCUnits);
+         CHECK_ERROR_ABORT(Err, "PrefixSumOp: invalid units of BC field {}",
+                           BCFieldName);
+         if (InputUnits.isUnknown() || BCUnits.isUnknown()) {
+            Meta.Units = "";
+         } else if (InputUnits != BCUnits) {
+            ABORT_ERROR("PrefixSumOp: BC field {} has units '{}' but field {} "
+                        "has units '{}'",
+                        BCFieldName, BCUnits.str(), InputNames[0],
+                        InputUnits.str());
+         }
+      }
 
       // Allow callers to override the output field name (e.g., for a short
       // alias) via the "OutputName" config key.
@@ -158,14 +178,13 @@ template <typename ArrayT> class PrefixSumOp : public AnalysisOperator {
 
       // Create output Field with same dimensions as input
       auto OutputField =
-          Field::create(OutputNames[0],
-                        "Cumulative sum of " + InputDescr, // Description
-                        InputUnits,                        // Units
-                        InputStdName,                      // Standard name
-                        InputValidMin,                     // Min valid
-                        InputValidMax,                     // Max valid
-                        NDims,                             // Rank
-                        DimNames                           // Dimension names
+          createOutputField(OutputNames[0],
+                            "Cumulative sum of " + InputDescr, // Description
+                            Meta,                              // CF metadata
+                            InputValidMin,                     // Min valid
+                            InputValidMax,                     // Max valid
+                            NDims,                             // Rank
+                            DimNames                           // Dim names
           );
 
       // Allocate output data array matching input layout

@@ -138,6 +138,11 @@ TracerDiffOnCell::TracerDiffOnCell(const HorzMesh *Mesh,
       MinLayerEdgeBot(VCoord->MinLayerEdgeBot),
       MaxLayerEdgeTop(VCoord->MaxLayerEdgeTop) {}
 
+KPPNonLocalTracerFluxOnCell::KPPNonLocalTracerFluxOnCell(
+    const HorzMesh *Mesh, const VertCoord *VCoord)
+    : Enabled(false), MinLayerCell(VCoord->MinLayerCell),
+      MaxLayerCell(VCoord->MaxLayerCell) {}
+
 TracerHyperDiffOnCell::TracerHyperDiffOnCell(const HorzMesh *Mesh,
                                              const VertCoord *VCoord)
     : NEdgesOnCell(Mesh->NEdgesOnCell), EdgesOnCell(Mesh->EdgesOnCell),
@@ -206,45 +211,47 @@ void TracerHorzAdvOnCell::init() {
       deepCopy(FlxIn, 0.0);
       deepCopy(FlxOut, 0.0);
       if (ComputeBudgets) {
+         // Sized like the NEdges and NCells dimensions they are written with
          const int NTracers = Tracers::getNumTracers();
-         const int NEdges   = Mesh->NEdgesHaloH(1);
          ActiveTracerHorizontalAdvectionEdgeFlux =
              Array3DReal("FCTActiveTracerHorizontalAdvectionEdgeFlux", NTracers,
-                         NEdges, NVertLayers);
+                         NEdgesSize, NVertLayers);
          ActiveTracerHorizontalAdvectionTendency =
              Array3DReal("FCTActiveTracerHorizontalAdvectionTendency", NTracers,
-                         NCellsAll, NVertLayers);
+                         NCellsSize, NVertLayers);
          deepCopy(ActiveTracerHorizontalAdvectionEdgeFlux, 0.0);
          deepCopy(ActiveTracerHorizontalAdvectionTendency, 0.0);
-         const int NDims             = 1;
          const std::string GroupName = "AuxiliaryState";
-         std::vector<std::string> FluxDimNames(NDims, "NEdges");
+         // Both budget arrays hold every tracer on every layer
+         std::vector<std::string> FluxDimNames{"NTracers", "NEdges",
+                                               "NVertLayers"};
+         std::vector<std::string> TendDimNames{"NTracers", "NCells",
+                                               "NVertLayers"};
+
          auto BudgetAdvectionEdgeFlux = Field::create(
              ActiveTracerHorizontalAdvectionEdgeFlux.label(),    // field name
-             "Tracer FCT Horizontal Advection Edge Flux Budget", // long name or
-                                                                 // description
+             "Tracer FCT Horizontal Advection Edge Flux Budget", // long name
              "",                                                 // units
-             "",                             // CF standard Name
-             0,                              // min valid value
-             std::numeric_limits<I4>::max(), // max valid value
-             NDims,                          // number of dimensions
-             FluxDimNames                    // dimension names
+             "",                                  // CF standard Name
+             std::numeric_limits<Real>::lowest(), // min valid value
+             std::numeric_limits<Real>::max(),    // max valid value
+             3,                                   // number of dimensions
+             FluxDimNames                         // dimension names
          );
          BudgetAdvectionEdgeFlux->attachData<Array3DReal>(
              ActiveTracerHorizontalAdvectionEdgeFlux);
          FieldGroup::addFieldToGroup(
              ActiveTracerHorizontalAdvectionEdgeFlux.label(), GroupName);
-         std::vector<std::string> TendDimNames(NDims, "NCells");
+
          auto BudgetAdvectionCellTend = Field::create(
-             ActiveTracerHorizontalAdvectionTendency.label(), // field name
-             "Tracer FCT Horizontal Advection Cell Flux "
-             "Tendency",                     // long name or description
-             "",                             // units
-             "",                             // CF standard Name
-             0,                              // min valid value
-             std::numeric_limits<I4>::max(), // max valid value
-             NDims,                          // number of dimensions
-             TendDimNames                    // dimension names
+             ActiveTracerHorizontalAdvectionTendency.label(),      // field name
+             "Tracer FCT Horizontal Advection Cell Flux Tendency", // long name
+             "",                                                   // units
+             "",                                  // CF standard Name
+             std::numeric_limits<Real>::lowest(), // min valid value
+             std::numeric_limits<Real>::max(),    // max valid value
+             3,                                   // number of dimensions
+             TendDimNames                         // dimension names
          );
          BudgetAdvectionCellTend->attachData<Array3DReal>(
              ActiveTracerHorizontalAdvectionTendency);

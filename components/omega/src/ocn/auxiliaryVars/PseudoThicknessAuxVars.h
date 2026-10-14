@@ -34,10 +34,12 @@ class PseudoThicknessAuxVars {
       const int KMin = MinLayerEdgeBot(IEdge);
       const int KMax = MaxLayerEdgeTop(IEdge);
 
+      // Real(0.5) rather than 0.5_Real: nvcc 12.9 on pm-gpu fails to find the
+      // _Real literal operator here
       parallelForInner(
           Team, Range{KMin, KMax}, INNER_LAMBDA(int K) {
              MeanPseudoThickEdge(IEdge, K) =
-                 0.5_Real *
+                 Real(0.5) *
                  (PseudoThickCell(JCell0, K) + PseudoThickCell(JCell1, K));
           });
 
