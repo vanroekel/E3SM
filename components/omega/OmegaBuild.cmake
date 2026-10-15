@@ -43,6 +43,9 @@ macro(common)
 
   set(OMEGA_VECTOR_LENGTH 1 CACHE STRING "Omega vector length")
 
+  set(CMAKE_CXX_STANDARD 20)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 endmacro()
 
 macro(run_bash_command command outvar)
@@ -63,10 +66,15 @@ endmacro()
 
 macro(read_cime_config)
 
+  # --output-root keeps the case's EXEROOT and RUNDIR inside this build
+  # directory. Otherwise they are $CIME_OUTPUT_ROOT/e3smcase/{bld,run}, shared
+  # by every standalone build on the machine, and --handle-preexisting-dirs r
+  # lets concurrent builds delete each other's directories.
   set(NEWCASE_COMMAND "${E3SM_ROOT}/cime/scripts/create_newcase \
     --res T62_oQU120 \
     --compset CMPASO-NYF \
     --handle-preexisting-dirs r \
+    --output-root ${OMEGA_BUILD_DIR} \
     --case ${CASEROOT}")
 
   if(NOT "${OMEGA_CIME_MACHINE}" STREQUAL "")
@@ -141,7 +149,11 @@ macro(read_cime_config)
     endif()
   endforeach()
 
-  cime_xmlquery("MPILIB" MPILIB_NAME)
+  # The machine's Macros.cmake, included below, selects compilers and flags
+  # by MPILIB (e.g. CC rather than mpicxx for mpich on pm-gpu, which links
+  # Cray's GPU transport layer), so it must be set before the include, as
+  # CIME builds do with -DMPILIB.
+  cime_xmlquery("MPILIB" MPILIB)
   cime_xmlquery("GMAKE_J" GMAKE_J)
   cime_xmlquery("BUILD_THREADED" BUILD_THREADED)
   cime_xmlquery("THREAD_COUNT" THREAD_COUNT)
@@ -409,18 +421,18 @@ macro(init_standalone_build)
       set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} ${OMEGA_HIP_FLAGS}")
     endif()
 
-    if("${MPILIB_NAME}" STREQUAL "mpich")
+    if("${MPILIB}" STREQUAL "mpich")
       if(NOT $ENV{MPICH_CXX})
         set(ENV{MPICH_CXX} ${OMEGA_HIP_COMPILER})
       endif()
 
-    elseif("${MPILIB_NAME}" STREQUAL "openmpi")
+    elseif("${MPILIB}" STREQUAL "openmpi")
       if(NOT $ENV{OMPI_CXX})
         set(ENV{OMPI_CXX} ${OMEGA_HIP_COMPILER})
       endif()
 
     else()
-      message(FATAL_ERROR "'$ENV{MPILIB_NAME}' is not supported yet.")
+      message(FATAL_ERROR "'${MPILIB}' is not supported yet.")
 
     endif()
 

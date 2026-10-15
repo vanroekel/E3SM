@@ -6,7 +6,6 @@
 
 #include "RungeKutta4Stepper.h"
 #include "Pacer.h"
-#include "VertMix.h"
 
 namespace OMEGA {
 
@@ -15,13 +14,17 @@ namespace OMEGA {
 // fills with some time information. Data pointers are added later.
 // Uses the base constructor and adds some coefficients.
 RungeKutta4Stepper::RungeKutta4Stepper(
-    const std::string &InName,      ///< [in] name of time stepper
-    const TimeInterval &InTimeStep, ///< [in] time step
-    const TimeInstant &InStartTime, ///< [in] start time for time stepping
-    ///< [in] stop time for time stepping, missing in coupled mode
-    std::optional<TimeInstant> InStopTime)
+    const std::string &InName,              // [in] name of time stepper
+    const TimeInterval &InTimeStep,         // [in] time step
+    const TimeStepperStartType InStartType, // [in] option for starting
+    const TimeInstant &InStartTime,         // [in] start time for full sim
+    const TimeStepperStopType InStopType,   // [in] option for stopping
+    std::optional<TimeInstant> InStopTime,  // [in] stop time if option AtTime
+    std::optional<TimeInterval> InDuration  // [in] duration if AfterDuration
+    )
     : TimeStepper(InName, TimeStepperType::RungeKutta4, 2, InTimeStep,
-                  InStartTime, InStopTime) {
+                  InStartType, InStartTime, InStopType, InStopTime,
+                  InDuration) {
 
    RKA[0] = 0;
    RKA[1] = 1. / 2;
@@ -79,13 +82,10 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
 
    const int CurLevel  = 0;
    const int NextLevel = 1;
-   int NTracers        = Tracers::getNumTracers();
 
    Array3DReal CurTracerArray   = Tracers::getAll(CurLevel);
    Array3DReal NextTracerArray  = Tracers::getAll(NextLevel);
    TimeInstant ForcingStageTime = SimTime;
-
-   VertMix *VMix = VertMix::getInstance();
 
    for (int Stage = 0; Stage < NStages; ++Stage) {
       const TimeInstant StageTime = SimTime + RKC[Stage] * TimeStep;
@@ -95,6 +95,7 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
       if (Stage == 0) {
          weightTracers(NextTracerArray, CurTracerArray, State, CurLevel);
          prescribeState(State, CurLevel, State, CurLevel, ForcingStageTime);
+         updateKPPFields(State, CurLevel, CurLevel, CurLevel);
          Tend->computeAllTendencies(State, AuxState, CurTracerArray, CurLevel,
                                     CurLevel, CurLevel, StageTime,
                                     RKProj[Stage] * TimeStep);
@@ -139,19 +140,7 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
    Tracers::updateTimeLevels();
    Pacer::stop("RK4:haloExch", 3);
 
-   // Apply implicit vertical mixing
-   CurTracerArray = Tracers::getAll(CurLevel);
-   if (VMix->VelVertMixSetup.Enabled or VMix->TracerVertMixSetup.Enabled) {
-      VMix->VertMixImplicit(State, AuxState, CurTracerArray, NTracers,
-                            CurLevel);
-
-      // Re-exchange halos after vertical mixing
-      Pacer::timingBarrier("RK4:vMixHaloExchBarrier", 3, Comm);
-      Pacer::start("RK4:vMixHaloExch", 3);
-      State->exchangeHalo(CurLevel);
-      Tracers::exchangeHalo(CurLevel);
-      Pacer::stop("RK4:vMixHaloExch", 3);
-   }
+   applyImplicitVerticalMixing(State, CurLevel, CurLevel, CurLevel, "RK4");
 
    validateOceanState(State, AuxState, VertCoord::getDefault(), CurLevel);
 

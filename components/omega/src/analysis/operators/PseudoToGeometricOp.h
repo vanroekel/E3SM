@@ -97,23 +97,23 @@ template <typename ArrayT> class PseudoToGeometricOp : public AnalysisOperator {
       OutputNames                 = {OutputFieldName};
       InstanceName                = OutputFieldName;
 
-      // Get input metadata
-      std::string PseudoDescr, PseudoUnits, PseudoStdName;
-      PseudoField->getMetadata("Description", PseudoDescr);
-      PseudoField->getMetadata("Units", PseudoUnits);
-      PseudoField->getMetadata("StdName", PseudoStdName);
+      // Get input metadata. The conversion factor RhoSw * SpecVol is
+      // dimensionless, so the geometric quantity has the units of the pseudo
+      // quantity.
+      std::string PseudoDescr;
+      PseudoField->getMetadata("long_name", PseudoDescr);
+      auto Meta = inheritMetadata(InputNames[0]);
 
       // Create output Field with updated metadata
-      auto OutputField =
-          Field::create(OutputNames[0],
-                        "Geometric conversion of" + PseudoDescr, // Description
-                        PseudoUnits,                             // Units
-                        PseudoStdName, // Standard name
-                        -std::numeric_limits<ScalarT>::max(),
-                        std::numeric_limits<ScalarT>::max(),
-                        NDims,   // Rank
-                        DimNames // Dimension names
-          );
+      auto OutputField = createOutputField(
+          OutputNames[0],
+          "Geometric conversion of" + PseudoDescr, // Description
+          Meta,                                    // CF metadata
+          -std::numeric_limits<ScalarT>::max(),    // Min valid
+          std::numeric_limits<ScalarT>::max(),     // Max valid
+          NDims,                                   // Rank
+          DimNames                                 // Dimension names
+      );
 
       // Allocate output data array matching input layout
       OutputData = OutputArrayT(OutputNames[0] + "_out", PseudoData.layout());

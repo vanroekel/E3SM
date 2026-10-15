@@ -101,7 +101,11 @@ user-specified fields. The mean and standard deviation are weighted so that
 they do not depend on the mesh resolution: by the area of each cell, edge or
 vertex for a horizontal field, and by mass (area times pseudo-thickness) for
 a field with a vertical dimension, with an interface field weighted by half
-the mass of each adjacent layer. Only active layers take part.
+the mass of each adjacent layer. Only active layers take part. Each statistic
+is written with the `units` and `standard_name` of the field it reduces and a
+CF `cell_methods` attribute describing the reduction, for example
+`area: depth: mean` for the mean of a layered field and
+`area: depth: mean time: mean` for its time mean.
 
 **Example:**
 
@@ -114,7 +118,7 @@ Omega:
       SpatialStats: [Mean, Max, Min, StdDev]
       ReductionPeriod: [1Day, 1Month]
       SnapshotPeriod: [6Hour]
-      Filename: global.stats.$Y
+      Filename: global.stats.$Y.nc
       Stream:
         FileFreq: 1
         FileFreqUnits: years
@@ -157,7 +161,9 @@ Computes the Meridional Overturning Circulation (MOC) streamfunction using two
 methods: latitude-binned regional MOC and transect-based MOC. The MOC
 represents zonally integrated meridional mass transport as a function of
 latitude and depth (regional MOC) or depth alone (transect MOC). Output is in
-Sverdrups (Sv), where 1 Sv = 10⁶ m³/s.
+Sverdrups (Sv), where 1 Sv = 10⁶ m³/s, so its `units` attribute is
+`1e+06 m3 s-1`, the udunits spelling of a Sverdrup (udunits reads `Sv` as the
+sievert).
 
 **Example:**
 
@@ -173,7 +179,7 @@ Omega:
       Transects: []
       ReductionPeriod: [1Month]
       SnapshotPeriod: [1Day]
-      Filename: moc.$Y-$M
+      Filename: moc.$Y-$M.nc
       Stream:
         FileFreq: 1
         FileFreqUnits: months
@@ -223,6 +229,58 @@ Regional and transect masks are not yet implemented. The `Regions` parameter
 currently only supports `[Global]`, and `Transects` is a placeholder for future
 functionality. The underlying operator infrastructure is complete and ready for
 use once the mask fields are implemented in Omega.
+```
+
+### MonthlyAverages
+
+Computes monthly time averages of a set of requested global fields. Unlike
+`GlobalStats`, no spatial reduction is applied: each requested field is passed
+directly to a temporal-reduction (`TimeMean`) operator. The averaging period
+defaults to one month, but may be overridden with the optional
+`ReductionPeriod` parameter. This mirrors the `timeSeriesStatsMonthly` analysis
+member in MPAS-Ocean, which delivers monthly means of prognostic and derived
+fields.
+
+**Example:**
+
+```yaml
+Omega:
+  Analysis:
+    MonthlyAverages:
+      Enable: true
+      Fields: [Temperature, Salinity, NormalVelocity, PseudoThickness]
+      ReductionPeriod: [1Month]   # optional; defaults to [1Month]
+      Filename: monthly.averages.$Y.nc
+      Stream:
+        FileFreq: 1
+        FileFreqUnits: years
+```
+
+**Group-Specific Parameters:**
+
+- **Fields:** Required list of field names to average. The simulation will abort
+  if a requested field does not exist.
+
+- **ReductionPeriod:** Optional list of time periods for temporal reduction
+  (e.g., `1Day`, `1Month`, `1Year`). Defaults to `[1Month]` when not specified.
+  Each period must divide evenly into the restart interval. Any `SnapshotPeriod`
+  supplied for this group is ignored.
+
+**Output fields:**
+For each requested field, a time-averaged field is produced:
+ - `FieldName_TimeMeanPeriod` (e.g., `Temperature_TimeMean1Month`)
+
+**Output streams:**
+Automatically created and named:
+ - Time reduction: `MonthlyAverages_FreqTimeStats` (e.g.,
+ `MonthlyAverages_1MonthTimeStats`)
+
+```{note}
+The default field list in `Default.yml` includes the core prognostic fields
+(`Temperature`, `Salinity`, `NormalVelocity`, `PseudoThickness`). Additional
+registered global fields may be requested by adding them to the `Fields` list.
+The averaging period must divide evenly into the restart interval, as described
+in the Temporal Reduction Period Constraint below.
 ```
 
 ## Usage Notes

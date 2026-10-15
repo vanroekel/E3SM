@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AnalysisOperator.h"
+#include "Reductions.h"
 #include "mpi.h"
 
 namespace OMEGA {
@@ -125,14 +126,14 @@ template <typename ArrayT> class BinnedAccumulatorOp : public AnalysisOperator {
       OutputNames  = {OutputFieldName};
       InstanceName = OutputFieldName;
 
-      // Get input metadata
-      std::string ValueDescr, ValueUnits, ValueStdName;
+      // Get input metadata. A sum over the entities in each bin has the
+      // units of the values summed.
+      std::string ValueDescr;
       ScalarT ValueValidMin, ValueValidMax;
-      ValueField->getMetadata("Description", ValueDescr);
-      ValueField->getMetadata("Units", ValueUnits);
-      ValueField->getMetadata("StdName", ValueStdName);
-      ValueField->getMetadata("ValidMin", ValueValidMin);
-      ValueField->getMetadata("ValidMax", ValueValidMax);
+      ValueField->getMetadata("long_name", ValueDescr);
+      ValueField->getMetadata("valid_min", ValueValidMin);
+      ValueField->getMetadata("valid_max", ValueValidMax);
+      auto Meta = inheritMetadata(InputNames[0]);
 
       // Create output Field dimensions
       std::string NumBinsDimName = "NumBins" + InputNames[1];
@@ -147,16 +148,15 @@ template <typename ArrayT> class BinnedAccumulatorOp : public AnalysisOperator {
       }
 
       // Create output Field
-      auto OutputField =
-          Field::create(OutputNames[0],
-                        "Binned accumulation of " + ValueDescr, // Description
-                        ValueUnits,                             // Units
-                        ValueStdName,                           // Standard name
-                        ValueValidMin,                          // Min valid
-                        ValueValidMax,                          // Max valid
-                        InputRank,                              // Rank
-                        OutputDimNames // Dimension names
-          );
+      auto OutputField = createOutputField(
+          OutputNames[0],
+          "Binned accumulation of " + ValueDescr, // Description
+          Meta,                                   // CF metadata
+          ValueValidMin,                          // Min valid
+          ValueValidMax,                          // Max valid
+          InputRank,                              // Rank
+          OutputDimNames                          // Dimension names
+      );
 
       // Allocate output and local accumulation arrays
       if (InputRank == 1) {
@@ -287,9 +287,18 @@ template <typename ArrayT> class BinnedAccumulatorOp : public AnalysisOperator {
 
       auto OutputDataHost = createHostMirrorCopy(OutputData);
 
-      // Sum local accumulations across all ranks
-      MPI_Allreduce(LocalAccumHost.data(), OutputDataHost.data(), NumBins,
-                    MPI_DOUBLE, MPI_SUM, Comm);
+      // Sum local accumulations across all ranks element-wise. Use the
+      // reproducible Omega globalSum (multifield) helper, which performs an
+      // element-wise reduction across ranks using the same communicator and
+      // avoids a direct MPI_Allreduce call here.
+      std::vector<R8> LocalBins(NumBins);
+      for (I4 IBin = 0; IBin < NumBins; ++IBin)
+         LocalBins[IBin] = static_cast<R8>(LocalAccumHost(IBin));
+
+      std::vector<R8> GlobalBins = globalSum(LocalBins, Comm);
+
+      for (I4 IBin = 0; IBin < NumBins; ++IBin)
+         OutputDataHost(IBin) = GlobalBins[IBin];
 
       // Copy global totals back to device
       deepCopy(OutputData, OutputDataHost);
@@ -345,10 +354,22 @@ template <typename ArrayT> class BinnedAccumulatorOp : public AnalysisOperator {
 
       auto OutputDataHost = createHostMirrorCopy(OutputData);
 
-      // Sum local accumulations across all ranks
+      // Sum local accumulations across all ranks element-wise. Flatten the
+      // (NumBins x VertSize) local array into a single vector, reduce with the
+      // reproducible Omega globalSum (multifield) helper, then unflatten into
+      // the output host mirror.
       I4 TotalSize = NumBins * VertSize;
-      MPI_Allreduce(LocalAccumHost.data(), OutputDataHost.data(), TotalSize,
-                    MPI_DOUBLE, MPI_SUM, Comm);
+      std::vector<R8> LocalFlat(TotalSize);
+      for (I4 IBin = 0; IBin < NumBins; ++IBin)
+         for (I4 K = 0; K < VertSize; ++K)
+            LocalFlat[IBin * VertSize + K] =
+                static_cast<R8>(LocalAccumHost(IBin, K));
+
+      std::vector<R8> GlobalFlat = globalSum(LocalFlat, Comm);
+
+      for (I4 IBin = 0; IBin < NumBins; ++IBin)
+         for (I4 K = 0; K < VertSize; ++K)
+            OutputDataHost(IBin, K) = GlobalFlat[IBin * VertSize + K];
 
       // Copy global totals back to device
       deepCopy(OutputData, OutputDataHost);

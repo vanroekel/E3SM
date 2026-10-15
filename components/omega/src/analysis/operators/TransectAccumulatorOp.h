@@ -36,6 +36,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AnalysisOperator.h"
+#include "Reductions.h"
 #include "mpi.h"
 
 namespace OMEGA {
@@ -144,28 +145,27 @@ class TransectAccumulatorOp : public AnalysisOperator {
       OutputNames  = {OutputFieldName};
       InstanceName = OutputFieldName;
 
-      // Get input metadata
-      std::string TransportDescr, TransportUnits, TransportStdName;
+      // Get input metadata. A signed sum of the transport through the
+      // transect edges has the units of the transport.
+      std::string TransportDescr;
       ScalarT TransportValidMin, TransportValidMax;
-      TransportField->getMetadata("Description", TransportDescr);
-      TransportField->getMetadata("Units", TransportUnits);
-      TransportField->getMetadata("StdName", TransportStdName);
-      TransportField->getMetadata("ValidMin", TransportValidMin);
-      TransportField->getMetadata("ValidMax", TransportValidMax);
+      TransportField->getMetadata("long_name", TransportDescr);
+      TransportField->getMetadata("valid_min", TransportValidMin);
+      TransportField->getMetadata("valid_max", TransportValidMax);
+      auto Meta = inheritMetadata(InputNames[0]);
 
       // Create output Field dimensions (1D: NVertLayers only)
       std::vector<std::string> OutputDimNames = {TransportDimNames[1]};
 
       // Create output Field
-      auto OutputField = Field::create(
+      auto OutputField = createOutputField(
           OutputNames[0],
           "Transect " + TransectName + " accumulated transport", // Description
-          TransportUnits,                                        // Units
-          TransportStdName,  // Standard name
-          TransportValidMin, // Min valid
-          TransportValidMax, // Max valid
-          1,                 // Rank (1D)
-          OutputDimNames     // Dimension names
+          Meta,                                                  // CF metadata
+          TransportValidMin,                                     // Min valid
+          TransportValidMax,                                     // Max valid
+          1,                                                     // Rank (1D)
+          OutputDimNames                                         // Dim names
       );
 
       // Allocate output and local accumulation arrays (both 1D)
@@ -268,9 +268,18 @@ class TransectAccumulatorOp : public AnalysisOperator {
       // Create host mirror for output
       auto OutputDataHost = Kokkos::create_mirror_view(OutputData);
 
-      // Perform MPI_Allreduce to sum across all ranks
-      MPI_Allreduce(LocalAccumHost.data(), OutputDataHost.data(), VertSize,
-                    MPI_DOUBLE, MPI_SUM, Comm);
+      // Sum local accumulations across all ranks element-wise. Use the
+      // reproducible Omega globalSum (multifield) helper, which performs an
+      // element-wise reduction across ranks using the stored communicator and
+      // avoids a direct MPI_Allreduce call here.
+      std::vector<R8> LocalLevels(VertSize);
+      for (I4 K = 0; K < VertSize; ++K)
+         LocalLevels[K] = static_cast<R8>(LocalAccumHost(K));
+
+      std::vector<R8> GlobalLevels = globalSum(LocalLevels, Comm);
+
+      for (I4 K = 0; K < VertSize; ++K)
+         OutputDataHost(K) = GlobalLevels[K];
 
       // Copy global totals back to device
       deepCopy(OutputData, OutputDataHost);

@@ -1,9 +1,10 @@
 coupled:
   TimeIntegration:
     TimeStepper: SplitExplicitRK2
+    StartType: Coupled
     StartTime: 9999-12-31_00:00:00
-    StopTime: 9999-12-31_00:00:00
-    RunDuration: none
+    StopType: Coupled
+    StopCriterion: 9999-12-31_00:00:00
 
   Tendencies:
     SfcStressForcingTendencyEnable: true

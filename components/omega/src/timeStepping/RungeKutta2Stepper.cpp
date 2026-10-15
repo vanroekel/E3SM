@@ -6,7 +6,6 @@
 
 #include "RungeKutta2Stepper.h"
 #include "Pacer.h"
-#include "VertMix.h"
 
 namespace OMEGA {
 
@@ -15,13 +14,17 @@ namespace OMEGA {
 // fills with some time information. Data pointers are added later.
 // Mostly just passes info to the base constructor.
 RungeKutta2Stepper::RungeKutta2Stepper(
-    const std::string &InName,      ///< [in] name of time stepper
-    const TimeInterval &InTimeStep, ///< [in] time step
-    const TimeInstant &InStartTime, ///< [in] start time for time stepping
-    ///< [in] stop time for time stepping, missing in coupled mode
-    std::optional<TimeInstant> InStopTime)
+    const std::string &InName,              // [in] name of time stepper
+    const TimeInterval &InTimeStep,         // [in] time step
+    const TimeStepperStartType InStartType, // [in] option for starting
+    const TimeInstant &InStartTime,         // [in] start time for full sim
+    const TimeStepperStopType InStopType,   // [in] option for stopping
+    std::optional<TimeInstant> InStopTime,  // [in] stop time if option AtTime
+    std::optional<TimeInterval> InDuration  // [in] duration if AfterDuration
+    )
     : TimeStepper(InName, TimeStepperType::RungeKutta2, 2, InTimeStep,
-                  InStartTime, InStopTime) {}
+                  InStartType, InStartTime, InStopType, InStopTime,
+                  InDuration) {}
 
 //------------------------------------------------------------------------------
 // Advance the state by one step of the midpoint Runge Kutta scheme
@@ -32,14 +35,12 @@ void RungeKutta2Stepper::doStep(OceanState *State,   // model state
    const int CurLevel  = 0;
    const int NextLevel = 1;
 
-   int NTracers = Tracers::getNumTracers();
-
    Array3DReal CurTracerArray  = Tracers::getAll(CurLevel);
    Array3DReal NextTracerArray = Tracers::getAll(NextLevel);
 
-   VertMix *VMix = VertMix::getInstance();
-
    prescribeState(State, CurLevel, State, CurLevel, SimTime);
+
+   updateKPPFields(State, CurLevel, CurLevel, CurLevel);
 
    // q = (h,u,phi)
    // R_q^{n} = RHS_q(u^{n}, h^{n}, phi^{n}, t^{n})
@@ -75,19 +76,7 @@ void RungeKutta2Stepper::doStep(OceanState *State,   // model state
    Tracers::updateTimeLevels();
    Pacer::stop("RK2:haloExch", 3);
 
-   // Apply implicit vertical mixing
-   CurTracerArray = Tracers::getAll(CurLevel);
-   if (VMix->VelVertMixSetup.Enabled or VMix->TracerVertMixSetup.Enabled) {
-      VMix->VertMixImplicit(State, AuxState, CurTracerArray, NTracers,
-                            CurLevel);
-
-      // Re-exchange halos after vertical mixing
-      Pacer::timingBarrier("RK2:vMixHaloExchBarrier", 3, Comm);
-      Pacer::start("RK2:vMixHaloExch", 3);
-      State->exchangeHalo(CurLevel);
-      Tracers::exchangeHalo(CurLevel);
-      Pacer::stop("RK2:vMixHaloExch", 3);
-   }
+   applyImplicitVerticalMixing(State, CurLevel, CurLevel, CurLevel, "RK2");
 
    validateOceanState(State, AuxState, VertCoord::getDefault(), CurLevel);
 

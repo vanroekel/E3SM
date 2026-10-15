@@ -139,34 +139,29 @@ template <typename ArrayT> class BinaryMultiplyOp : public AnalysisOperator {
       OutputNames  = {OutputFieldName};
       InstanceName = OutputFieldName;
 
-      // Get metadata from both input fields
-      std::string Descr1, Units1, StdName1;
-      std::string Descr2, Units2, StdName2;
+      // Get descriptions from both input fields
+      std::string Descr1, Descr2;
+      Field1->getMetadata("long_name", Descr1);
+      Field2->getMetadata("long_name", Descr2);
+      std::string OutputDescr = "Product of " + Descr1 + " and " + Descr2;
 
-      Field1->getMetadata("Description", Descr1);
-      Field1->getMetadata("Units", Units1);
-      Field1->getMetadata("StdName", StdName1);
-
-      Field2->getMetadata("Description", Descr2);
-      Field2->getMetadata("Units", Units2);
-      Field2->getMetadata("StdName", StdName2);
-
-      // Combine metadata for output
-      std::string OutputDescr   = "Product of " + Descr1 + " and " + Descr2;
-      std::string OutputUnits   = combineUnits(Units1, Units2);
-      std::string OutputStdName = ""; // No standard name for generic product
+      // A product has the product of the input units (m s-1 times m2 is
+      // m3 s-1), which are unknown if either input's are. It is a new
+      // quantity, so it has no standard name or cell methods.
+      InheritedMetadata Meta;
+      Meta.Units = CFUnits::multiply(getFieldAttribute(InputNames[0], "units"),
+                                     getFieldAttribute(InputNames[1], "units"));
 
       // Create output Field
-      auto OutputField =
-          Field::create(OutputNames[0],
-                        OutputDescr,   // Description
-                        OutputUnits,   // Units (combined)
-                        OutputStdName, // Standard name
-                        -std::numeric_limits<ScalarT>::max(), // Min valid value
-                        std::numeric_limits<ScalarT>::max(),  // Max valid value
-                        NDims,                                // Rank
-                        DimNames                              // Dimension names
-          );
+      auto OutputField = createOutputField(
+          OutputNames[0],
+          OutputDescr,                          // Description
+          Meta,                                 // CF metadata
+          -std::numeric_limits<ScalarT>::max(), // Min valid value
+          std::numeric_limits<ScalarT>::max(),  // Max valid value
+          NDims,                                // Rank
+          DimNames                              // Dimension names
+      );
 
       // Allocate output data array matching input layout
       OutputData = OutputArrayT(OutputNames[0] + "_out", Data1.layout());
@@ -379,21 +374,6 @@ template <typename ArrayT> class BinaryMultiplyOp : public AnalysisOperator {
    } // end compute
 
  private:
-   /// Combines units from two fields for the product
-   std::string combineUnits(const std::string &Units1,
-                            const std::string &Units2) {
-      if (Units1.empty() && Units2.empty()) {
-         return "";
-      } else if (Units1.empty()) {
-         return Units2;
-      } else if (Units2.empty()) {
-         return Units1;
-      } else {
-         // Combine with multiplication notation
-         return Units1 + " * " + Units2;
-      }
-   }
-
    /// Output data array holding the product field values
    OutputArrayT OutputData;
 

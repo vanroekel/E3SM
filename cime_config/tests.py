@@ -107,6 +107,15 @@ _TESTS = {
             )
         },
 
+    "e3sm_land_integration" : {
+        "tests" : (
+            "ERS_D.ne30pg2_r05_EC30to60E2r2.I1850GSWCNPPHSWFMCROP.elm-elm_gsw_I1850GSWCNPPHSWFMCROP",
+            "ERS_D.ne30pg2_r05_EC30to60E2r2.I1850WCCNPPHSWFMCROP.elm-elm_wc_I1850WCCNPPHSWFMCROP",
+            "ERS.ne30pg2_r05_EC30to60E2r2.I20TRWCCNPPHSWFMCROP.elm-elm_wc_I20TRWCCNPPHSWFMCROP",
+            "PEM_Ld3.ne30pg2_r05_EC30to60E2r2.I20TRGSWCNPPHSWFMCROP.elm-elm_gsw_I20TRGSWCNPPHSWFMCROP--pemod-omp1",
+            )
+        },
+
     "e3sm_atm_developer" : {
         "inherit" : ("eam_theta_pg2"),
         "tests"   : (
@@ -307,6 +316,8 @@ _TESTS = {
             "SMS_D_Ld1.T62_oQU240.GMPAS-IAF.mpaso-upwind_advection",
             "SMS_D_Ld1.T62_oQU240.GMPAS-IAF.mpaso-freshwater_tracers",
             "SMS_D_Ld1.T62_oQU240.GMPAS-IAF.mpaso-lat_dep_diffusivity",
+            "SMS_D_Ld1.T62_oQU240.GMPAS-IAF.mpaso-leith_viscosity",
+            "SMS_D_Ld1.T62_oQU240.GMPAS-IAF.mpaso-gm_geometric",
             "ERS_Ld5_D.T62_oQU240.GMPAS-IAF.mpaso-conservation_check",
             "ERS_Ld5_PS.ne30pg2_r05_IcoswISC30E3r5.CRYO1850-DISMF.mpaso-scaled_dib_dismf",
             "SMS_PS.ne30pg2_r05_IcoswISC30E3r5.WCYCL1850.mpaso-frazil_ice_porosity",
@@ -354,6 +365,7 @@ _TESTS = {
             "SMS_P12x2.ne4pg2_oQU480.WCYCL1850NS.allactive-mach_mods",
             "ERS_Ln9.ne4pg2_ne4pg2.F2010-MMF1.eam-mmf_crmout",
             "ERS_Vmoab.ne4pg2_oQU480.WCYCL1850NS",
+            "ERS.ne4pg2_u03-oi240-lr240.WCYCL1850NS",
             "SMS_Lh4.ne4_ne4.F2010-SCREAMv1.eamxx-output-preset-1--eamxx-fixer_debug_output",
             "SMS_Lh4.ne4pg2_ne4pg2.F2010-SCREAMv1.eamxx-output-preset-1--eamxx-prod",
             )
@@ -363,12 +375,12 @@ _TESTS = {
         "time"    : "0:120:00",
         "tests"   : (
             "HOMME_P24.f19_g16_rx1.A",
-            "HOMMEBFB_P24.f19_g16_rx1.A",
+            "HOMMEBFB.f19_g16_rx1.A",
             )
         },
 
     "e3sm_integration" : {
-        "inherit" : ("e3sm_developer", "e3sm_atm_integration", "e3sm_mmf_integration", "e3sm_rrm"),
+        "inherit" : ("e3sm_developer", "e3sm_atm_integration", "e3sm_mmf_integration", "e3sm_rrm", "e3sm_land_integration"),
         "time"    : "03:00:00",
         "tests"   : (
             "ERS.ne4pg2_oQU480.WCYCL1850NS",
@@ -765,10 +777,10 @@ _TESTS = {
             "PEM_Ln90.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-spa_remap",
             "ERS_Ln90.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-small_kernels--eamxx-output-preset-5",
             "ERP_Ln22.conusx4v1pg2_r05_oECv3.F2010-SCREAMv1-noAero.eamxx-bfbhash--eamxx-L72",
-            "ERS_Ln22.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-L128--eamxx-output-preset-4",
-            "REP_Ld5.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-L128--eamxx-output-preset-6",
+            "ERS_Ln22.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-output-preset-4",
+            "REP_Ld5.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-output-preset-6",
             "SMS.ne30pg2_EC30to60E2r2.WCYCLXX2010",
-            "ERS_Ln90.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-L128--eamxx-sl_nsubstep2",
+            "ERS_Ln90.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-sl_nsubstep2",
             "ERS.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-prod",
             "SMS.ne30pg2_ne30pg2.F2010-SCREAMv1.eamxx-hremap_nudged",
             )
@@ -872,9 +884,9 @@ _TESTS = {
     "e3sm_eamxx_large" : {
         "time"  : "01:00:00",
         "tests" : (
-            "SMS.ne120pg2_ne120pg2.F2010-SCREAMv1.eamxx-L128",
-            #"PEM_Ld1.ne120pg2_ne120pg2.F2010-SCREAMv1.eamxx-L128", # second test hits OOM, need either P2048 or change def pelayout
-            "ERS_Lh6.ne120pg2_ne120pg2.F2010-SCREAMv1.eamxx-L128--eamxx-prod",
+            "SMS.ne120pg2_ne120pg2.F2010-SCREAMv1",
+            #"PEM_Ld1.ne120pg2_ne120pg2.F2010-SCREAMv1", # second test hits OOM, need either P2048 or change def pelayout
+            "ERS_Lh6.ne120pg2_ne120pg2.F2010-SCREAMv1.eamxx-prod",
             "SMS_D_Lh6.ne120pg2_ne120pg2.F2010-SCREAMv1.eamxx-prod",
             "SMS.ne256pg2_ne256pg2.F2010-SCREAMv1",
             "ERS_Lh6.ne256pg2_ne256pg2.F2010-SCREAMv1.eamxx-prod"
@@ -1140,9 +1152,8 @@ _TESTS = {
                      "e3sm_superbfb_atm", "e3sm_superbfb_wcycl"),
     },
     "e3sm_gcam_developer" : {
-        "time"  : "1:00:00",
+        "time"  : "2:00:00",
         "tests" : (
-            "SMS_Vmct.ne30pg2_f09_oEC60to30v3.SSP245_ZATM_BGC",
             "ERS_Vmct.ne30pg2_f09_oEC60to30v3.SSP245_ZATM_BGC",
             )
     },

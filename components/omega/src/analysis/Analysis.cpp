@@ -171,6 +171,10 @@ Analysis::Analysis(const std::string &InName, const MachEnv *InEnv,
          } else if (GroupName == "MOC") {
             MOC MOCGroup(NamePrefix + GroupName, GroupCfg, this);
             continue;
+         } else if (GroupName == "MonthlyAverages") {
+            MonthlyAverages MonthlyAveragesGroup(NamePrefix + GroupName,
+                                                 GroupCfg, this);
+            continue;
          }
 
          // User-defined custom groups not yet supported

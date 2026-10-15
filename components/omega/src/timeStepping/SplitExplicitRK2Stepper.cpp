@@ -18,10 +18,17 @@ namespace OMEGA {
 
 //------------------------------------------------------------------------------
 SplitExplicitRK2Stepper::SplitExplicitRK2Stepper(
-    const std::string &InName, TimeStepperType InType,
-    const TimeInterval &InTimeStep, const TimeInstant &InStartTime,
-    std::optional<TimeInstant> InStopTime)
-    : TimeStepper(InName, InType, 2, InTimeStep, InStartTime, InStopTime),
+    const std::string &InName,              // [in] name of time stepper
+    TimeStepperType InType,                 // [in] type for SE variants
+    const TimeInterval &InTimeStep,         // [in] time step
+    const TimeStepperStartType InStartType, // [in] option for starting
+    const TimeInstant &InStartTime,         // [in] start time for full sim
+    const TimeStepperStopType InStopType,   // [in] option for stopping
+    std::optional<TimeInstant> InStopTime,  // [in] stop time if option AtTime
+    std::optional<TimeInterval> InDuration  // [in] duration if AfterDuration
+    )
+    : TimeStepper(InName, InType, 2, InTimeStep, InStartType, InStartTime,
+                  InStopType, InStopTime, InDuration),
       SEConfig(SplitExplicitInit::readConfigOptions(
           InTimeStep, InType == TimeStepperType::UnsplitRK2)) {}
 
@@ -538,6 +545,8 @@ void SplitExplicitRK2Stepper::doStep(OceanState *State,
    Array3DReal NextTracerArray = Tracers::getAll(NextLevel);
 
    VertMix *VMix = VertMix::getInstance();
+
+   updateKPPFields(State, CurLevel, CurLevel, CurLevel);
 
    // Initialize NextLevel from CurLevel
    // TODO: This can be optimized in the future.

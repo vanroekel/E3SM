@@ -155,26 +155,25 @@ template <typename ArrayT> class ExtractRegionOp : public AnalysisOperator {
       std::vector<std::string> DimNames;
       InputField->getDimNames(DimNames);
 
-      // Get input metadata
-      std::string InputDescr, InputUnits, InputStdName;
+      // Get input metadata. Masking a region leaves the units, standard name
+      // and cell methods unchanged.
+      std::string InputDescr;
       ScalarT InputValidMin, InputValidMax;
 
-      InputField->getMetadata("Description", InputDescr);
-      InputField->getMetadata("Units", InputUnits);
-      InputField->getMetadata("StdName", InputStdName);
-      InputField->getMetadata("ValidMin", InputValidMin);
-      InputField->getMetadata("ValidMax", InputValidMax);
+      InputField->getMetadata("long_name", InputDescr);
+      InputField->getMetadata("valid_min", InputValidMin);
+      InputField->getMetadata("valid_max", InputValidMax);
+      auto Meta = inheritMetadata(InputNames[0]);
 
       // Create output Field with same dimensions as input
-      auto OutputField = Field::create(
+      auto OutputField = createOutputField(
           OutputNames[0],
           InputDescr + " (region: " + RegionName + ")", // Description
-          InputUnits,                                   // Units (unchanged)
-          InputStdName,  // Standard name (unchanged)
-          InputValidMin, // Min valid (unchanged)
-          InputValidMax, // Max valid (unchanged)
-          NDims,         // Rank
-          DimNames       // Dimension names
+          Meta,                                         // CF metadata
+          InputValidMin,                                // Min valid (unchanged)
+          InputValidMax,                                // Max valid (unchanged)
+          NDims,                                        // Rank
+          DimNames                                      // Dimension names
       );
 
       // Allocate output data array matching input layout

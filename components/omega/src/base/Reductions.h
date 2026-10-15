@@ -38,9 +38,9 @@ using std::complex;
 
 namespace OMEGA {
 
-static bool R8SumNotInitialized = true;
+inline bool R8SumNotInitialized = true;
 
-static MPI_Op MPI_SUMDD; // special MPI operator for reproducible R8 sum
+inline MPI_Op MPI_SUMDD; // special MPI operator for reproducible R8 sum
 
 //------------------------------------------------------------------------------
 // Special sum function to use in custom double precision MPI reduction.

@@ -6,7 +6,6 @@
 
 #include "ForwardBackwardStepper.h"
 #include "Pacer.h"
-#include "VertMix.h"
 
 namespace OMEGA {
 
@@ -15,13 +14,17 @@ namespace OMEGA {
 // fills with some time information. Data pointers are added later.
 // Mostly passes relevant info to the base constructor.
 ForwardBackwardStepper::ForwardBackwardStepper(
-    const std::string &InName,      ///< [in] name of time stepper
-    const TimeInterval &InTimeStep, ///< [in] time step
-    const TimeInstant &InStartTime, ///< [in] start time for time stepping
-    ///< [in] stop time for time stepping, missing in coupled mode
-    std::optional<TimeInstant> InStopTime)
+    const std::string &InName,              // [in] name of time stepper
+    const TimeInterval &InTimeStep,         // [in] time step
+    const TimeStepperStartType InStartType, // [in] option for starting
+    const TimeInstant &InStartTime,         // [in] start time for full sim
+    const TimeStepperStopType InStopType,   // [in] option for stopping
+    std::optional<TimeInstant> InStopTime,  // [in] stop time if option AtTime
+    std::optional<TimeInterval> InDuration  // [in] duration if AfterDuration
+    )
     : TimeStepper(InName, TimeStepperType::ForwardBackward, 2, InTimeStep,
-                  InStartTime, InStopTime) {}
+                  InStartType, InStartTime, InStopType, InStopTime,
+                  InDuration) {}
 
 //------------------------------------------------------------------------------
 // Advance the state by one step of the forward-backward scheme
@@ -38,8 +41,6 @@ void ForwardBackwardStepper::doStep(
    const int ThickNextLevel  = 1;
    const int TracerNextLevel = 1;
 
-   int NTracers = Tracers::getNumTracers();
-
    Array3DReal CurTracerArray  = Tracers::getAll(TracerCurLevel);
    Array3DReal NextTracerArray = Tracers::getAll(TracerNextLevel);
 
@@ -53,6 +54,8 @@ void ForwardBackwardStepper::doStep(
       LOG_CRITICAL("Invalid AuxState");
 
    prescribeVelocity(State, VelCurLevel, State, VelCurLevel, SimTime);
+
+   updateKPPFields(State, TracerCurLevel, ThickCurLevel, VelCurLevel);
 
    // R_u^{n} = RHS_u(u^{n}, h^{n}, t^{n})
    Tend->computeVelocityTendencies(State, AuxState, CurTracerArray,
@@ -99,19 +102,8 @@ void ForwardBackwardStepper::doStep(
    Tracers::updateTimeLevels();
    Pacer::stop("ForwardBackward:haloExch", 3);
 
-   // Apply implicit vertical mixing
-   CurTracerArray = Tracers::getAll(VelCurLevel);
-   if (VMix->VelVertMixSetup.Enabled or VMix->TracerVertMixSetup.Enabled) {
-      VMix->VertMixImplicit(State, AuxState, CurTracerArray, NTracers,
-                            VelCurLevel);
-
-      // Re-exchange halos after vertical mixing
-      Pacer::timingBarrier("ForwardBackward:vMixHaloExchBarrier", 3, Comm);
-      Pacer::start("ForwardBackward:vMixHaloExch", 3);
-      State->exchangeHalo(VelCurLevel);
-      Tracers::exchangeHalo(VelCurLevel);
-      Pacer::stop("ForwardBackward:vMixHaloExch", 3);
-   }
+   applyImplicitVerticalMixing(State, TracerCurLevel, ThickCurLevel,
+                               VelCurLevel, "ForwardBackward");
 
    validateOceanState(State, AuxState, VertCoord::getDefault(), 0);
 
