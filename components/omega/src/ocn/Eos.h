@@ -1113,7 +1113,8 @@ class Eos {
          // degC/PSU with absolute-to-practical salinity conversion (g/kg ->
          // PSU).
          constexpr Real Coeff = -0.054_Real;
-         return Coeff * Sa / Psu2Gpkg;
+         const Real SaPos     = Kokkos::max(Sa, 0.0_Real);
+         return Coeff * SaPos / Psu2Gpkg;
       }
       // ConstantEos: constant approximate ocean freezing point (degC)
       return -1.9_Real;

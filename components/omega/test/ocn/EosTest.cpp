@@ -1180,6 +1180,8 @@ void testNegativeSalinityTeos10() {
    const Real CtFromPtAtZero = TestEos->calcCtFromPt(0.0_Real, Pt);
    const Real CtFreezingAtZero =
        Eos::calcCtFreezing(EosType::Teos10Eos, 0.0_Real, PDb, 0.0_Real);
+   const Real CtFreezingLinearAtZero =
+       Eos::calcCtFreezing(EosType::LinearEos, 0.0_Real, PDb, 0.0_Real);
    const Real NegativeSalinity[2] = {-1.0_Real, -2.0_Real};
 
    for (const Real SaValue : NegativeSalinity) {
@@ -1187,9 +1189,12 @@ void testNegativeSalinityTeos10() {
       const Real CtFromPt = TestEos->calcCtFromPt(SaValue, Pt);
       const Real CtFreezing =
           Eos::calcCtFreezing(EosType::Teos10Eos, SaValue, PDb, 0.0_Real);
+      const Real CtFreezingLinear =
+          Eos::calcCtFreezing(EosType::LinearEos, SaValue, PDb, 0.0_Real);
       if (!isApprox(PtFromCt, PtFromCtAtZero, RTol) ||
           !isApprox(CtFromPt, CtFromPtAtZero, RTol) ||
-          !isApprox(CtFreezing, CtFreezingAtZero, RTol)) {
+          !isApprox(CtFreezing, CtFreezingAtZero, RTol) ||
+          !isApprox(CtFreezingLinear, CtFreezingLinearAtZero, RTol)) {
          ABORT_ERROR("testNegativeSalinityTeos10: clamped conversion mismatch "
                      "at Sa={}",
                      SaValue);
