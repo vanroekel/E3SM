@@ -82,10 +82,6 @@ module ocn_overflow
                         overflowGravityCoeff, overflowMaxVolumeFraction, &
                         overflowDensityThreshold
 
-   ! sound speed used to shift density between the small pressure
-   ! difference of two cells at the same level (m/s)
-   real (kind=RKIND), parameter :: soundSpeed = 1500.0_RKIND
-
 !***********************************************************************
 
 contains
@@ -104,14 +100,17 @@ contains
 !>  diffusive exchange overflowDiffusiveTransport (m3/s, the flux per
 !>  unit tracer difference). Both are zero where the scheme is inactive.
 !>
-!>  Density difference: density at the same level kS in both cells
-!>  (corrected for their small pressure difference), plus the stability
-!>  of the deep column from kS down to kD, using displacedDensity(k)
-!>  (layer k displaced to the depth of layer k+1):
+!>  Density difference: density at the same level kS in both cells, plus
+!>  the stability of the deep column from kS down to kD, using
+!>  displacedDensity(k) (layer k displaced to the depth of layer k+1):
 !>    drho = rho_s(kS) - rho_d(kS)
 !>         + sum_{k=kS}^{kD-1} [displacedDensity_d(k) - density_d(k+1)]
 !>  drho > 0 means the shallow bottom water would sink below the deep
-!>  bottom cell.
+!>  bottom cell. The equation of state evaluates density at a reference
+!>  pressure for each level (from refBottomDepth), the same in every
+!>  cell, so density(kS) of the two cells and displacedDensity are
+!>  already at common pressures and need no correction for the actual
+!>  (partial cell) depths.
 !
 !-----------------------------------------------------------------------
 
@@ -128,7 +127,7 @@ contains
          dt              !< [in] time step (s), for the volume limit
 
       ! these variables input from shared diagnostics module:
-      !    density, displacedDensity, pressure, normalTransportVelocity
+      !    density, displacedDensity, normalTransportVelocity
 
       !-----------------------------------------------------------------
       ! output variables
@@ -188,8 +187,7 @@ contains
          ! the edge must be open at kS and the deep column must reach up to kS
          if (maxLevelEdgeTop(iEdge) < kS .or. kS < minLevelCell(cellD)) cycle
 
-         drho = density(kS,cellS) - density(kS,cellD) &
-              + (pressure(kS,cellD) - pressure(kS,cellS)) / soundSpeed**2
+         drho = density(kS,cellS) - density(kS,cellD)
          do k = kS, kD - 1
             drho = drho + displacedDensity(k,cellD) - density(k+1,cellD)
          end do
@@ -401,6 +399,15 @@ contains
             trim(config_overflow_advection_velocity), MPAS_LOG_CRIT)
          err = 1
       end select
+
+      ! the density test relies on density at a per-level reference pressure
+      ! (jm, linear); wright uses each cell's actual depth
+      if (trim(config_eos_type) == 'wright') then
+         call mpas_log_write( &
+            'ocn_overflow_init: the overflow scheme does not support config_eos_type = wright', &
+            MPAS_LOG_CRIT)
+         err = 1
+      end if
 
       if (overflowMaxVolumeFraction <= 0.0_RKIND .or. &
           overflowMaxVolumeFraction > 0.5_RKIND) then
