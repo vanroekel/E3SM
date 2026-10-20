@@ -10,6 +10,8 @@ coupled:
     SfcStressForcingTendencyEnable: true
     SfcThicknessForcingTendencyEnable: true
     SfcTracerForcingTendencyEnable: true
+    PenetratingShortwaveTendency:
+      Enable: true
 
   IOStreams:
     Forcing:
