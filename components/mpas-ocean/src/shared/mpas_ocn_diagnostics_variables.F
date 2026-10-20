@@ -146,6 +146,9 @@ module ocn_diagnostics_variables
 
    integer, dimension(:), pointer :: indMLD
    real(kind=RKIND), dimension(:), pointer :: dThreshMLD
+   real(kind=RKIND), dimension(:), pointer :: overflowDensityDifference, &
+                                              overflowAdvectiveTransport, &
+                                              overflowDiffusiveTransport
    real (kind=RKIND), dimension(:,:), pointer :: velocityX, velocityY, velocityZ
 
    real (kind=RKIND), dimension(:,:), pointer :: vertAleTransportTop
@@ -166,6 +169,7 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerSurfaceFluxTendency
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerNonLocalTendency
    real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerHorMixTendency
+   real (kind=RKIND), dimension(:,:,:), pointer :: activeTracerOverflowTendency
    real (kind=RKIND), dimension(:,:), pointer :: temperatureShortWaveTendency
    real (kind=RKIND), dimension(:), pointer :: RediKappa
 
@@ -341,6 +345,9 @@ contains
          call mpas_pool_get_array(diagnosticsPool, &
                   'activeTracerHorMixTendency', &
                    activeTracerHorMixTendency)
+         call mpas_pool_get_array(diagnosticsPool, &
+                  'activeTracerOverflowTendency', &
+                   activeTracerOverflowTendency)
          call mpas_pool_get_array(diagnosticsPool, &
                   'activeTracerVerticalAdvectionTopFlux', &
                    activeTracerVerticalAdvectionTopFlux)
@@ -718,6 +725,12 @@ contains
                 sshAdjustmentMask)
       call mpas_pool_get_array(diagnosticsPool, 'indMLD', indMLD)
       call mpas_pool_get_array(diagnosticsPool, 'dThreshMLD', dThreshMLD)
+      call mpas_pool_get_array(diagnosticsPool, 'overflowDensityDifference', &
+                               overflowDensityDifference)
+      call mpas_pool_get_array(diagnosticsPool, 'overflowAdvectiveTransport', &
+                               overflowAdvectiveTransport)
+      call mpas_pool_get_array(diagnosticsPool, 'overflowDiffusiveTransport', &
+                               overflowDiffusiveTransport)
       call mpas_pool_get_array(diagnosticsPool, 'surfacePressure', &
                 surfacePressure)
 
@@ -1383,6 +1396,7 @@ contains
       end if
       if ( config_compute_active_tracer_budgets ) then
          nullify(activeTracerHorMixTendency,              &
+                 activeTracerOverflowTendency,            &
                  activeTracerVertMixTendency,             &
                  temperatureShortWaveTendency,            &
                  activeTracerNonLocalTendency,            &
@@ -1440,6 +1454,9 @@ contains
               xtime,                                   &
               indMLD,                                  &
               dThreshMLD,                              &
+              overflowDensityDifference,               &
+              overflowAdvectiveTransport,              &
+              overflowDiffusiveTransport,              &
               density,                                 &
               betaEdge,                                &
               pressure,                                &

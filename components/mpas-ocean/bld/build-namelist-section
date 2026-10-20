@@ -171,6 +171,20 @@ add_default($nl, 'config_eddyMLD_reference_depth');
 add_default($nl, 'config_eddyMLD_reference_pressure');
 add_default($nl, 'config_eddyMLD_use_old');
 
+#############################################
+# Namelist group: overflow_parameterization #
+#############################################
+
+add_default($nl, 'config_use_overflow');
+add_default($nl, 'config_use_overflow_diffusion');
+add_default($nl, 'config_use_overflow_advection');
+add_default($nl, 'config_overflow_advection_velocity');
+add_default($nl, 'config_overflow_gravity_coefficient');
+add_default($nl, 'config_overflow_eddy_diffusivity_minimum');
+add_default($nl, 'config_overflow_eddy_diffusivity_maximum');
+add_default($nl, 'config_overflow_max_volume_fraction');
+add_default($nl, 'config_overflow_density_threshold');
+
 #########################
 # Namelist group: cvmix #
 #########################

@@ -14,6 +14,7 @@ my @groups = qw(run_modes
                 eddy_kinetic_energy_correction
                 eddy_parameterization
                 cvmix
+                overflow_parameterization
                 wave_coupling
                 gotm
                 forcing

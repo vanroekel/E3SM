@@ -831,6 +831,80 @@ Default: Defined in namelist_defaults.xml
 </entry>
 
 
+<!-- overflow_parameterization -->
+
+<entry id="config_use_overflow" type="logical"
+	category="overflow_parameterization" group="overflow_parameterization">
+If true, use the bottom boundary layer (dense downslope flow) parameterization at topographic steps. The diffusive and advective parts are switched separately.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_overflow_diffusion" type="logical"
+	category="overflow_parameterization" group="overflow_parameterization">
+If true (and config_use_overflow), use the diffusive part (Beckmann and Doscher 1997) between the bottom cells on either side of a step where the shallow bottom water is denser.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_overflow_advection" type="logical"
+	category="overflow_parameterization" group="overflow_parameterization">
+If true (and config_use_overflow), use the advective part (Campin and Goosse 1999): a closed tracer transport loop from the shallow bottom cell into the deep bottom cell, up the deep column and back across the step.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_advection_velocity" type="char*1024"
+	category="overflow_parameterization" group="overflow_parameterization">
+Downslope velocity for the advective part. 'resolved': downslope component of normalTransportVelocity at the shallow bottom level. 'gravity': config_overflow_gravity_coefficient * g * drho/rho0 * bottom slope.
+
+Valid values: 'resolved' or 'gravity'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_gravity_coefficient" type="real"
+	category="overflow_parameterization" group="overflow_parameterization">
+Coefficient (s) for config_overflow_advection_velocity = 'gravity'.
+
+Valid values: positive real values
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_eddy_diffusivity_minimum" type="real"
+	category="overflow_parameterization" group="overflow_parameterization">
+Minimum diffusivity (m2/s) of the diffusive part, where it is active.
+
+Valid values: small positive values, recommended between 0.01 and 1
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_eddy_diffusivity_maximum" type="real"
+	category="overflow_parameterization" group="overflow_parameterization">
+Maximum diffusivity (m2/s) of the diffusive part, where it is active.
+
+Valid values: larger positive real values 1e3-1e4
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_max_volume_fraction" type="real"
+	category="overflow_parameterization" group="overflow_parameterization">
+Each step edge may move at most this fraction of the smallest cell volume on its path per time step, separately for the advective and diffusive parts.
+
+Valid values: positive real values up to 0.5
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_overflow_density_threshold" type="real"
+	category="overflow_parameterization" group="overflow_parameterization">
+The scheme is active at a step edge where the shallow bottom water is denser than the deep bottom water, at the deep bottom pressure, by more than this value (kg/m3).
+
+Valid values: non-negative real values
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <!-- cvmix -->
 
 <entry id="config_use_cvmix" type="logical"

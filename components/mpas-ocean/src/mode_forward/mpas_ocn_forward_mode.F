@@ -65,6 +65,7 @@ module ocn_forward_mode
    use ocn_vel_self_attraction_loading
 
    use ocn_tracer_hmix
+   use ocn_overflow
    use ocn_tracer_hmix_redi
    use ocn_tracer_surface_flux_to_tend
    use ocn_tracer_short_wave_absorption
@@ -464,6 +465,8 @@ module ocn_forward_mode
 
       ! Initialize tracer tendencies
       call ocn_tracer_hmix_init(err_tmp)
+      ierr = ior(ierr, err_tmp)
+      call ocn_overflow_init(err_tmp)
       ierr = ior(ierr, err_tmp)
       call ocn_tracer_hmix_redi_init(domain,err_tmp)
       ierr = ior(ierr, err_tmp)

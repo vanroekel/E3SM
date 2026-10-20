@@ -337,6 +337,17 @@
 <config_eddyMLD_reference_pressure>1.0e5</config_eddyMLD_reference_pressure>
 <config_eddyMLD_use_old>.true.</config_eddyMLD_use_old>
 
+<!-- overflow_parameterization -->
+<config_use_overflow>.false.</config_use_overflow>
+<config_use_overflow_diffusion>.true.</config_use_overflow_diffusion>
+<config_use_overflow_advection>.true.</config_use_overflow_advection>
+<config_overflow_advection_velocity>'resolved'</config_overflow_advection_velocity>
+<config_overflow_gravity_coefficient>1.0e4</config_overflow_gravity_coefficient>
+<config_overflow_eddy_diffusivity_minimum>0.01</config_overflow_eddy_diffusivity_minimum>
+<config_overflow_eddy_diffusivity_maximum>1.0e4</config_overflow_eddy_diffusivity_maximum>
+<config_overflow_max_volume_fraction>0.05</config_overflow_max_volume_fraction>
+<config_overflow_density_threshold>0.0</config_overflow_density_threshold>
+
 <!-- cvmix -->
 <config_use_cvmix>.true.</config_use_cvmix>
 <config_cvmix_prandtl_number>1.0</config_cvmix_prandtl_number>

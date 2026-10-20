@@ -172,6 +172,7 @@
 			<var_array name="activeTracerVerticalAdvectionTendency"/>
 			<var_array name="activeTracerVertMixTendency"/>
 			<var_array name="activeTracerHorMixTendency"/>
+			<var_array name="activeTracerOverflowTendency"/>
 			<var_array name="activeTracerSurfaceFluxTendency"/>
 			<var_array name="temperatureShortWaveTendency"/>
 			<var_array name="activeTracerNonLocalTendency"/>

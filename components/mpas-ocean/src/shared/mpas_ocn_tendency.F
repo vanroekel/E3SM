@@ -39,6 +39,7 @@ module ocn_tendency
    use ocn_frazil_forcing
    use ocn_tidal_forcing
 
+   use ocn_overflow
    use ocn_tracer_hmix
    use ocn_high_freq_thickness_hmix_del2
    use ocn_tracer_advection
@@ -795,6 +796,10 @@ contains
       !$omp end parallel
 #endif
 
+      ! bottom boundary layer (overflow) transports at step edges,
+      ! shared by all tracer groups
+      call ocn_overflow_transport(layerThickness, dt, err)
+
       !
       ! Start computation of tracer tendencies.
       ! Loop over tracer groups and only compute if:
@@ -1312,6 +1317,45 @@ contains
             enddo
             enddo
             enddo
+            !$omp end do
+            !$omp end parallel
+         endif ! compute budgets
+
+         !
+         ! bottom boundary layer (overflow) transport across
+         ! topographic steps
+         !
+         if (computeBudgets) then
+            ! as in hmix above, the budget contribution is difference
+            ! between total tend before/after call - store before value
+            !$omp parallel
+            !$omp do schedule(runtime) private(k,n)
+            do iCell = 1, nCellsAll
+            do k = 1, nVertLevels
+            do n = 1, nTracersGroup
+               activeTracerOverflowTendency(n,k,iCell) = &
+                               tracerGroupTend(n,k,iCell)
+            end do
+            end do
+            end do
+            !$omp end do
+            !$omp end parallel
+         endif ! compute budgets
+
+         call ocn_overflow_tend(tracerGroup, tracerGroupTend, err)
+
+         if (computeBudgets) then
+            !$omp parallel
+            !$omp do schedule(runtime) private(k,n)
+            do iCell = 1, nCellsAll
+            do k = 1, nVertLevels
+            do n = 1, nTracersGroup
+               activeTracerOverflowTendency(n,k,iCell) = &
+                               tracerGroupTend(n,k,iCell) - &
+                               activeTracerOverflowTendency(n,k,iCell)
+            end do
+            end do
+            end do
             !$omp end do
             !$omp end parallel
          endif ! compute budgets

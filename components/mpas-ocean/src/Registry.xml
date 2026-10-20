@@ -527,6 +527,44 @@
 					possible_values=".true. or .false."
 		/>
 	</nml_record>
+	<nml_record name="overflow_parameterization" mode="forward">
+		<nml_option name="config_use_overflow" type="logical" default_value=".false."
+					description="If true, use the bottom boundary layer (dense downslope flow) parameterization at topographic steps. The diffusive and advective parts are switched separately."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_use_overflow_diffusion" type="logical" default_value=".true."
+					description="If true (and config_use_overflow), use the diffusive part (Beckmann and Doscher 1997): a down-gradient exchange between the bottom cells on either side of a step where the shallow bottom water is denser."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_use_overflow_advection" type="logical" default_value=".true."
+					description="If true (and config_use_overflow), use the advective part (Campin and Goosse 1999): a closed tracer transport loop from the shallow bottom cell into the deep bottom cell, up the deep column and back across the step."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_overflow_advection_velocity" type="character" default_value="resolved"
+					description="Downslope velocity for the advective part. 'resolved': the downslope component of normalTransportVelocity at the shallow bottom level (zero if upslope). 'gravity': config_overflow_gravity_coefficient * g * drho/rho0 * bottom slope."
+					possible_values="'resolved' or 'gravity'"
+		/>
+		<nml_option name="config_overflow_gravity_coefficient" type="real" default_value="1.0e4" units="s"
+					description="Coefficient (a friction time scale) for config_overflow_advection_velocity = 'gravity'."
+					possible_values="positive real values"
+		/>
+		<nml_option name="config_overflow_eddy_diffusivity_minimum" type="real" default_value="0.01" units="m^2 s^-1"
+					description="Minimum diffusivity of the diffusive part, where it is active."
+					possible_values="small positive values, recommended between 0.01 and 1"
+		/>
+		<nml_option name="config_overflow_eddy_diffusivity_maximum" type="real" default_value="1.0e4" units="m^2 s^-1"
+					description="Maximum diffusivity of the diffusive part, where it is active."
+					possible_values="larger positive real values 1e3-1e4"
+		/>
+		<nml_option name="config_overflow_max_volume_fraction" type="real" default_value="0.05"
+					description="Each step edge may move at most this fraction of the smallest cell volume on its path per time step, separately for the advective and diffusive parts. Keep 2 x maxEdges x this value below 1 for monotonicity."
+					possible_values="positive real values up to 0.5"
+		/>
+		<nml_option name="config_overflow_density_threshold" type="real" default_value="0.0" units="kg m^-3"
+					description="The scheme is active at a step edge where the shallow bottom water is denser than the deep bottom water, at the deep bottom pressure, by more than this value."
+					possible_values="non-negative real values"
+		/>
+	</nml_record>
 	<nml_record name="cvmix" mode="forward">
 		<nml_option name="config_use_cvmix" type="logical" default_value=".true."
 					description="If true, use the Community Vertical MIXing routines to compute vertical diffusivity and viscosity"
@@ -3158,6 +3196,14 @@
 				description="salinity tendency due to horizontal mixing (including Redi)"
 			/>
 		</var_array>
+		<var_array name="activeTracerOverflowTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
+			<var name="temperatureOverflowTendency" array_group="activeTracerOverflowTendGroup" units="C s^-1" name_in_code="temperatureOverflowTendency"
+				description="potential temperature tendency due to the bottom boundary layer (overflow) parameterization"
+			/>
+			<var name="salinityOverflowTendency" array_group="activeTracerOverflowTendGroup" units="1.e-3 s^-1" name_in_code="salinityOverflowTendency"
+				description="salinity tendency due to the bottom boundary layer (overflow) parameterization"
+			/>
+		</var_array>
 		<var_array name="activeTracerNonLocalTendency" type="real" dimensions="nVertLevels nCells Time" packages="tracerBudget">
 			<var name="temperatureNonLocalTendency" array_group="activeTracerNLTendGroup" units="C s^-1" name_in_code="temperatureNonLocalTendency"
 				 description="potential temperature tendency due to kpp non-local flux"
@@ -3636,6 +3682,15 @@
 		/>
 		<var name="indMLD" type="integer" dimensions="nCells Time"
 			description="index of model where mixed layer depth occurs (always one past)"
+		/>
+		<var name="overflowDensityDifference" type="real" dimensions="nEdges Time" units="kg m^-3" default_value="0.0"
+			 description="Bottom boundary layer scheme: density of the shallow bottom cell minus that of the deep bottom cell across a step edge, at the deep bottom pressure. Zero at edges that are not steps."
+		/>
+		<var name="overflowAdvectiveTransport" type="real" dimensions="nEdges Time" units="m^3 s^-1" default_value="0.0"
+			 description="Bottom boundary layer scheme: volume transport of the advective loop at step edges (zero where inactive)."
+		/>
+		<var name="overflowDiffusiveTransport" type="real" dimensions="nEdges Time" units="m^3 s^-1" default_value="0.0"
+			 description="Bottom boundary layer scheme: diffusive exchange (diffusivity * thickness * dvEdge / dcEdge) at step edges (zero where inactive)."
 		/>
 		<var name="dThreshMLD" type="real" dimensions="nCells Time" units="m"
 			description="mixed layer depth based on density threshold"
