@@ -2501,6 +2501,13 @@ module ocn_time_integration_si
                   activeTracerNonLocalTendency(:,k,iCell) = &
                   activeTracerNonLocalTendency(:,k,iCell) / &
                              layerThicknessNew(k,iCell)
+
+                  ! overflow (bottom boundary layer) is CPU only
+                  if (config_use_overflow) then
+                     activeTracerOverflowTendency(:,k,iCell) = &
+                     activeTracerOverflowTendency(:,k,iCell) / &
+                                layerThicknessNew(k,iCell)
+                  end if
 #endif
 
                   temperatureShortWaveTendency(k,iCell) = &
