@@ -576,8 +576,12 @@ IF (${HOMME_BUILD_EXECS})
   ADD_SUBDIRECTORY(dcmip_tests)
 ENDIF()
 
-# Create a "make clean-all" target to delete CMake cache and the cprnc build
-ADD_CUSTOM_TARGET(clean-all
-   COMMAND ${CMAKE_BUILD_TOOL} clean
-   COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/clean-cmake-files.cmake"
-)
+# Create a "make clean-all" target to delete CMake cache and the cprnc build.
+# Only in a standalone build: target names are global, and inside E3SM this
+# collides with other projects' clean-all targets (e.g. zstd via Omega's cpptrace).
+IF (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  ADD_CUSTOM_TARGET(clean-all
+     COMMAND ${CMAKE_BUILD_TOOL} clean
+     COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/clean-cmake-files.cmake"
+  )
+ENDIF()
