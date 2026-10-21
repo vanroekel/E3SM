@@ -583,6 +583,7 @@ add_default($nl, 'config_use_Redi');
 add_default($nl, 'config_Redi_closure');
 add_default($nl, 'config_Redi_constant_kappa');
 add_default($nl, 'config_Redi_maximum_slope');
+add_default($nl, 'config_Redi_bottom_consistent_k33');
 add_default($nl, 'config_Redi_use_slope_taper');
 add_default($nl, 'config_Redi_use_surface_taper');
 add_default($nl, 'config_Redi_limit_term1');

@@ -458,6 +458,14 @@ Valid values: positive real numbers, but small
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_Redi_bottom_consistent_k33" type="logical"
+	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
+If true, k33 at the top of a cell excludes the triads of edges whose deepest level is the cell above, which have no matching cross term (term 3), so Redi stays density-neutral at step edges and the bottom interface.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_Redi_use_slope_taper" type="logical"
 	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
 If true, Redi is tapered based on Danabasoglu and McWilliams 1995 (slope tapering)

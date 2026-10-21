@@ -370,8 +370,13 @@ contains
                   end if
 
 !                  !Taper Redi by tapering the slopes
-                  k33(k + 1, iCell) = k33(k + 1, iCell) +  &
-                                      slopeTaperDown*sfcTaperDown*areaEdge*dzTop(k + 1)*slopeTriadDown(k, iCellSelf, iEdge)**2
+                  ! optionally skip the triad below the edge's deepest level,
+                  ! which has no term 3 in ocn_tracer_hmix_Redi_tend
+                  if (.not. config_Redi_bottom_consistent_k33 .or. &
+                      k < maxLevelEdgeTop(iEdge)) then
+                     k33(k + 1, iCell) = k33(k + 1, iCell) +  &
+                                         slopeTaperDown*sfcTaperDown*areaEdge*dzTop(k + 1)*slopeTriadDown(k, iCellSelf, iEdge)**2
+                  end if
                   k33Norm(k + 1) = k33Norm(k + 1) + areaEdge*dzTop(k + 1)
 
                   limiterUp(k,iCellSelf,iEdge) = slopeTaperUp*sfcTaperUp
