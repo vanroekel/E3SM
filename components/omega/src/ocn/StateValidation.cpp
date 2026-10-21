@@ -4,8 +4,8 @@
 // out-of-bounds conditions. Abort behaviour is controlled at runtime via the
 // YAML options Omega::State::Validation::AbortOnNan (default true) and
 // Omega::State::Validation::AbortOnOOB (default false). When an abort flag is
-// set a critical error log with backtrace is emitted and Error::abort is called;
-// otherwise a CRITICAL log message is written and execution continues.
+// set a critical error log with backtrace is emitted and Error::abort is
+// called; otherwise a CRITICAL log message is written and execution continues.
 //
 //===----------------------------------------------------------------------===//
 
