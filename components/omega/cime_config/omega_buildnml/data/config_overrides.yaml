@@ -10,8 +10,12 @@ coupled:
     SfcStressForcingTendencyEnable: true
     SfcThicknessForcingTendencyEnable: true
     SfcTracerForcingTendencyEnable: true
+    FrazilTendencyEnable: true
     PenetratingShortwaveTendency:
       Enable: true
+
+  Submeso:
+    Enable: true
 
   IOStreams:
     Forcing:
@@ -33,6 +37,13 @@ coupled:
       UseStartEnd: false
       Contents: [Restart]
 
+    MonthlyAverages:
+      Enable: true
+      Fields:
+      - KPPMix
+      - VertMix
+      - DenMixLayerDepth
+
 meshes:
   # Per-mesh overrides may set any option except `IOStreams`.
   oQU240:
@@ -46,3 +57,15 @@ meshes:
       TimeStep: "0000_00:30:00"
       ModeSplitShare:
         BtrTimeStep: 0000_00:01:15
+
+  u01-oi6to18:
+    TimeIntegration:
+      TimeStep: "0000_00:05:00"
+      ModeSplitShare:
+        BtrTimeStep: 0000_00:00:10
+    Tendencies:
+      TracerDiffTendencyEnable: false
+      VelDiffTendencyEnable: false
+      ViscDel4: 9.99e9
+      TracerHyperDiffTendencyEnable: false
+
