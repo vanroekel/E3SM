@@ -7,7 +7,6 @@ coupled:
     StopCriterion: 9999-12-31_00:00:00
 
   Tendencies:
-    FrazilTendencyEnable: true
     SfcStressForcingTendencyEnable: true
     SfcThicknessForcingTendencyEnable: true
     SfcTracerForcingTendencyEnable: true
@@ -24,6 +23,12 @@ coupled:
   IOStreams:
     Forcing:
       FreqUnits: Never
+
+    History:
+      Filename: omega.hist.$Y-$M-$D_$h.$m.$s.nc
+
+    Highfreq:
+      Filename: omega.hifreq.$Y-$M.nc
 
     RestartRead:
       UsePointerFile: true
