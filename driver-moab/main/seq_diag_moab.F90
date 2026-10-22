@@ -201,10 +201,10 @@ module seq_diag_moab
 
   character(len=12),parameter :: fname(f_size) = &
 
-       (/'      area','     hfreeze','       hmelt','      hnetsw','       hlwdn', &
+       (/'        area','     hfreeze','       hmelt','      hnetsw','       hlwdn', &
        '       hlwup','     hlatvap','     hlatfus','      hiroff','        hsen', &
        '      hpolar','    hh2otemp','      hfrazi','     wfreeze',                &
-       '    wfreezei','      wmelt','       wrain','       wsnow',                 &
+       '    wfreezei','       wmelt','       wrain','       wsnow',                 &
        '      wpolar','       wevap','     wrunoff','     wfrzrof',                &
        '      wirrig',                                                             &
        ' wfreeze_16O','   wmelt_16O','   wrain_16O','   wsnow_16O',                &
