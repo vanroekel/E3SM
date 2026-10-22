@@ -2,9 +2,8 @@
 //
 // Implementation of AnalysisGroup base class methods. The key method is
 // createAnalysisGroupStreams(), which groups operator chains by their output
-// characteristics (period and type), validates temporal reduction periods
-// against the restart interval, and creates IOStream objects with appropriate
-// configurations for writing analysis output.
+// characteristics (period and type) and creates IOStream objects with
+// appropriate configurations for writing analysis output.
 //
 //===----------------------------------------------------------------------===//
 
@@ -63,6 +62,14 @@ void AnalysisGroup::buildTemporalChains(
    // Parse temporal periods from config
    parseTemporalPeriods(AnalysisGroupOptions);
 
+   // Read the optional group-level sampling interval applied to all temporal
+   // reduction (TimeMean) chains in this group. Empty/absent => sample every
+   // timestep (the default, bit-for-bit with prior behavior). The operator
+   // parses and normalizes the three accepted forms ("6hour", "4steps",
+   // "8perPeriod") and enforces the period-divisibility constraint.
+   std::string SamplingInterval;
+   AnalysisGroupOptions.get("SamplingInterval", SamplingInterval);
+
    // Build temporal reduction chains for each stem
    for (size_t i = 0; i < ChainStems.size(); ++i) {
       const auto &StemStr = ChainStems[i];
@@ -71,6 +78,13 @@ void AnalysisGroup::buildTemporalChains(
       Config ChainConfig;
       if (!ChainConfigs.empty()) {
          ChainConfig = ChainConfigs[i];
+      }
+
+      // Pass the sampling interval through to the TimeMean operator(s) built
+      // from this chain. Only added when non-empty so the default every-step
+      // path is untouched.
+      if (!SamplingInterval.empty()) {
+         ChainConfig.add("SamplingInterval", SamplingInterval);
       }
 
       // Create temporal reduction chains: Stem -> TimeMean<Period>
@@ -113,10 +127,9 @@ void AnalysisGroup::buildTemporalChains(
 
 //------------------------------------------------------------------------------
 // Groups operator chains by output period and type (temporal reduction vs.
-// discrete sampling), validates temporal reduction periods against the restart
-// interval, and creates IOStream objects for the group's output. Each stream
-// is associated with the appropriate operator nodes, and the operators' output
-// fields are added to the stream contents.
+// discrete sampling) and creates IOStream objects for the group's output. Each
+// stream is associated with the appropriate operator nodes, and the operators'
+// output fields are added to the stream contents.
 void AnalysisGroup::createAnalysisGroupStreams(const std::string &GroupName,
                                                Config &AnalysisGroupOptions,
                                                Analysis *AnalysisManager) {
@@ -218,23 +231,6 @@ void AnalysisGroup::createAnalysisGroupStreams(const std::string &GroupName,
       I4 Freq                            = std::stoi(ParsedStr[0]);
       TimeUnits FreqUnits                = TimeUnitsFromString(ParsedStr[1]);
       TimeInterval PeriodInterval(Freq, FreqUnits);
-
-      // Validate temporal reduction periods against restart interval
-      // This ensures proper checkpoint/restart behavior for time-averaged
-      // fields
-      if (IsTimeReduction) {
-         auto RestartAlarm = IOStream::getAlarm("RestartWrite");
-         bool IsDivisible =
-             RestartAlarm->getInterval()->isDivisibleBy(PeriodInterval);
-         if (!IsDivisible) {
-            ABORT_ERROR(
-                "Analysis: The RestartWrite interval is not divisible by "
-                "the averaging period, {} {}. Currently, temporal averaging "
-                "is only available over intervals where "
-                "RestartPeriod % PeriodInterval == 0",
-                ParsedStr[0], ParsedStr[1]);
-         }
-      }
 
       // Build filename for this stream (includes period and type in name)
       StreamCfg.Params["Filename"] =

@@ -1394,6 +1394,246 @@ void testSpatialStdDevOp(const MachEnv *Env, const HorzMesh *Mesh,
 }
 
 //------------------------------------------------------------------------------
+// Verify the TimeMeanOp SamplingInterval gate: with "2steps" over a 4-step
+// period, only every other step is accumulated, so the mean equals the simple
+// average of the SAMPLED values (not all steps). Also exercises the three-form
+// equivalence ("2steps", "2perPeriod", and a raw TimeInterval string all
+// normalize to the same 2-timestep interval) and the every-step default
+// (bit-for-bit with the ungated path).
+void testTimeMeanOpSamplingInterval(const MachEnv *Env, const HorzMesh *Mesh,
+                                    const VertCoord *VCoord,
+                                    Clock *ModelClock) {
+
+   using ArrayType = Array2DR8;
+
+   // 4-step period; timestep comes from the model clock
+   const int NumSteps        = 4;
+   TimeInterval StepInterval = ModelClock->getTimeStep();
+   R8 StepSeconds;
+   StepInterval.get(StepSeconds, TimeUnits::Seconds);
+   const R8 PeriodSeconds = StepSeconds * NumSteps;
+   TimeInterval PeriodInterval(PeriodSeconds, TimeUnits::Seconds);
+   const std::string PeriodLabel =
+       std::to_string(static_cast<int>(PeriodSeconds)) + "seconds";
+
+   // A raw TimeInterval string equal to two timesteps, for form equivalence
+   const std::string TwoStepSecondsStr =
+       std::to_string(static_cast<int>(2 * StepSeconds)) + "seconds";
+
+   // Field values per step: 10, 20, 30, 40. The SampleAlarm is anchored to the
+   // period start and fires on the first step at/after PeriodStart+2*dt, i.e.
+   // the 2nd and 4th steps, so the gated mean is (20 + 40) / 2 = 30. The
+   // ungated (every-step) mean would be (10+20+30+40)/4 = 25.
+   const std::vector<Real> StepValues = {10.0_Real, 20.0_Real, 30.0_Real,
+                                         40.0_Real};
+   const Real GatedExpected           = 30.0_Real;
+   const Real UngatedExpected         = 25.0_Real;
+
+   // Helper that runs one 4-step period with the given SamplingInterval config
+   // (empty => every-step default) and returns the resulting mean at cell 0,
+   // layer 0. Each sub-run re-anchors its PeriodAlarm/SampleAlarm to the
+   // clock's current time at the sub-run start, so the 2-step sampling pattern
+   // is preserved regardless of the advancing clock.
+   auto runPeriod = [&](const std::string &FieldSuffix,
+                        const std::string &SamplingInterval) -> Real {
+      const std::string FieldName = "TestFieldTMSI_" + FieldSuffix;
+      const std::vector<I4> Dims  = {Mesh->NCellsSize, VCoord->NVertLayers};
+      auto TestField              = Field::create(
+          FieldName, "Test field for SamplingInterval", TestUnits, TestStdName,
+          -1.0e30, 1.0e30, 2, {"NCells", "NVertLayers"});
+      ArrayType TestData(FieldName + "_data", Dims[0], Dims[1]);
+      TestField->attachData<ArrayType>(TestData);
+
+      Config OpConfig = makeOpConfig(opParam("Period", PeriodLabel));
+      if (!SamplingInterval.empty())
+         OpConfig.add("SamplingInterval", SamplingInterval);
+
+      auto Op = AnalysisOpFactory::createOp("TimeMean", {FieldName}, OpConfig);
+
+      // The operator anchors its SampleAlarm to the absolute clock start
+      // (ModelClock->getStartTime()) with a 2-timestep stride, so its sample
+      // boundaries fall at start + {0, 2*dt, 4*dt, ...}. This shared clock has
+      // already been advanced an uncontrolled number of steps by the preceding
+      // TimeMean tests, so a sub-run that begins on an ODD step offset relative
+      // to that grid would be out of phase: samples would land on the 1st and
+      // 3rd steps instead of the intended 2nd and 4th. Snap each sub-run to an
+      // even-step offset so the "fires on the 2nd and 4th steps" assumption
+      // holds and the gated mean is (20 + 40) / 2 = 30.
+      {
+         TimeInterval SinceStart =
+             ModelClock->getCurrentTime() - ModelClock->getStartTime();
+         R8 SinceStartSeconds;
+         SinceStart.get(SinceStartSeconds, TimeUnits::Seconds);
+         const int StepsSinceStart =
+             static_cast<int>(std::llround(SinceStartSeconds / StepSeconds));
+         if (StepsSinceStart % 2 != 0)
+            ModelClock->advance();
+      }
+
+      TimeInstant StartTime = ModelClock->getCurrentTime();
+      Alarm PeriodAlarm("TMSIPeriodAlarm_" + FieldSuffix, PeriodInterval,
+                        StartTime);
+      Op->initialize(Env, Mesh, VCoord, Config{});
+      Op->setPeriodAlarm(&PeriodAlarm);
+
+      for (int Step = 0; Step < NumSteps; ++Step) {
+         auto TestDataHost = createHostMirrorCopy(TestData);
+         for (I4 ICell = 0; ICell < Dims[0]; ++ICell)
+            for (I4 K = 0; K < Dims[1]; ++K)
+               TestDataHost(ICell, K) = StepValues[Step];
+         deepCopy(TestData, TestDataHost);
+
+         ModelClock->advance();
+         TimeInstant CurrentTime = ModelClock->getCurrentTime();
+         PeriodAlarm.updateStatus(CurrentTime);
+         Op->compute(CurrentTime);
+      }
+
+      auto ResultField = Field::get(FieldName + "_TimeMean" + PeriodLabel);
+      auto ResultData  = ResultField->getDataArray<Array2D_t<Real>>();
+      auto ResultHost  = createHostMirrorCopy(ResultData);
+      return ResultHost(0, 0);
+   };
+
+   bool Passed = true;
+
+   // 1. Gated mean with "2steps"
+   const Real StepsMean = runPeriod("steps", "2steps");
+   if (std::abs(StepsMean - GatedExpected) > 1.0e-8) {
+      Passed = false;
+      LOG_ERROR("  SamplingInterval '2steps': expected {}, got {}",
+                GatedExpected, StepsMean);
+   }
+
+   // 2. Three-form equivalence: "2perPeriod" and a raw TimeInterval string
+   //    must give the identical gated mean as "2steps".
+   const Real PerPeriodMean = runPeriod("perperiod", "2perPeriod");
+   if (std::abs(PerPeriodMean - GatedExpected) > 1.0e-8) {
+      Passed = false;
+      LOG_ERROR("  SamplingInterval '2perPeriod': expected {}, got {}",
+                GatedExpected, PerPeriodMean);
+   }
+
+   const Real RawIntervalMean = runPeriod("rawinterval", TwoStepSecondsStr);
+   if (std::abs(RawIntervalMean - GatedExpected) > 1.0e-8) {
+      Passed = false;
+      LOG_ERROR("  SamplingInterval '{}': expected {}, got {}",
+                TwoStepSecondsStr, GatedExpected, RawIntervalMean);
+   }
+
+   // 3. Every-step default (empty SamplingInterval) is bit-for-bit with the
+   //    ungated accumulation of all four steps.
+   const Real DefaultMean = runPeriod("default", "");
+   if (std::abs(DefaultMean - UngatedExpected) > 1.0e-8) {
+      Passed = false;
+      LOG_ERROR("  Default (every-step) mean: expected {}, got {}",
+                UngatedExpected, DefaultMean);
+   }
+
+   reportTest("TimeMeanOp: SamplingInterval gated mean + form equivalence",
+              Passed);
+}
+
+//------------------------------------------------------------------------------
+// Runs one 1Day averaging period of a new TimeMeanOp with the given
+// SamplingInterval and returns the mean at cell 0, layer 0. The field holds
+// the step number (1, 2, ...) on each step, and the period starts on a 6-hour
+// boundary of the clock, which is what the sample alarm is anchored to.
+Real runOneDaySampledMean(const std::string &FieldSuffix,
+                          const std::string &SamplingInterval,
+                          const MachEnv *Env, const HorzMesh *Mesh,
+                          const VertCoord *VCoord, Clock *ModelClock) {
+
+   using ArrayType = Array2DR8;
+
+   const std::string FieldName = "TestFieldTMDay_" + FieldSuffix;
+   const std::vector<I4> Dims  = {Mesh->NCellsSize, VCoord->NVertLayers};
+   auto TestField              = Field::create(
+       FieldName, "Test field for a 1Day SamplingInterval", TestUnits,
+       TestStdName, -1.0e30, 1.0e30, 2, {"NCells", "NVertLayers"});
+   ArrayType TestData(FieldName + "_data", Dims[0], Dims[1]);
+   TestField->attachData<ArrayType>(TestData);
+
+   Config OpConfig = makeOpConfig(opParam("Period", std::string("1Day")));
+   OpConfig.add("SamplingInterval", SamplingInterval);
+   auto Op = AnalysisOpFactory::createOp("TimeMean", {FieldName}, OpConfig);
+
+   R8 StepSeconds;
+   ModelClock->getTimeStep().get(StepSeconds, TimeUnits::Seconds);
+   const R8 SixHourSeconds = 6.0 * SECONDS_PER_HOUR;
+   while (true) {
+      TimeInterval SinceStart =
+          ModelClock->getCurrentTime() - ModelClock->getStartTime();
+      R8 SinceStartSeconds;
+      SinceStart.get(SinceStartSeconds, TimeUnits::Seconds);
+      if (std::fmod(SinceStartSeconds, SixHourSeconds) == 0.0)
+         break;
+      ModelClock->advance();
+   }
+
+   TimeInstant StartTime = ModelClock->getCurrentTime();
+   Alarm PeriodAlarm("TMDayPeriodAlarm_" + FieldSuffix,
+                     TimeInterval(1, TimeUnits::Days), StartTime);
+   Op->initialize(Env, Mesh, VCoord, Config{});
+   Op->setPeriodAlarm(&PeriodAlarm);
+
+   const I4 NumSteps =
+       static_cast<I4>(std::llround(SECONDS_PER_DAY / StepSeconds));
+   for (I4 Step = 1; Step <= NumSteps; ++Step) {
+      auto TestDataHost = createHostMirrorCopy(TestData);
+      for (I4 ICell = 0; ICell < Dims[0]; ++ICell)
+         for (I4 K = 0; K < Dims[1]; ++K)
+            TestDataHost(ICell, K) = static_cast<Real>(Step);
+      deepCopy(TestData, TestDataHost);
+
+      ModelClock->advance();
+      TimeInstant CurrentTime = ModelClock->getCurrentTime();
+      PeriodAlarm.updateStatus(CurrentTime);
+      Op->compute(CurrentTime);
+   }
+
+   auto ResultField = Field::get(FieldName + "_TimeMean1Day");
+   auto ResultData  = ResultField->getDataArray<Array2D_t<Real>>();
+   auto ResultHost  = createHostMirrorCopy(ResultData);
+   return ResultHost(0, 0);
+}
+
+//------------------------------------------------------------------------------
+// Verify that "<n>perPeriod" divides a period given in days rather than
+// truncating it: "4perPeriod" of a 1Day period samples every 6 hours, giving
+// the same mean as "6hour". The samples fall on the steps S, 2S, 3S and 4S,
+// where S is the number of steps in 6 hours, so the mean is 2.5 S.
+void testTimeMeanOpSamplingPerDay(const MachEnv *Env, const HorzMesh *Mesh,
+                                  const VertCoord *VCoord, Clock *ModelClock) {
+
+   R8 StepSeconds;
+   ModelClock->getTimeStep().get(StepSeconds, TimeUnits::Seconds);
+   const R8 StepsPerSixHours = 6.0 * SECONDS_PER_HOUR / StepSeconds;
+   if (StepsPerSixHours != std::floor(StepsPerSixHours)) {
+      LOG_INFO("  Skipping the 1Day SamplingInterval test: the time step "
+               "does not divide 6 hours");
+      return;
+   }
+   const Real Expected = 2.5_Real * static_cast<Real>(StepsPerSixHours);
+
+   bool Passed = true;
+   for (const auto &[Suffix, Interval] :
+        std::vector<std::pair<std::string, std::string>>{
+            {"perperiod", "4perPeriod"}, {"rawinterval", "6hour"}}) {
+      const Real Mean =
+          runOneDaySampledMean(Suffix, Interval, Env, Mesh, VCoord, ModelClock);
+      if (std::abs(Mean - Expected) > 1.0e-8) {
+         Passed = false;
+         LOG_ERROR("  SamplingInterval '{}' over 1Day: expected {}, got {}",
+                   Interval, Expected, Mean);
+      }
+   }
+
+   reportTest("TimeMeanOp: SamplingInterval perPeriod over a 1Day period",
+              Passed);
+}
+
+//------------------------------------------------------------------------------
 // Test TimeMeanOp with all array types
 void testTimeMeanOp(const MachEnv *Env, const HorzMesh *Mesh,
                     const VertCoord *VCoord, Clock *ModelClock) {
@@ -1417,6 +1657,10 @@ void testTimeMeanOp(const MachEnv *Env, const HorzMesh *Mesh,
    testTimeMeanOpType<Array3DR8>("3D-R8", Env, Mesh, VCoord, ModelClock);
 
    testTimeMeanOpInterfaceField(Env, Mesh, VCoord, ModelClock);
+
+   testTimeMeanOpSamplingInterval(Env, Mesh, VCoord, ModelClock);
+
+   testTimeMeanOpSamplingPerDay(Env, Mesh, VCoord, ModelClock);
 }
 
 //------------------------------------------------------------------------------

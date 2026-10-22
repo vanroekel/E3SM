@@ -3453,6 +3453,27 @@ void testClock(void) {
       }
    }
 
+   // Test detaching an alarm: once detached, advancing the clock past its
+   // ring time must leave it silent, and the alarms still attached must keep
+   // ringing
+
+   TimeInstant DetachTime = ModelClock.getCurrentTime() + Interval20min;
+   Alarm AlarmDetached("Detached", DetachTime);
+   Alarm AlarmAttached("Attached", DetachTime);
+   ModelClock.attachAlarm(&AlarmDetached);
+   ModelClock.attachAlarm(&AlarmAttached);
+   ModelClock.detachAlarm(&AlarmDetached);
+   ModelClock.advance();
+
+   if (AlarmDetached.isRinging())
+      ErrAll += Error(ErrorCode::Fail,
+                      "TimeMgrTest/Clock: detached alarm rang: FAIL");
+   if (!AlarmAttached.isRinging())
+      ErrAll +=
+          Error(ErrorCode::Fail, "TimeMgrTest/Clock: alarm after detach: FAIL");
+
+   ModelClock.detachAlarm(&AlarmAttached);
+
    CHECK_ERROR_ABORT(ErrAll, "TimeMgr/Clock unit tests FAIL");
 
 } // end testClock

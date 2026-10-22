@@ -27,6 +27,9 @@
 #include "VertMix.h"
 #include "analysisGroups/Groups.h"
 
+#include <cmath>
+#include <vector>
+
 using namespace OMEGA;
 
 // Test result tracking
@@ -649,9 +652,8 @@ void testMaskedMOCChainConstruction(const HorzMesh *Mesh,
    std::string TransectEdgeSignName = "TransectEdgeMaskSign" + TransectName;
 
    // Get mesh dimensions
-   I4 NCells      = Mesh->NCellsSize;
-   I4 NEdges      = Mesh->NEdgesSize;
-   I4 NVertLayers = VCoord->NVertLayers;
+   I4 NCells = Mesh->NCellsSize;
+   I4 NEdges = Mesh->NEdgesSize;
 
    // Get decomposition for global IDs
    auto Decomp  = Decomp::getDefault();
@@ -763,6 +765,336 @@ void testMaskedMOCChainConstruction(const HorzMesh *Mesh,
 
    reportTest("Integration: Masked MOC chain construction and execution",
               Passed);
+}
+
+//------------------------------------------------------------------------------
+// Verifies that a temporal reduction with a SamplingInterval computes the
+// operators upstream of it only on sample steps. A GlobalStats group whose
+// mean is averaged over four time steps, sampled every other one, is built in
+// an Analysis of its own, and after each computeAll() the spatial mean that
+// feeds the time mean must be fresh on sample steps and stale in between.
+void testSampledReductionUpstreamCompute(const HorzMesh *Mesh,
+                                         const VertCoord *VCoord,
+                                         Clock *ModelClock) {
+
+   bool Passed = true;
+
+   const std::string FieldName       = "SampledUpstreamTestField";
+   std::vector<std::string> DimNames = {"NCells"};
+   auto TestField =
+       Field::create(FieldName, "Test field for sampled upstream compute", "m",
+                     "", -1.0e30, 1.0e30, 1, DimNames);
+   Array1DReal TestData(FieldName + "_data", Mesh->NCellsSize);
+   Kokkos::deep_copy(TestData, 1.0_Real);
+   TestField->attachData<Array1DReal>(TestData);
+
+   R8 StepSeconds;
+   ModelClock->getTimeStep().get(StepSeconds, TimeUnits::Seconds);
+   const std::string Period =
+       std::to_string(static_cast<int>(4 * StepSeconds)) + "seconds";
+
+   Config GroupConfig;
+   GroupConfig.add("Fields", std::vector<std::string>{FieldName});
+   GroupConfig.add("SpatialStats", std::vector<std::string>{"Mean"});
+   GroupConfig.add("ReductionPeriod", std::vector<std::string>{Period});
+   GroupConfig.add("SnapshotPeriod", std::vector<std::string>{});
+   // std::string, since a string literal would pick Config::add's bool
+   // overload
+   GroupConfig.add("SamplingInterval", std::string("2steps"));
+   GroupConfig.add("Filename", std::string("testsampledupstream"));
+
+   auto DefEnv = MachEnv::getDefault();
+   Config TestConfig;
+   TestConfig.add("Analysis", "");
+   auto TestAnalysis = Analysis::create("TestSampledAnalysis", DefEnv, Mesh,
+                                        VCoord, ModelClock, &TestConfig);
+   GlobalStats TestGroup("TestSampledStats", GroupConfig, TestAnalysis);
+   TestAnalysis->buildOperatorDependencies();
+   TestAnalysis->setComputeAlarms();
+   TestAnalysis->initializeAllOps();
+
+   const OperatorNode *MeanNode     = nullptr;
+   const OperatorNode *TimeMeanNode = nullptr;
+   for (const auto *Node : TestAnalysis->getOpNodes()) {
+      if (Node->Op->getOperatorType() == "SpatialMean")
+         MeanNode = Node;
+      if (Node->Op->getOperatorType() == "TimeMean")
+         TimeMeanNode = Node;
+   }
+
+   if (MeanNode == nullptr || TimeMeanNode == nullptr) {
+      Passed = false;
+      LOG_ERROR("  Sampled GlobalStats chain has no SpatialMean or TimeMean");
+   } else {
+      // The clock has been advanced well past its start by earlier tests, so
+      // the new stream's alarm, anchored at the start, would ring at once.
+      // Move it to the boundary a run at this time would hold.
+      TimeInstant Now    = ModelClock->getCurrentTime();
+      Alarm *PeriodAlarm = IOStream::getAlarm(TimeMeanNode->StreamNames[0]);
+      PeriodAlarm->reset(Now);
+
+      for (int Step = 0; Step < 4; ++Step) {
+         ModelClock->advance();
+         Now = ModelClock->getCurrentTime();
+         TestAnalysis->computeAll();
+
+         // The stream is not written here, so reset its alarm as
+         // IOStream::writeAll() would after writing it. Otherwise it keeps
+         // ringing after the end of a period and computes everything.
+         if (PeriodAlarm->isRinging())
+            PeriodAlarm->reset(Now);
+
+         TimeInterval SinceStart = Now - ModelClock->getStartTime();
+         R8 SinceStartSeconds;
+         SinceStart.get(SinceStartSeconds, TimeUnits::Seconds);
+         const bool IsSampleStep =
+             std::llround(SinceStartSeconds / StepSeconds) % 2 == 0;
+         const bool Computed = MeanNode->Op->isCacheValid(Now);
+         if (Computed != IsSampleStep) {
+            Passed = false;
+            LOG_ERROR("  Upstream SpatialMean computed: {}, sample step: {}",
+                      Computed, IsSampleStep);
+         }
+      }
+   }
+
+   reportTest("Integration: sampled reduction computes upstream only on "
+              "sample steps",
+              Passed);
+}
+
+//===----------------------------------------------------------------------===//
+// Test 5.6.5: TimeMeanOp restart persistence
+//===----------------------------------------------------------------------===//
+
+//------------------------------------------------------------------------------
+// Helper: build a 2D Real test field (NCells x NVertLayers) and fill every
+// entry (including halo/inactive) with a uniform constant Value. Returns the
+// field's device data array so the caller can refresh it each step. Uniform
+// values keep the analytic mean trivial while still exercising the mesh-aware
+// active-layer accumulation path.
+Array2DReal createUniformTimeMeanField(const std::string &FieldName,
+                                       const HorzMesh *Mesh,
+                                       const VertCoord *VCoord, Real Value) {
+
+   I4 NCells      = Mesh->NCellsSize;
+   I4 NVertLayers = VCoord->NVertLayers;
+
+   std::vector<std::string> DimNames = {"NCells", "NVertLayers"};
+   auto TestField =
+       Field::create(FieldName, "Restart test field for TimeMeanOp", "m", "",
+                     -1.0e30, 1.0e30, 2, DimNames);
+
+   Array2DReal TestData(FieldName + "_data", NCells, NVertLayers);
+   TestField->attachData<Array2DReal>(TestData);
+
+   auto TestDataHost = createHostMirrorCopy(TestData);
+   for (I4 Cell = 0; Cell < NCells; ++Cell) {
+      for (I4 K = 0; K < NVertLayers; ++K) {
+         TestDataHost(Cell, K) = Value;
+      }
+   }
+   deepCopy(TestData, TestDataHost);
+   return TestData;
+}
+
+//------------------------------------------------------------------------------
+// Helper: overwrite a uniform 2D field's data array with a new constant Value.
+void setUniformFieldValue(Array2DReal &TestData, Real Value) {
+   auto TestDataHost = createHostMirrorCopy(TestData);
+   for (I4 Cell = 0; Cell < TestData.extent_int(0); ++Cell) {
+      for (I4 K = 0; K < TestData.extent_int(1); ++K) {
+         TestDataHost(Cell, K) = Value;
+      }
+   }
+   deepCopy(TestData, TestDataHost);
+}
+
+//------------------------------------------------------------------------------
+// Verifies that TimeMeanOp checkpoints and restores its mid-period averaging
+// state across a simulated restart. The checkpoint surfaces are the two Fields
+// the operator registers in the "Restart" FieldGroup:
+//   <Out>_AccumSum  - aliases the operator's OutputData (running partial sum)
+//   <Out>_NumAccum  - a one-element host I4 array holding the sample count
+// A restart is simulated in-memory by transporting those two arrays from a
+// "source" operator (interrupted mid-period) into a fresh "destination"
+// operator and then calling applyRestartState(), mirroring the restart-only
+// Analysis::applyRestartState() call in OceanInit.cpp. No file I/O is used.
+void testTimeMeanRestart(const MachEnv *Env, const HorzMesh *Mesh,
+                         const VertCoord *VCoord, Clock *ModelClock) {
+
+   // A period of NumSteps steps with a split after SplitStep steps. SplitStep
+   // is deliberately NOT a divisor of NumSteps to demonstrate that the old
+   // "reduction period must divide the restart interval" constraint is gone.
+   const int NumSteps  = 5;
+   const int SplitStep = 2;
+
+   // Per-step field values 5,6,7,8,9 -> analytic mean 7.0
+   auto StepValue = [](int Step) -> Real {
+      return 5.0_Real + static_cast<Real>(Step);
+   };
+
+   // Period alarm interval = NumSteps * timestep
+   TimeInterval StepInterval = ModelClock->getTimeStep();
+   R8 StepSeconds;
+   StepInterval.get(StepSeconds, TimeUnits::Seconds);
+   R8 PeriodSeconds = StepSeconds * NumSteps;
+   TimeInterval PeriodInterval(PeriodSeconds, TimeUnits::Seconds);
+   std::string PeriodLabel =
+       std::to_string(static_cast<int>(PeriodSeconds)) + "seconds";
+
+   const Real ExpectedMean = 7.0_Real;
+   const Real Tol          = 1.0e-8;
+
+   // --- Reference run: one uninterrupted operator over the full period ------
+   std::string RefFieldName = "TimeMeanRestartRef";
+   Array2DReal RefData =
+       createUniformTimeMeanField(RefFieldName, Mesh, VCoord, StepValue(0));
+
+   auto RefOp = AnalysisOpFactory::createOp(
+       "TimeMean", {RefFieldName},
+       makeOpConfig(opParam("Period", PeriodLabel)));
+   RefOp->initialize(Env, Mesh, VCoord, Config{});
+
+   TimeInstant RefStart = ModelClock->getCurrentTime();
+   Alarm RefAlarm("TimeMeanRestartRefAlarm", PeriodInterval, RefStart);
+   RefOp->setPeriodAlarm(&RefAlarm);
+
+   for (int Step = 0; Step < NumSteps; ++Step) {
+      setUniformFieldValue(RefData, StepValue(Step));
+      ModelClock->advance();
+      TimeInstant Now = ModelClock->getCurrentTime();
+      RefAlarm.updateStatus(Now);
+      RefOp->compute(Now);
+   }
+
+   const std::string RefOutName = RefFieldName + "_TimeMean" + PeriodLabel;
+
+   // --- Split run: source operator interrupted after SplitStep steps --------
+   std::string SrcFieldName = "TimeMeanRestartSrc";
+   Array2DReal SrcData =
+       createUniformTimeMeanField(SrcFieldName, Mesh, VCoord, StepValue(0));
+
+   auto SrcOp = AnalysisOpFactory::createOp(
+       "TimeMean", {SrcFieldName},
+       makeOpConfig(opParam("Period", PeriodLabel)));
+   SrcOp->initialize(Env, Mesh, VCoord, Config{});
+
+   TimeInstant SrcStart = ModelClock->getCurrentTime();
+   Alarm SrcAlarm("TimeMeanRestartSrcAlarm", PeriodInterval, SrcStart);
+   SrcOp->setPeriodAlarm(&SrcAlarm);
+
+   for (int Step = 0; Step < SplitStep; ++Step) {
+      setUniformFieldValue(SrcData, StepValue(Step));
+      ModelClock->advance();
+      TimeInstant Now = ModelClock->getCurrentTime();
+      SrcAlarm.updateStatus(Now);
+      SrcOp->compute(Now);
+   }
+
+   const std::string SrcOutName = SrcFieldName + "_TimeMean" + PeriodLabel;
+
+   // Assertion 1: the persisted count is kept in sync mid-period and equals
+   // the number of samples accumulated so far.
+   auto SrcCountField = Field::get(SrcOutName + "_NumAccum");
+   auto SrcCount      = SrcCountField->getDataArray<HostArray1DI4>();
+   bool CountSynced   = (SrcCount(0) == SplitStep);
+   if (!CountSynced) {
+      LOG_ERROR("  mid-period count: expected {}, got {}", SplitStep,
+                SrcCount(0));
+   }
+   reportTest("TimeMeanOp restart: count synced mid-period", CountSynced);
+
+   // --- Simulated restart: transport checkpoint state into a fresh op -------
+   std::string DstFieldName = "TimeMeanRestartDst";
+   Array2DReal DstData =
+       createUniformTimeMeanField(DstFieldName, Mesh, VCoord, StepValue(0));
+
+   auto DstOp = AnalysisOpFactory::createOp(
+       "TimeMean", {DstFieldName},
+       makeOpConfig(opParam("Period", PeriodLabel)));
+   DstOp->initialize(Env, Mesh, VCoord, Config{});
+
+   const std::string DstOutName = DstFieldName + "_TimeMean" + PeriodLabel;
+
+   // Copy the partial sum: _AccumSum aliases OutputData, so copying the
+   // source's AccumSum array into the destination's AccumSum array restores
+   // the mid-period running sum (device -> device).
+   auto SrcSumData =
+       Field::get(SrcOutName + "_AccumSum")->getDataArray<Array2DReal>();
+   auto DstSumData =
+       Field::get(DstOutName + "_AccumSum")->getDataArray<Array2DReal>();
+   deepCopy(DstSumData, SrcSumData);
+
+   // Copy the sample count (host -> host).
+   auto DstCount =
+       Field::get(DstOutName + "_NumAccum")->getDataArray<HostArray1DI4>();
+   DstCount(0) = SrcCount(0);
+
+   // Restore live operator state from the checkpoint Fields, exactly as the
+   // restart-only path in OceanInit.cpp does.
+   DstOp->applyRestartState();
+
+   // Continue the destination operator for the remaining steps of the period.
+   // On restart the period alarm is re-derived so it next rings at the same
+   // absolute period boundary as the uninterrupted run. Here that boundary is
+   // (NumSteps - SplitStep) steps after the restart point, so build the
+   // destination alarm with that remaining interval.
+   TimeInstant DstStart = ModelClock->getCurrentTime();
+   TimeInterval RemainInterval(StepSeconds * (NumSteps - SplitStep),
+                               TimeUnits::Seconds);
+   Alarm DstAlarm("TimeMeanRestartDstAlarm", RemainInterval, DstStart);
+   DstOp->setPeriodAlarm(&DstAlarm);
+
+   for (int Step = SplitStep; Step < NumSteps; ++Step) {
+      setUniformFieldValue(DstData, StepValue(Step));
+      ModelClock->advance();
+      TimeInstant Now = ModelClock->getCurrentTime();
+      DstAlarm.updateStatus(Now);
+      DstOp->compute(Now);
+   }
+
+   // Assertion 2: after finalizing a full period the persisted count is
+   // normalized to 0 (no partial period in progress).
+   auto DstCountAfter =
+       Field::get(DstOutName + "_NumAccum")->getDataArray<HostArray1DI4>();
+   bool CountReset = (DstCountAfter(0) == 0);
+   if (!CountReset) {
+      LOG_ERROR("  post-finalize count: expected 0, got {}", DstCountAfter(0));
+   }
+   reportTest("TimeMeanOp restart: count reset after finalize", CountReset);
+
+   // Assertion 3 & 4: the restarted run reproduces the uninterrupted mean on
+   // all active layers, proving the mid-period partial sum and count survived
+   // the restart and that the period need not divide the split point.
+   auto RefResult = Field::get(RefOutName)->getDataArray<Array2DReal>();
+   auto DstResult = Field::get(DstOutName)->getDataArray<Array2DReal>();
+   auto RefHost   = createHostMirrorCopy(RefResult);
+   auto DstHost   = createHostMirrorCopy(DstResult);
+
+   bool MeanMatches = true;
+   for (I4 Cell = 0; Cell < Mesh->NCellsOwned && MeanMatches; ++Cell) {
+      const I4 KMin = VCoord->MinLayerCellH(Cell);
+      const I4 KMax = VCoord->MaxLayerCellH(Cell);
+      for (I4 K = 0; K < VCoord->NVertLayers; ++K) {
+         const bool Active = (K >= KMin && K <= KMax);
+         if (!Active)
+            continue;
+         if (std::abs(DstHost(Cell, K) - ExpectedMean) > Tol ||
+             std::abs(DstHost(Cell, K) - RefHost(Cell, K)) > Tol) {
+            MeanMatches = false;
+            LOG_ERROR("  restart mean at ({}, {}): expected {} (ref {}), "
+                      "got {}",
+                      Cell, K, ExpectedMean, RefHost(Cell, K),
+                      DstHost(Cell, K));
+            break;
+         }
+      }
+   }
+   reportTest("TimeMeanOp restart: mid-period restart reproduces mean",
+              MeanMatches);
+   reportTest("TimeMeanOp restart: period not dividing restart interval",
+              MeanMatches && CountSynced);
 }
 
 //===----------------------------------------------------------------------===//
@@ -939,7 +1271,9 @@ int main(int argc, char *argv[]) {
       testComputeAllExecution(ModelClock);
       testOutputFieldsCreated();
       testStreamOutput();
+      testTimeMeanRestart(DefEnv, Mesh, VCoord, ModelClock);
       testMaskedMOCChainConstruction(Mesh, VCoord);
+      testSampledReductionUpstreamCompute(Mesh, VCoord, ModelClock);
 
       if (NumFailed > 0) {
          ErrCode = 1;

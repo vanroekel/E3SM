@@ -878,6 +878,13 @@ class Clock {
    void attachAlarm(Alarm *InAlarm ///< [in] pointer to alarm to attach
    );
 
+   /// Detaches an alarm from this clock, so that the clock no longer updates
+   /// it. An attached alarm must be detached before it is destroyed if the
+   /// clock may be advanced afterward. Does nothing if the alarm is not
+   /// attached.
+   void detachAlarm(Alarm *InAlarm ///< [in] pointer to alarm to detach
+   );
+
    /// Advance a clock one timestep and update status of any attached
    /// alarms.
    void advance(void);

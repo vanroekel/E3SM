@@ -271,18 +271,25 @@ Omega:
       Contents:
         - Tracers
   Analysis:
+    # Each group below unless otherwise noted supports two output modes:
+    #   ReductionPeriod - time-averaged output over a window (reduction)
+    #   SnapshotPeriod  - instantaneous snapshots at a fixed cadence
+    # Either or both may be used; an empty list ([]) disables that mode.
+    # SamplingInterval (reductions only) sets the accumulation cadence
+    # as "<n>steps", "<n>perPeriod", or a TimeInterval (e.g. 6Hours).
+    # The default "dt" means the accumulation occurs every timestep.
     GlobalStats:
       Enable: false
       # Global Statistics (GlobalStats) analysis group
       # Computes spatial reduction statistics (Mean, Min, Max, StdDev)
-      # for a set of ocean fields. Supports temporal reduction (time-averaged
-      # output over a window) and instantaneous snapshots (discrete sampling).
+      # for a set of ocean fields.
       Fields: [NormalVelocity, PseudoThickness, Temperature, Salinity]
                                 # List of field names to compute statistics for
       SpatialStats: [Max, Min, Mean, StdDev]
                                 # Spatial statistics to compute (one per field)
       ReductionPeriod: [1Day, 1Month]
-                                # Temporal reduction periods (time-averaged stats)
+                                # Temporal reduction periods
+      SamplingInterval: "dt"    # Accumulation cadence of the reductions
       SnapshotPeriod: [6Hours]
                                 # Instantaneous snapshot output intervals
       Filename: global.stats.$Y.nc
@@ -301,24 +308,27 @@ Omega:
                                 # NOTE: Region masks not yet implemented
       Transects: []             # List of transect names for transect-based MOC
                                 # NOTE: Transect masks not yet implemented
-      ReductionPeriod: [1Month]       # Temporal reduction periods
-      SnapshotPeriod: []  # Instantaneous output periods
-      Filename: moc.$Y.nc
+      ReductionPeriod: [1Month] # Temporal reduction periods
+      SamplingInterval: "dt"    # Accumulation cadence of the reductions
+      SnapshotPeriod: []        # Instantaneous output periods
+      Filename: moc.$Y-$M.nc
       Stream:
         FileFreq: 1
         FileFreqUnits: months
     MonthlyAverages:
       Enable: false
       # Monthly Averages (MonthlyAverages) analysis group
-      # Computes time averages of the requested global fields. Each field is
-      # averaged over a temporal window. The averaging period defaults to one
-      # month but can be overridden with the optional ReductionPeriod parameter.
+      # Reduction-only: computes time averages of the requested global fields
+      # (SnapshotPeriod is discarded if set). Each field is averaged over a
+      # temporal window. The averaging period defaults to one month but can be
+      # overridden with the optional ReductionPeriod parameter.
       # Output is written to the stream MonthlyAverages_<Period>TimeStats
       # (e.g., MonthlyAverages_1MonthTimeStats).
       Fields: [Temperature, Salinity, NormalVelocity, PseudoThickness]
                                 # List of global fields to average
       ReductionPeriod: [1Month]
-                                # Optional; averaging period(s), defaults to [1Month]
+                                # Optional; averaging period(s)
+      SamplingInterval: "dt"    # Accumulation cadence of the reductions
       Filename: monthly.averages.$Y.nc
       Stream:
         FileFreq: 1

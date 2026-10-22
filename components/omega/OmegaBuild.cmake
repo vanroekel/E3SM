@@ -166,7 +166,24 @@ macro(read_cime_config)
 
   set(SRCROOT "${E3SM_ROOT}")
 
+  # project() has not run yet, so CMAKE_SYSTEM_PROCESSOR is normally empty,
+  # and the macros branch on it: gnu.cmake picks -mcmodel by processor, and
+  # empty takes x86's -mcmodel=medium, which aarch64 gcc and arm64 clang
+  # reject. Use the host's processor for the include only, and leave
+  # detection to project().
+  set(_OMEGA_SYSTEM_PROCESSOR_SET FALSE)
+  if(NOT CMAKE_SYSTEM_PROCESSOR)
+    cmake_host_system_information(RESULT CMAKE_SYSTEM_PROCESSOR
+                                  QUERY OS_PLATFORM)
+    set(_OMEGA_SYSTEM_PROCESSOR_SET TRUE)
+  endif()
+
   include("${CASEROOT}/Macros.cmake")
+
+  if(_OMEGA_SYSTEM_PROCESSOR_SET)
+    unset(CMAKE_SYSTEM_PROCESSOR)
+  endif()
+  unset(_OMEGA_SYSTEM_PROCESSOR_SET)
 
 endmacro()
 

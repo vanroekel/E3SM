@@ -4187,6 +4187,28 @@ void Clock::attachAlarm(Alarm *InAlarm // [in] pointer to alarm to attach
 
 } // end Clock::attachAlarm
 
+//------------------------------------------------------------------------------
+// Clock::detachAlarm - Detaches an alarm from this clock
+// Removes the pointer to an alarm from this clock, so that the clock no longer
+// updates it, and shifts the remaining alarms down to fill the slot. The alarm
+// itself is unchanged. Does nothing if the alarm is not attached.
+
+void Clock::detachAlarm(Alarm *InAlarm // [in] pointer to alarm to detach
+) {
+
+   for (I4 N = 0; N < NumAlarms; ++N) {
+      if (Alarms[N] == InAlarm) {
+         for (I4 M = N; M < NumAlarms - 1; ++M) {
+            Alarms[M] = Alarms[M + 1];
+         }
+         Alarms[NumAlarms - 1] = nullptr;
+         NumAlarms -= 1;
+         return;
+      }
+   }
+
+} // end Clock::detachAlarm
+
 // Clock methods
 //------------------------------------------------------------------------------
 // Clock::advance - Advances a clock one timestep and updates alarms

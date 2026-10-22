@@ -12,6 +12,38 @@
 namespace OMEGA {
 
 //------------------------------------------------------------------------------
+// Parses a frequency string like "1day" or "6hour" into numeric and unit
+// components. Returns a vector with [0] = numeric part, [1] = units part.
+// Appends 's' to units if not already present for consistency with
+// TimeInterval.
+std::vector<std::string> parseFreqStr(const std::string &FreqStr) {
+
+   std::string DigitStr;
+   std::string UnitsStr;
+
+   // Find where digits end and units begin
+   size_t Pos = FreqStr.find_first_not_of("0123456789");
+   if (Pos != std::string::npos) {
+      DigitStr = FreqStr.substr(0, Pos);
+      UnitsStr = FreqStr.substr(Pos);
+   }
+
+   // Validate that we found both components
+   if (DigitStr.empty() || UnitsStr.empty()) {
+      ABORT_ERROR("Analysis: Invalid frequency string found in Config: {}",
+                  FreqStr);
+   }
+
+   // Ensure units end with 's' for consistency with TimeInterval
+   if (UnitsStr.back() != 's') {
+      UnitsStr += 's';
+   }
+
+   return {DigitStr, UnitsStr};
+
+} // end parseFreqStr
+
+//------------------------------------------------------------------------------
 // Default constructor
 AnalysisOperator::AnalysisOperator() = default;
 
