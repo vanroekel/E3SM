@@ -466,6 +466,14 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_Redi_k33_full_normalization" type="logical"
+	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
+If true, k33 at each interface is normalized by the weight of every possible slope triad of the cell, as the vertical cross term (term 3) effectively is, rather than by the triads present. Keeps K33 and K31 balanced next to topographic steps and side walls; unchanged where every edge has both triads.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_Redi_use_slope_taper" type="logical"
 	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
 If true, Redi is tapered based on Danabasoglu and McWilliams 1995 (slope tapering)

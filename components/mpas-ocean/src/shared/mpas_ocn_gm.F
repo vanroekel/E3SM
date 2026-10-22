@@ -164,6 +164,7 @@ contains
       real(kind=RKIND) :: eddyEnergyEdge, M2NInteg, eke,epe, BVFref
       real(kind=RKIND) :: bvfML, gradBuoy, bvfAv, hML, hAv, indMLDedge
       real(kind=RKIND), dimension(:), allocatable :: dzTop, dTdzTop, dSdzTop, k33Norm
+      real(kind=RKIND) :: sumAreaEdge
       real(kind=RKIND), dimension(:), allocatable :: RossbyRadiusTaper
       real(kind=RKIND) :: c_Visbeck   ! baroclinic wave speed from Visbeck parameterization
       real(kind=RKIND) :: c_mode1, resolution, dc_Lr
@@ -272,7 +273,7 @@ contains
          !$omp do schedule(runtime)  &
          !$omp private(invAreaCell, k33Norm, k, dzTop, dTdzTop, dSdzTop, i, iEdge, cell1, cell2, &
          !$omp         iCellSelf, dcEdgeInv, areaEdge, drhoDT, drhoDS, dTdx, dSdx, drhoDx, &
-         !$omp         slopeTaperUp, slopeTaperDown, sfcTaperUp, sfcTaperDown, sfcTaper)
+         !$omp         slopeTaperUp, slopeTaperDown, sfcTaperUp, sfcTaperDown, sfcTaper, sumAreaEdge)
          do iCell = 1, nCells
             invAreaCell = 1.0_RKIND/areaCell(iCell)
             k33(1:maxLevelCell(iCell) + 1, iCell) = 0.0_RKIND
@@ -293,6 +294,13 @@ contains
             dzTop(maxLevelCell(iCell) + 1) = -1e-15_RKIND
             dTdzTop(maxLevelCell(iCell) + 1) = -1e-15_RKIND
             dSdzTop(maxLevelCell(iCell) + 1) = -1e-15_RKIND
+
+            ! weight of every edge, for config_Redi_k33_full_normalization
+            sumAreaEdge = 0.0_RKIND
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               sumAreaEdge = sumAreaEdge + dcEdge(iEdge)*dvEdge(iEdge)
+            end do
 
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
@@ -392,7 +400,12 @@ contains
 
 !            ! Normalize k33
             do k = minLevelCell(iCell)+1, maxLevelCell(iCell)
-               k33(k, iCell) = k33(k, iCell)/k33Norm(k)
+               if (config_Redi_k33_full_normalization) then
+                  ! missing triads count as zero slope, as in term 3
+                  k33(k, iCell) = k33(k, iCell)/(2.0_RKIND*dzTop(k)*sumAreaEdge + epsGM)
+               else
+                  k33(k, iCell) = k33(k, iCell)/k33Norm(k)
+               end if
             end do
             k33(1:minLevelCell(iCell), iCell) = 0.0_RKIND
             k33(maxLevelCell(iCell) + 1, iCell) = 0.0_RKIND
