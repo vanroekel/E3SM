@@ -16,6 +16,7 @@
 #include "FillValues.h"
 #include "Forcing.h"
 #include "GlobalConstants.h"
+#include "Halo.h"
 #include "KPPConstants.h"
 #include "Logging.h"
 #include "OceanState.h"
@@ -369,8 +370,12 @@ void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
       }
    }
 
+   // The individual surface flux components are only valid on owned cells
+   // (they are not halo exchanged), so compute u* and B0 on owned cells and
+   // exchange them for the halo cells used by the OSBL smoothing and by the
+   // edge-based implicit momentum mixing.
    parallelFor(
-       "KPP-SurfaceForcing", {NCellsAll}, KOKKOS_LAMBDA(I4 ICell) {
+       "KPP-SurfaceForcing", {Mesh->NCellsOwned}, KOKKOS_LAMBDA(I4 ICell) {
           LocSurfaceForcing(
               LocFrictionVelocity, LocBuoyancyFlux, ICell, ConservTemp,
               AbsSalinity, LocPressureMid, LocSpecVol, ZonalStress, MeridStress,
@@ -379,6 +384,14 @@ void KPPMix::update(const Array3DReal &TracerArray, I4 TempTracerIndex,
               RainFlux, EvaporationFlux, SeaIceFreshWaterFlux, IceRunoffFlux,
               RiverRunoffFlux, SeaIceSaltFlux);
        });
+
+   Halo *MeshHalo = Halo::getDefault();
+   OMEGA_REQUIRE(MeshHalo, "KPPMix::update: null default Halo pointer");
+   I4 HaloErr = 0;
+   HaloErr += MeshHalo->exchangeFullArrayHalo(SurfaceFrictionVelocity, OnCell);
+   HaloErr += MeshHalo->exchangeFullArrayHalo(SurfaceBuoyancyFlux, OnCell);
+   OMEGA_REQUIRE(HaloErr == 0,
+                 "KPPMix::update: halo exchange of surface forcing failed");
 
    computeKPPMix(PotentialDensity, NormalVelocity, TangentialVelocity,
                  SurfaceFrictionVelocity, SurfaceBuoyancyFlux,
