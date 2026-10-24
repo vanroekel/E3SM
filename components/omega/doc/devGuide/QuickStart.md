@@ -94,6 +94,10 @@ For Omega development, you are expected to validate changes with the Polaris
     <https://docs.e3sm.org/polaris/main/users_guide/ocean/suites.html#omega-pr-suite>
 
 Both Polaris-based and standalone/manual workflows are supported.
+To build and test Omega as part of a coupled E3SM simulation or run CIME
+system tests, see {ref}`omega-user-cime-component-build` and
+{ref}`omega-dev-cime-testing`. Remember to source the machine's
+{ref}`CIME environment <omega-cime-env>` before running CIME commands.
 
 (omega-dev-quick-start-ctest-util)=
 
