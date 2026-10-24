@@ -18,7 +18,34 @@ coupled:
     Enable: true
 
   Frazil:
-    ConservationCheck: false
+    ConservationCheck: true
+
+  Analysis:
+    MonthlyAverages:
+      Enable: true
+      Fields:
+      - KPPMix
+      - VertMix
+      - DenMixLayerDepth
+      - SshCell
+      - PotentialDensity
+      - KineticEnergyCell
+      - RelVortVortex
+      - SfcStressZonal
+      - SfcStressMeridional
+      - ShortWaveHeatFlux
+      - LongWaveHeatFluxUp
+      - LongWaveHeatFluxDown
+      - SensibleHeatFlux
+      - LatentHeatFluxEvap
+      - SeaIceHeatFlux
+      - RainFlux
+      - SnowFlux
+      - EvaporationFlux
+      - RiverRunoffFlux
+      - IceRunoffFlux
+      - SeaIceFreshWaterFlux
+      - SeaIceSaltFlux
 
   IOStreams:
     Forcing:
@@ -45,13 +72,6 @@ coupled:
       FreqUnits: OnDemand
       UseStartEnd: false
       Contents: [Restart]
-
-    MonthlyAverages:
-      Enable: true
-      Fields:
-      - KPPMix
-      - VertMix
-      - DenMixLayerDepth
 
 meshes:
   # Per-mesh overrides may set any option except `IOStreams`.
