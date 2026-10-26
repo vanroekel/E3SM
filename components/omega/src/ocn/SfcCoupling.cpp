@@ -389,7 +389,10 @@ void SfcCoupling::updateExportFields(const OceanState *State,
    //       gradient, this will only need to be done once per coupling interval
    AuxiliaryState::getDefault()->computeMomVertAux(State, TracerArray, 0);
 
-   const auto &ExtraEnergy = Tendencies::getDefault()->ExtraEnergy;
+   auto *DefTendencies = Tendencies::getDefault();
+   OMEGA_REQUIRE(DefTendencies, "Null default Tendencies pointer in "
+                                "SfcCoupling::updateExportFields");
+   const auto &ExtraEnergy = DefTendencies->ExtraEnergy;
    OcnToCpl.updateFields(State, TracerArray, ExtraEnergy, NAccumSteps,
                          NCellsOwned, NEdgesAll);
 

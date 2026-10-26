@@ -35,8 +35,8 @@ struct TestSetup {
        {"Foxx_evap", 12}, {"Foxx_rofl", 13}, {"Foxx_rofi", 14},
        {"Si_bpress", 15}, {"Sa_pslv", 16}};
    std::map<std::string, int> ExportIdxMap = {
-       {"So_t", 2},    {"So_s", 4},    {"So_u", 6},  {"So_v", 9},
-       {"So_dhdx", 5}, {"So_dhdy", 3}, {"So_ssh", 1}};
+       {"So_t", 2},    {"So_s", 4},    {"So_u", 6},   {"So_v", 9},
+       {"So_dhdx", 5}, {"So_dhdy", 3}, {"So_ssh", 1}, {"Faoo_h2otemp", 0}};
 };
 
 CouplingInitParams mockCouplingInitParams(
@@ -148,6 +148,9 @@ int initSfcCouplingTest(const std::string &MeshFile) {
    // momentum/vertical aux variables so SshCell is current
    VertAdv::init();
    AuxiliaryState::init();
+   PressureGrad::init();
+   VertMix::init();
+   Tendencies::init();
 
    return Err;
 }
@@ -645,6 +648,9 @@ int testEraseAndGet() {
 
 void finalizeSfcCouplingTest() {
 
+   Tendencies::clear();
+   PressureGrad::clear();
+   VertMix::destroyInstance();
    AuxiliaryState::clear();
    VertAdv::clear();
    Tracers::clear();
