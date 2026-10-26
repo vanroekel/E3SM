@@ -390,7 +390,7 @@ void SfcCoupling::updateExportFields(const OceanState *State,
    AuxiliaryState::getDefault()->computeMomVertAux(State, TracerArray, 0);
 
    const auto &ExtraEnergy = Tendencies::getDefault()->ExtraEnergy;
-   OcnToCpl.updateFields(State, TracerArray, NAccumSteps, ExtraEnergy,
+   OcnToCpl.updateFields(State, TracerArray, ExtraEnergy, NAccumSteps,
                          NCellsOwned, NEdgesAll);
 
    NAccumSteps++;
