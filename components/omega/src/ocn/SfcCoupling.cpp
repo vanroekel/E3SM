@@ -8,7 +8,6 @@
 #include "Logging.h"
 #include "OceanState.h"
 #include "OmegaKokkos.h"
-#include "Tendencies.h"
 #include "Tracers.h"
 #include "VertCoord.h"
 
@@ -389,10 +388,8 @@ void SfcCoupling::updateExportFields(const OceanState *State,
    //       gradient, this will only need to be done once per coupling interval
    AuxiliaryState::getDefault()->computeMomVertAux(State, TracerArray, 0);
 
-   auto *DefTendencies = Tendencies::getDefault();
-   OMEGA_REQUIRE(DefTendencies, "Null default Tendencies pointer in "
-                                "SfcCoupling::updateExportFields");
-   const auto &ExtraEnergy = DefTendencies->ExtraEnergy;
+   const auto &ExtraEnergy =
+       Forcing::getDefault()->TracerForcing.ExtraEnergyCell;
    OcnToCpl.updateFields(State, TracerArray, ExtraEnergy, NAccumSteps,
                          NCellsOwned, NEdgesAll);
 

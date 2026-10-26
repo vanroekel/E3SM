@@ -148,9 +148,6 @@ int initSfcCouplingTest(const std::string &MeshFile) {
    // momentum/vertical aux variables so SshCell is current
    VertAdv::init();
    AuxiliaryState::init();
-   PressureGrad::init();
-   VertMix::init();
-   Tendencies::init();
 
    return Err;
 }
@@ -648,9 +645,6 @@ int testEraseAndGet() {
 
 void finalizeSfcCouplingTest() {
 
-   Tendencies::clear();
-   PressureGrad::clear();
-   VertMix::destroyInstance();
    AuxiliaryState::clear();
    VertAdv::clear();
    Tracers::clear();
