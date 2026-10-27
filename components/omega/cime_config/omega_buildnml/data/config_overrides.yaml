@@ -10,10 +10,22 @@ coupled:
     SfcStressForcingTendencyEnable: true
     SfcThicknessForcingTendencyEnable: true
     SfcTracerForcingTendencyEnable: true
+    FrazilTendencyEnable: true
+    PenetratingShortwaveTendency:
+      Enable: true
+
+  Submeso:
+    Enable: true
 
   IOStreams:
     Forcing:
       FreqUnits: Never
+
+    History:
+      Filename: omega.hist.$Y-$M-$D_$h.$m.$s.nc
+
+    Highfreq:
+      Filename: omega.hifreq.$Y-$M.nc
 
     RestartRead:
       UsePointerFile: true
@@ -49,6 +61,15 @@ meshes:
       TimeStep: "0000_00:30:00"
       ModeSplitShare:
         BtrTimeStep: 0000_00:01:15
+
+  u01-oi6to18:
+    TimeIntegration:
+      TimeStep: "0000_00:05:00"
+      ModeSplitShare:
+        BtrTimeStep: 0000_00:00:10
     Tendencies:
-      ViscDel2: 1197.0
-      ViscDel4: 2.06e11
+      TracerDiffTendencyEnable: false
+      VelDiffTendencyEnable: false
+      ViscDel4: 9.99e9
+      TracerHyperDiffTendencyEnable: false
+
