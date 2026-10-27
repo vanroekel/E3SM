@@ -115,9 +115,11 @@ class OcnToCplFields {
    ///< Fioo_frazilh [W m^-2], ocean frazil heat production
    HostArray1DReal AvgFrazilEnergyFluxH;
 
+   HostArray1DReal AvgExtraEnergyH;
+
    // Accumulate one ocean timestep's contribution to the running averages
    void updateFields(const OceanState *State, const Array3DReal &TracerArray,
-                     const Frazil *FrazilPtr,
+                     const Array1DReal &ExtraEnergy, const Frazil *FrazilPtr,
                      const Real CouplingTimeStepSeconds, I4 NAccumSteps,
                      I4 NCellsOwned, I4 NEdgesAll);
 
@@ -140,6 +142,7 @@ class OcnToCplFields {
    Array1DReal AvgFrazilMassFlux;   // [kg m^-2 s^-1], frazil mass production
    Array1DReal AvgFrazilSaltFlux;   // [kg m^-2 s^-1], frazil salt production
    Array1DReal AvgFrazilEnergyFlux; // [W m^-2], frazil heat production
+   Array1DReal AvgExtraEnergy;
 
    Array1DReal AvgSfcNormalVelocity; // [m s^-1], velocity normal to edge
    Array1DReal AvgSfcSshGrad;        // [m m^-1], ssh gradient normal to edge

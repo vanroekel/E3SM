@@ -11,7 +11,6 @@ coupled:
     SfcStressForcingTendencyEnable: true
     SfcThicknessForcingTendencyEnable: true
     SfcTracerForcingTendencyEnable: true
-    FrazilTendencyEnable: true
     PenetratingShortwaveTendency:
       Enable: true
 

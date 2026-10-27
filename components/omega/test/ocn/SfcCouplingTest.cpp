@@ -39,7 +39,7 @@ struct TestSetup {
        {"So_t", 2},          {"So_s", 4},         {"So_u", 6},
        {"So_v", 9},          {"So_dhdx", 5},      {"So_dhdy", 3},
        {"So_ssh", 1},        {"Fioo_q", 0},       {"Fioo_frazilm", 7},
-       {"Fioo_frazils", 11}, {"Fioo_frazilh", 10}};
+       {"Fioo_frazils", 11}, {"Fioo_frazilh", 10}, {"Faoo_h2otemp", 8}};
 };
 
 CouplingInitParams mockCouplingInitParams(
