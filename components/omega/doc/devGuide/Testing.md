@@ -339,3 +339,28 @@ Omega:
 For more details on updating either the map or the YAML files for individual
 tests, see the Polaris
 [Ocean Framework documentation](https://docs.e3sm.org/polaris/main/developers_guide/ocean/framework.html).
+
+(omega-dev-cime-testing)=
+
+## Running Coupled CIME Tests
+
+In addition to Polaris regression testing, developers testing coupled Omega
+configurations or validating pull requests can run CIME system tests (for
+example, the `ERS_Ld5.T62_oQU240.COMEGA-IAF` smoke/restart test).
+
+Before running `create_test` or any other CIME command, you must source the
+CIME environment for your machine to ensure `pyyaml` is available for Omega's
+`buildnml` (see the {ref}`table of machine environment paths <omega-cime-env>`):
+
+```bash
+# 1. Source CIME environment for your machine (e.g. on Chrysalis)
+source /lcrc/soft/climate/e3sm-unified/load_latest_cime_env.sh
+
+# 2. Run the test from the CIME scripts directory
+cd cime/scripts
+./create_test ERS_Ld5.T62_oQU240.COMEGA-IAF.<machine>
+```
+
+You can monitor test progress by inspecting `TestStatus.log` in the test directory.
+To set up and run full coupled cases interactively, refer to
+{ref}`omega-user-cime-component-build`.

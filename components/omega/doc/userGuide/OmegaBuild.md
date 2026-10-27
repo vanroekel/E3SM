@@ -172,11 +172,69 @@ Test project <cmake working directory>
 Total Test time (real) =   0.04 sec
 ```
 
+(omega-user-cime-component-build)=
+
 ## E3SM Component Build
 
 Omega can be built and run as the `ocn` component of a coupled E3SM simulation,
 using a compset where Omega is the ocean component (see
-`omega/cime_config/config_compsets.xml` for the currently supported compsets).
-Creating such a case and running `case.build`  builds Omega
-automatically: CIME's `omega/cime_config/buildlib_cmake` configures Omega with
+`components/omega/cime_config/config_compsets.xml` for supported compsets).
+Creating such a case and running `case.build` builds Omega
+automatically: CIME's `components/omega/cime_config/buildlib_cmake` configures Omega with
 `OMEGA_BUILD_MODE=E3SM` so that the coupler (c.f. standalone) driver is built.
+
+(omega-cime-env)=
+
+### Sourcing the CIME Environment
+
+Omega uses YAML configuration files instead of traditional Fortran namelists.
+When `case.setup` or `case.submit` runs, CIME executes Omega's
+`components/omega/cime_config/buildnml` in-process within the Python interpreter
+running CIME to generate `omega.yml`. Because `buildnml` depends on `pyyaml`,
+which is not part of the Python standard library, `pyyaml` must be importable in
+that Python environment before invoking any CIME commands.
+
+Before running any CIME commands (`create_newcase`, `case.setup`, `case.build`,
+`case.submit`, or `create_test`), source the CIME environment loader for your
+machine:
+
+| Machine | Environment Script |
+| :--- | :--- |
+| aurora | `source /lus/flare/projects/E3SMinput/soft/e3sm-unified/load_latest_cime_env.sh` |
+| chrysalis | `source /lcrc/soft/climate/e3sm-unified/load_latest_cime_env.sh` |
+| frontier | `source /ccs/proj/cli115/software/e3sm-unified/load_latest_cime_env.sh` |
+| perlmutter (`pm-cpu`, `pm-gpu`) | `source /global/common/software/e3sm/anaconda_envs/load_latest_cime_env.sh` |
+
+For a broader discussion of Python environment requirements and proposals for
+a unified E3SM development and test environment, see
+[E3SM Discussion #8906](https://github.com/E3SM-Project/E3SM/discussions/8906)
+and the linked design document.
+
+### Running a Coupled Case
+
+Once the CIME environment is sourced, you can create, configure, build, and run
+a coupled case from the root of your E3SM clone:
+
+```bash
+# 1. Source the CIME environment (e.g. on Chrysalis)
+source /lcrc/soft/climate/e3sm-unified/load_latest_cime_env.sh
+
+# 2. Navigate to CIME scripts and create a case
+cd cime/scripts
+./create_newcase --case /path/to/case --compset COMEGA-IAF --res T62_oQU240 --mach <machine>
+
+# 3. Setup the case (generates omega.yml via buildnml)
+cd /path/to/case
+./case.setup
+
+# 4. Build the case
+./case.build
+
+# 5. Submit the simulation
+./case.submit
+```
+
+Supported compsets include `COMEGA-IAF` and `COMEGA-JRA1p5` (data atmosphere and
+data sea ice with Omega ocean), as well as `GOMEGA-IAF` and `GOMEGA-JRA1p5`
+(with active MPAS-Seaice). Model runtime options can be customized in
+`user_nl_omega` prior to `case.setup` (see {ref}`omega-user-config`).
