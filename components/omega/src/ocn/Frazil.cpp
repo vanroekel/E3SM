@@ -287,6 +287,7 @@ void Frazil::registerFields() {
    FrazilMassField->attachData<Array1DReal>(FrazilMassFlux);
    FrazilSaltField->attachData<Array1DReal>(FrazilSaltFlux);
    FrazilEnergyField->attachData<Array1DReal>(FrazilEnergyFlux);
+   resetOcnStepFluxes();
    FieldsRegistered = true;
 }
 

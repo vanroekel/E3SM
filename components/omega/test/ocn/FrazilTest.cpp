@@ -59,6 +59,20 @@ void initFrazilTest(const std::string &mesh) {
    HorzMesh::init(ModelClock);
    VertCoord::init(false);
    Frazil::init();
+
+   Frazil *DefFrazil = Frazil::getDefault();
+   auto MassFluxH    = createHostMirrorCopy(DefFrazil->FrazilMassFlux);
+   auto SaltFluxH    = createHostMirrorCopy(DefFrazil->FrazilSaltFlux);
+   auto EnergyFluxH  = createHostMirrorCopy(DefFrazil->FrazilEnergyFlux);
+   for (I4 ICell = 0; ICell < HorzMesh::getDefault()->NCellsSize; ++ICell) {
+      if (MassFluxH(ICell) != 0.0_Real || SaltFluxH(ICell) != 0.0_Real ||
+          EnergyFluxH(ICell) != 0.0_Real) {
+         ABORT_ERROR("FrazilInitTest: step fluxes not zero-initialized at "
+                     "cell {} (Mass={}, Salt={}, Energy={})",
+                     ICell, MassFluxH(ICell), SaltFluxH(ICell),
+                     EnergyFluxH(ICell));
+      }
+   }
 }
 
 void finalizeFrazilTest() {
