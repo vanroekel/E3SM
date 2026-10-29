@@ -474,6 +474,14 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_Redi_bottom_horizontal" type="logical"
+	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
+If true, the slope triads at the top interface of each column's bottom cell are set to zero, so Redi mixing is horizontal there: k33 and both cross terms vanish together and the tensor stays density-neutral.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_Redi_use_slope_taper" type="logical"
 	category="Redi_isopycnal_mixing" group="Redi_isopycnal_mixing">
 If true, Redi is tapered based on Danabasoglu and McWilliams 1995 (slope tapering)

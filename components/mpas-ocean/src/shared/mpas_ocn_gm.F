@@ -297,10 +297,12 @@ contains
 
             ! weight of every edge, for config_Redi_k33_full_normalization
             sumAreaEdge = 0.0_RKIND
-            do i = 1, nEdgesOnCell(iCell)
-               iEdge = edgesOnCell(i, iCell)
-               sumAreaEdge = sumAreaEdge + dcEdge(iEdge)*dvEdge(iEdge)
-            end do
+            if (config_Redi_k33_full_normalization) then
+               do i = 1, nEdgesOnCell(iCell)
+                  iEdge = edgesOnCell(i, iCell)
+                  sumAreaEdge = sumAreaEdge + dcEdge(iEdge)*dvEdge(iEdge)
+               end do
+            end if
 
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
@@ -369,6 +371,12 @@ contains
 
                   sfcTaperUp = 1.0_RKIND + sfcTaperFactor*(sfcTaper - 1.0_RKIND)
                   sfcTaperDown = 1.0_RKIND + sfcTaperFactor*(sfcTaper - 1.0_RKIND)
+
+                  ! optionally zero the triads at the top of this column's bottom cell
+                  if (config_Redi_bottom_horizontal) then
+                     if (k == maxLevelCell(iCell)) slopeTriadUp(k, iCellSelf, iEdge) = 0.0_RKIND
+                     if (k == maxLevelCell(iCell) - 1) slopeTriadDown(k, iCellSelf, iEdge) = 0.0_RKIND
+                  end if
 
 !                  ! Griffies 1998 eqn 34
                   if (k > minLevelCell(iCell)) then

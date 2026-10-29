@@ -107,6 +107,7 @@ add_default($nl, 'config_Redi_constant_kappa');
 add_default($nl, 'config_Redi_maximum_slope');
 add_default($nl, 'config_Redi_bottom_consistent_k33');
 add_default($nl, 'config_Redi_k33_full_normalization');
+add_default($nl, 'config_Redi_bottom_horizontal');
 add_default($nl, 'config_Redi_use_slope_taper');
 add_default($nl, 'config_Redi_use_surface_taper');
 add_default($nl, 'config_Redi_limit_term1');

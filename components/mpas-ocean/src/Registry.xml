@@ -352,6 +352,10 @@
 					description="If true, k33 at each interface is normalized by the weight of every possible slope triad of the cell, as the vertical cross term (term 3) effectively is, rather than by the triads present. Keeps K33 and K31 balanced next to topographic steps and side walls; unchanged where every edge has both triads."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_Redi_bottom_horizontal" type="logical" default_value=".false."
+					description="If true, the slope triads at the top interface of each column's bottom cell are set to zero, so Redi mixing is horizontal there: k33 and both cross terms vanish together and the tensor stays density-neutral."
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_Redi_use_slope_taper" type="logical" default_value=".true."
 					description="If true, Redi is tapered based on Danabasoglu and McWilliams 1995 (slope tapering)"
 					possible_values=".true. or .false."
