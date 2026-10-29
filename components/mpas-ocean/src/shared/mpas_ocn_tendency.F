@@ -1325,40 +1325,42 @@ contains
          ! bottom boundary layer (overflow) transport across
          ! topographic steps
          !
-         if (computeBudgets) then
-            ! as in hmix above, the budget contribution is difference
-            ! between total tend before/after call - store before value
-            !$omp parallel
-            !$omp do schedule(runtime) private(k,n)
-            do iCell = 1, nCellsAll
-            do k = 1, nVertLevels
-            do n = 1, nTracersGroup
-               activeTracerOverflowTendency(n,k,iCell) = &
-                               tracerGroupTend(n,k,iCell)
-            end do
-            end do
-            end do
-            !$omp end do
-            !$omp end parallel
-         endif ! compute budgets
+         if (config_use_overflow) then
+            if (computeBudgets) then
+               ! as in hmix above, the budget contribution is difference
+               ! between total tend before/after call - store before value
+               !$omp parallel
+               !$omp do schedule(runtime) private(k,n)
+               do iCell = 1, nCellsAll
+               do k = 1, nVertLevels
+               do n = 1, nTracersGroup
+                  activeTracerOverflowTendency(n,k,iCell) = &
+                                  tracerGroupTend(n,k,iCell)
+               end do
+               end do
+               end do
+               !$omp end do
+               !$omp end parallel
+            endif ! compute budgets
 
-         call ocn_overflow_tend(tracerGroup, tracerGroupTend, err)
+            call ocn_overflow_tend(tracerGroup, tracerGroupTend, err)
 
-         if (computeBudgets) then
-            !$omp parallel
-            !$omp do schedule(runtime) private(k,n)
-            do iCell = 1, nCellsAll
-            do k = 1, nVertLevels
-            do n = 1, nTracersGroup
-               activeTracerOverflowTendency(n,k,iCell) = &
-                               tracerGroupTend(n,k,iCell) - &
-                               activeTracerOverflowTendency(n,k,iCell)
-            end do
-            end do
-            end do
-            !$omp end do
-            !$omp end parallel
-         endif ! compute budgets
+            if (computeBudgets) then
+               !$omp parallel
+               !$omp do schedule(runtime) private(k,n)
+               do iCell = 1, nCellsAll
+               do k = 1, nVertLevels
+               do n = 1, nTracersGroup
+                  activeTracerOverflowTendency(n,k,iCell) = &
+                                  tracerGroupTend(n,k,iCell) - &
+                                  activeTracerOverflowTendency(n,k,iCell)
+               end do
+               end do
+               end do
+               !$omp end do
+               !$omp end parallel
+            endif ! compute budgets
+         end if ! config_use_overflow
 
          !
          ! convert the surface tracer flux into a tracer tendency by
