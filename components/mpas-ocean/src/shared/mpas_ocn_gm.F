@@ -164,6 +164,7 @@ contains
       real(kind=RKIND) :: eddyEnergyEdge, M2NInteg, eke,epe, BVFref
       real(kind=RKIND) :: bvfML, gradBuoy, bvfAv, hML, hAv, indMLDedge
       real(kind=RKIND), dimension(:), allocatable :: dzTop, dTdzTop, dSdzTop, k33Norm
+      real(kind=RKIND) :: hBelow1, hBelow2, gmSlopeTaper, gmStepTaper, gmBx, gmN2SmaxSq
       real(kind=RKIND), dimension(:), allocatable :: RossbyRadiusTaper
       real(kind=RKIND) :: c_Visbeck   ! baroclinic wave speed from Visbeck parameterization
       real(kind=RKIND) :: c_mode1, resolution, dc_Lr
@@ -753,6 +754,29 @@ contains
                                                                      *layerThickEdgeMean(k, iEdge)) - BruntVaisalaFreqTopEdge
                rightHandSide(k - 1) = gmBolusKappa(iEdge)*gmKappaScaling(k,iEdge)*gravity/rho_sw* &
                                             gradDensityEddy(k,iEdge)
+               ! Optional MOM6-style RHS slope taper and topographic step / partial-cell taper
+               if (config_GM_MOM6_slope_taper .or. config_GM_MOM6_step_taper) then
+                  hBelow1 = sum(layerThickness(minLevelEdgeBot(iEdge)+1:maxLevelCell(cell1), cell1))
+                  hBelow2 = sum(layerThickness(minLevelEdgeBot(iEdge)+1:maxLevelCell(cell2), cell2))
+                  do k = minLevelEdgeBot(iEdge) + 1, maxLevelEdgeTop(iEdge)
+                     gmSlopeTaper = 1.0_RKIND
+                     if (config_GM_MOM6_slope_taper) then
+                        BruntVaisalaFreqTopEdge = max(0.5_RKIND*(BruntVaisalaFreqTop(k, cell1) + &
+                                                                 BruntVaisalaFreqTop(k, cell2)), 0.0_RKIND)
+                        gmBx = gravity/rho_sw * gradDensityEddy(k, iEdge)
+                        gmN2SmaxSq = (BruntVaisalaFreqTopEdge * config_Redi_maximum_slope)**2
+                        gmSlopeTaper = gmN2SmaxSq / (gmN2SmaxSq + gmBx**2 + 1.0E-30_RKIND)
+                     end if
+                     gmStepTaper = 1.0_RKIND
+                     if (config_GM_MOM6_step_taper) then
+                        gmStepTaper = min(hBelow1, hBelow2) / max(max(hBelow1, hBelow2), epsGM)
+                        hBelow1 = hBelow1 - layerThickness(k, cell1)
+                        hBelow2 = hBelow2 - layerThickness(k, cell2)
+                     end if
+                     rightHandSide(k - 1) = gmSlopeTaper * gmStepTaper * rightHandSide(k - 1)
+                  end do
+               end if
+
                ! Total number of rows
                N = maxLevelEdgeTop(iEdge) - minLevelEdgeBot(iEdge)
 
@@ -762,6 +786,17 @@ contains
                                       tridiagC(minLevelEdgeBot(iEdge):maxLevelEdgeTop(iEdge)), &
                                       rightHandSide(minLevelEdgeBot(iEdge):maxLevelEdgeTop(iEdge)), &
                                       gmStreamFuncTopOfEdge(minLevelEdgeBot(iEdge)+1:maxLevelEdgeTop(iEdge), iEdge), N)
+
+               if (config_GM_MOM6_step_taper) then
+                  hBelow1 = sum(layerThickness(minLevelEdgeBot(iEdge)+1:maxLevelCell(cell1), cell1))
+                  hBelow2 = sum(layerThickness(minLevelEdgeBot(iEdge)+1:maxLevelCell(cell2), cell2))
+                  do k = minLevelEdgeBot(iEdge) + 1, maxLevelEdgeTop(iEdge)
+                     gmStepTaper = min(hBelow1, hBelow2) / max(max(hBelow1, hBelow2), epsGM)
+                     gmStreamFuncTopOfEdge(k, iEdge) = gmStepTaper * gmStreamFuncTopOfEdge(k, iEdge)
+                     hBelow1 = hBelow1 - layerThickness(k, cell1)
+                     hBelow2 = hBelow2 - layerThickness(k, cell2)
+                  end do
+               end if
             end if
          end do
          !!$omp end do

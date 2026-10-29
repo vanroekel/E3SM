@@ -600,6 +600,22 @@ Valid values: MISSING POSSIBLE VALUES
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_GM_MOM6_slope_taper" type="logical"
+	category="GM_eddy_parameterization" group="GM_eddy_parameterization">
+If true, taper the GM boundary-value-problem right-hand side by the MOM6 rational slope factor 1 / (1 + (S / S_max)^2) = (N2 * S_max)^2 / ((N2 * S_max)^2 + bx^2) with S_max = config_Redi_maximum_slope, so steep-slope and N2 &lt;= 0 interfaces are tapered consistently with Redi and MOM6.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_GM_MOM6_step_taper" type="logical"
+	category="GM_eddy_parameterization" group="GM_eddy_parameterization">
+If true, scale the GM BVP forcing and streamfunction at each edge interface k by the MOM6 topographic step / partial-cell fraction min(H_below_1(k), H_below_2(k)) / max(H_below_1(k), H_below_2(k)) above the shallower neighbour seafloor.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_GM_constant_bclModeSpeed" type="real"
 	category="GM_eddy_parameterization" group="GM_eddy_parameterization">
 The parameter setting for the first baroclinic mode speed for the vertical stream function boundary value problem. This appears as $c$ in eqn 16a of Ferrari et al. 2010 (https://doi.org/10.1016/j.ocemod.2010.01.004).

@@ -610,6 +610,8 @@ add_default($nl, 'config_submesoscale_ds_max');
 add_default($nl, 'config_use_GM');
 add_default($nl, 'config_GM_closure');
 add_default($nl, 'config_GM_constant_kappa');
+add_default($nl, 'config_GM_MOM6_slope_taper');
+add_default($nl, 'config_GM_MOM6_step_taper');
 add_default($nl, 'config_GM_constant_bclModeSpeed');
 add_default($nl, 'config_GM_minBclModeSpeed_method');
 add_default($nl, 'config_GM_spatially_variable_min_kappa');
