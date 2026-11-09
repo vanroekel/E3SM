@@ -1,0 +1,24 @@
+schema_version: 1
+requester: vanroekel
+pull_request: 627
+pr_head: e57c6719255f0a9622d7d47970b65a0fb8a4a62f
+base_branch: develop
+base_head: 28937f3d8db40972e5ea39f419c2196e0c636421
+test_commit: d70b900e73fe6a26420c5c1bd74e0ea35eeb8965
+baseline:
+  commit: a67f43530cf5afe414cd1219f18e81383dec4fc0
+  source: polaris-submodule
+  reason:
+  polaris_commit: 4365526aaa94a287d6cb7bb36267eadc2a3e2904
+polaris_commit: 4365526aaa94a287d6cb7bb36267eadc2a3e2904
+extra_merges: []
+rows:
+- machine: pm-cpu
+  compiler: gnu
+  mpi: mpich
+  template: pm-cpu, gnu, mpich
+- machine: pm-gpu
+  compiler: gnugpu
+  mpi: mpich
+  template: pm-gpu, gnugpu, mpich
+notes:
